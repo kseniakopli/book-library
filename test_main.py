@@ -58,3 +58,37 @@ def test_invalid_status(client):
 def test_book_not_found(client):
     r = client.patch("/books/999", json={"status": "read"})
     assert r.status_code == 404
+
+def test_lang_default_is_russian(client):
+    # Без ?lang — по умолчанию русский.
+    r = client.patch("/books/999", json={"status": "read"})
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Книга не найдена"
+
+
+def test_lang_en_book_not_found(client):
+    # ?lang=en — то же сообщение по-английски.
+    r = client.patch("/books/999?lang=en", json={"status": "read"})
+    assert r.status_code == 404
+    assert r.json()["detail"] == "Book not found"
+
+
+def test_lang_en_invalid_status(client):
+    # Локализуется и ошибка неверного статуса.
+    r = client.patch("/books/1?lang=en", json={"status": "finished"})
+    assert r.status_code == 400
+    assert r.json()["detail"] == "Status must be want, reading or read"
+
+
+def test_lang_en_rating_needs_read(client):
+    # И правило «оценка только для read» — тоже на английском.
+    r = client.patch("/books/1?lang=en", json={"status": "want", "rating": 7})
+    assert r.status_code == 400
+    assert r.json()["detail"] == "Rating is only allowed for books with status 'read'"
+
+
+def test_invalid_lang_rejected(client):
+    # Неизвестный язык отклоняется; сообщение откатывается на русский.
+    r = client.patch("/books/1?lang=fr", json={})
+    assert r.status_code == 400
+    assert r.json()["detail"] == "lang должен быть ru или en"
