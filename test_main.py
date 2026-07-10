@@ -6,6 +6,8 @@ from fastapi.testclient import TestClient
 import database
 from models import Book
 from main import app
+import books
+from atmosphere import MusicResult, Song
 
 
 @pytest.fixture(name="client")
@@ -92,3 +94,54 @@ def test_invalid_lang_rejected(client):
     r = client.patch("/books/1?lang=fr", json={})
     assert r.status_code == 400
     assert r.json()["detail"] == "lang должен быть ru или en"
+
+async def fake_generate_music(title, author, lang="ru"):
+    # Мгновенный «AI» без сети: две подборки с разным содержимым.
+    return {
+        "Claude": MusicResult(
+            songs=[Song(title="Song A", artist="Artist A")],
+            explanation="Claude explanation",
+        ),
+        "ChatGPT": MusicResult(
+            songs=[Song(title="Song B", artist="Artist B")],
+            explanation="ChatGPT explanation",
+        ),
+    }
+
+
+def test_generate_music_two_sources(client, monkeypatch):
+    monkeypatch.setattr(books, "generate_music", fake_generate_music)
+    r = client.post("/books/1/music")
+    assert r.status_code == 200
+    sources = {s["source"] for s in r.json()["selections"]}
+    assert sources == {"Claude", "ChatGPT"}
+
+
+def test_generated_music_is_persisted(client, monkeypatch):
+    monkeypatch.setattr(books, "generate_music", fake_generate_music)
+    client.post("/books/1/music")
+    r = client.get("/books/1/music")
+    assert r.status_code == 200
+    claude = next(s for s in r.json()["selections"] if s["source"] == "Claude")
+    assert claude["songs"][0]["title"] == "Song A"
+    assert claude["explanation"] == "Claude explanation"
+
+
+def test_regenerate_does_not_duplicate(client, monkeypatch):
+    monkeypatch.setattr(books, "generate_music", fake_generate_music)
+    client.post("/books/1/music")
+    client.post("/books/1/music")            # второй раз
+    r = client.get("/books/1/music")
+    assert len(r.json()["selections"]) == 2  # всё ещё 2 варианта, а не 4
+
+
+def test_generate_music_book_not_found(client, monkeypatch):
+    monkeypatch.setattr(books, "generate_music", fake_generate_music)
+    r = client.post("/books/999/music")
+    assert r.status_code == 404
+
+
+def test_generate_music_invalid_lang(client, monkeypatch):
+    monkeypatch.setattr(books, "generate_music", fake_generate_music)
+    r = client.post("/books/1/music?lang=fr")
+    assert r.status_code == 400
