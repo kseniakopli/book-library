@@ -20,11 +20,13 @@ recommendations.
   a rating is only allowed for books with status `read`; leaving `read` clears the rating.
 - Language-aware requests (`ru` / `en`): external lookups and server messages follow the
   requested language.
+- AI music picks: for a book, Claude and ChatGPT each suggest an atmospheric playlist with an
+  explanation; both variants are stored per source.
 
-**Planned** (see `docs/`)
+**Planned**
 
-- Bilingual interface (RU / EN) with a language switcher; external requests aware of language.
-- AI-generated "Atmosphere" picks: music, food, scents — Claude vs ChatGPT variants.
+- Bilingual interface (RU / EN) with a language switcher.
+- AI "Atmosphere" picks for food and scents (same two-variant scheme as music).
 - Import books with ratings from CSV.
 - Recommendations based on reading history.
 - Statistics and reading tracking; authentication and multi-user support.
@@ -33,11 +35,11 @@ recommendations.
 
 - **Backend:** Python, FastAPI, SQLModel, SQLite
 - **Frontend (planned):** React
-- **External services:** Google Books API; Claude and ChatGPT (AI picks)
+- **External services:** Google Books API; Anthropic Claude and OpenAI ChatGPT (AI picks)
 
 ## Getting started
 
-Requires Python 3.
+Requires Python 3. Run from the repo root:
 
 ```
 # 1. Create and activate a virtual environment
@@ -45,10 +47,17 @@ python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # macOS / Linux
 
-# 2. Install dependencies
+# 2. Move into the backend and install dependencies
+cd backend
 pip install -r requirements.txt
 
-# 3. Run the development server
+# 3. Set up private files (both are gitignored)
+copy prompt_config.example.py prompt_config.py   # then edit your prompts
+# create backend/.env with your API keys:
+#   ANTHROPIC_API_KEY=...
+#   OPENAI_API_KEY=...
+
+# 4. Run the development server
 uvicorn main:app --reload
 ```
 
@@ -56,45 +65,55 @@ Then open the interactive API docs at http://127.0.0.1:8000/docs
 
 ## API endpoints
 
-| Method | Path             | Description                                             |
-|--------|------------------|---------------------------------------------------------|
-| POST   | `/books`         | Add a book (title, author); auto-fills cover & description |
-| GET    | `/books`         | List all books                                          |
-| PATCH  | `/books/{id}`    | Update status and/or rating (rating only for `read`)    |
+| Method | Path                    | Description                                             |
+|--------|-------------------------|---------------------------------------------------------|
+| POST   | `/books`                | Add a book (title, author); auto-fills cover & description |
+| GET    | `/books`                | List all books                                          |
+| PATCH  | `/books/{id}`           | Update status and/or rating (rating only for `read`)    |
+| POST   | `/books/{id}/music`     | Generate music picks (Claude + ChatGPT) and store them  |
+| GET    | `/books/{id}/music`     | Get stored music picks for a book                       |
 
-Add-book and update-book accept an optional `lang` query parameter (`ru` by default, or `en`).
+Endpoints accept an optional `lang` query parameter (`ru` by default, or `en`).
 
 ## Running tests
 
 ```
+cd backend
 pip install pytest httpx
 pytest -v
 ```
 
-Tests use an in-memory database and do not touch `library.db`.
+Tests use an in-memory database (they don't touch `library.db`) and mock the AI calls, so they
+spend no API tokens. A `backend/.env` file must exist, because the AI clients are created on
+import.
 
 ## Project structure
 
 ```
 book-library/
-├── main.py           # entry point: creates the app and includes the router
-├── books.py          # API endpoints (APIRouter)
-├── models.py         # SQLModel tables (Book)
-├── schemas.py        # Pydantic request models (BookCreate, BookUpdate)
-├── database.py       # engine and table creation
-├── i18n.py           # RU / EN messages
-├── google_books.py   # Google Books enrichment
-├── test_main.py      # pytest tests
-├── requirements.txt  # dependencies
-├── library.db        # SQLite database (created on first run)
-└── docs/             # technical spec and phased implementation plan
+├── backend/
+│   ├── main.py                   # entry point: creates the app, includes the router
+│   ├── books.py                  # API endpoints (APIRouter)
+│   ├── models.py                 # SQLModel tables (Book, AISelection)
+│   ├── schemas.py                # Pydantic request models
+│   ├── database.py               # engine and table creation
+│   ├── i18n.py                   # RU / EN messages
+│   ├── google_books.py           # Google Books enrichment
+│   ├── atmosphere.py             # AI music module (Claude + ChatGPT)
+│   ├── prompt_config.example.py  # prompt template (real prompt_config.py is private)
+│   ├── test_main.py              # pytest tests
+│   ├── requirements.txt          # dependencies
+│   └── library.db                # SQLite database (created on first run)
+├── frontend/                     # React app (planned)
+├── docs/                         # spec and phased plan (kept locally)
+└── README.md
 ```
 
 ## Roadmap
 
-The full technical specification and the phased implementation plan (with timeline) live in
-the `docs/` folder. The MVP covers the book database, add-with-enrichment, list and detail
-views, statuses and ratings, and the first AI pick (music).
+The MVP covers the book database, add-with-enrichment, list and detail views, statuses and
+ratings, and the first AI pick (music). Next comes the React frontend with an atmospheric
+book card, followed by CSV import, food and scent picks, and recommendations.
 
 ---
 
