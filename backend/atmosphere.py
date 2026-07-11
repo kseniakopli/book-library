@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 import anthropic
 from openai import AsyncOpenAI
-from prompt_config import build_music_prompt
+from prompt_config import build_music_prompt, build_design_prompt
 
 load_dotenv()                       # читаем ключи из .env
 claude_client = anthropic.AsyncAnthropic()
@@ -22,6 +22,20 @@ class MusicResult(BaseModel):
     songs: list[Song]
     explanation: str
 
+class Palette(BaseModel):
+    bg: str
+    surface: str
+    accent: str
+    text: str
+    muted: str
+
+
+class DesignResult(BaseModel):
+    base_mood: str
+    palette: Palette
+    title_font: str
+    body_font: str
+    statement: str
 
 
 
@@ -73,3 +87,21 @@ async def generate_music(title: str, author: str, lang: str = "ru") -> dict:
         safe_ask(ask_openai, title, author, lang),
     )
     return {"Claude": claude_result, "ChatGPT": openai_result}
+
+async def ask_claude_design(title: str, author: str, lang: str = "ru") -> DesignResult:
+    message = await claude_client.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=1500,
+        messages=[{"role": "user", "content": build_design_prompt(title, author, lang)}],
+    )
+    raw_text = ""
+    for block in message.content:
+        if block.type == "text":
+            raw_text = block.text
+            break
+    return DesignResult.model_validate(extract_json(raw_text))
+
+
+async def generate_design(title: str, author: str, lang: str = "ru") -> DesignResult:
+    """Дизайн-паспорт делаем одним источником (Claude) — оформление у книги одно."""
+    return await ask_claude_design(title, author, lang)

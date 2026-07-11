@@ -15,3 +15,19 @@ def build_music_prompt(title: str, author: str, lang: str = "ru") -> str:
   ],
   "explanation": "2-3 предложения"
 }}"""
+
+
+def build_design_prompt(title: str, author: str, lang: str = "ru") -> str:
+    language = "русском" if lang == "ru" else "английском"
+    return f"""Собери «паспорт атмосферы» для оформления карточки книги
+«{title}» ({author}). Ответь ТОЛЬКО валидным JSON по схеме:
+{{
+  "base_mood": "одно слово-настроение",
+  "palette": {{
+    "bg": "#hex", "surface": "#hex", "accent": "#hex",
+    "text": "#hex", "muted": "#hex"
+  }},
+  "title_font": "Google Font для заголовков",
+  "body_font": "Google Font для текста",
+  "statement": "атмосферная строка на {language} языке"
+}}"""

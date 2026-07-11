@@ -8,7 +8,7 @@ from models import Book, AISelection, ALLOWED_STATUSES
 from schemas import BookCreate, BookUpdate
 from i18n import ALLOWED_LANGS, msg
 from google_books import fetch_book_info
-from atmosphere import generate_music
+from atmosphere import generate_music, generate_design
 
 router = APIRouter()
 
@@ -140,3 +140,50 @@ def get_book_music(book_id: int):
             for row in rows
         ],
     }
+
+@router.post("/books/{book_id}/design")
+async def generate_book_design(book_id: int, lang: str = "ru"):
+    if lang not in ALLOWED_LANGS:
+        raise HTTPException(status_code=400, detail=msg("bad_lang", lang))
+
+    with Session(database.engine) as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise HTTPException(status_code=404, detail=msg("book_not_found", lang))
+        title, author = book.title, book.author
+
+    result = await generate_design(title, author, lang)   # реальный AI-вызов (Claude)
+
+    with Session(database.engine) as session:
+        old = session.exec(
+            select(AISelection).where(
+                AISelection.book_id == book_id,
+                AISelection.category == "design",
+            )
+        ).all()
+        for row in old:
+            session.delete(row)
+        session.add(AISelection(
+            book_id=book_id,
+            category="design",
+            source="Claude",
+            payload=result.model_dump_json(),   # весь паспорт как JSON-строка
+            explanation=result.statement,
+        ))
+        session.commit()
+
+    return result
+
+
+@router.get("/books/{book_id}/design")
+def get_book_design(book_id: int):
+    with Session(database.engine) as session:
+        row = session.exec(
+            select(AISelection).where(
+                AISelection.book_id == book_id,
+                AISelection.category == "design",
+            )
+        ).first()
+    if row is None:
+        return {"design": None}
+    return {"design": json.loads(row.payload)}

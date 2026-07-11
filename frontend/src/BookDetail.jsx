@@ -15,12 +15,33 @@ function BookDetail({ book, onBack, onUpdated }) {
   const [activeSource, setActiveSource] = useState("Claude");
   const [generating, setGenerating] = useState(false);
 
-  // Подгружаем уже сохранённые подборки при открытии карточки
+  const [design, setDesign] = useState(null);
+  const [generatingDesign, setGeneratingDesign] = useState(false);
+
   useEffect(() => {
     fetch(`/books/${book.id}/music`)
       .then((r) => r.json())
       .then((data) => setSelections(data.selections));
   }, [book.id]);
+
+  useEffect(() => {
+    fetch(`/books/${book.id}/design`)
+      .then((r) => r.json())
+      .then((data) => setDesign(data.design));
+  }, [book.id]);
+
+  // Подключаем шрифты из паспорта (Google Fonts)
+  useEffect(() => {
+    if (!design) return;
+    const families = [design.title_font, design.body_font]
+      .map((f) => f.trim().replace(/ /g, "+"))
+      .join("&family=");
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = `https://fonts.googleapis.com/css2?family=${families}&display=swap`;
+    document.head.appendChild(link);
+    return () => document.head.removeChild(link);
+  }, [design]);
 
   async function patch(body) {
     setSaving(true);
@@ -42,11 +63,41 @@ function BookDetail({ book, onBack, onUpdated }) {
     setGenerating(false);
   }
 
+  async function generateDesign() {
+    setGeneratingDesign(true);
+    const response = await fetch(`/books/${book.id}/design`, { method: "POST" });
+    const data = await response.json();
+    setDesign(data);
+    setGeneratingDesign(false);
+  }
+
   const active = selections.find((s) => s.source === activeSource);
 
+  // Паспорт → CSS-переменные и шрифты (наследуются всеми детьми карточки)
+  const themedStyle = design
+    ? {
+        "--surface": design.palette.surface,
+        "--accent": design.palette.accent,
+        "--text": design.palette.text,
+        "--muted": design.palette.muted,
+        "--border": design.palette.muted,
+        "--serif": `'${design.title_font}', Georgia, serif`,
+        background: design.palette.bg,
+        color: design.palette.text,
+        fontFamily: `'${design.body_font}', system-ui, sans-serif`,
+        padding: "28px",
+        borderRadius: "16px",
+      }
+    : {};
+
   return (
-    <div className="detail">
-      <button className="btn-ghost" onClick={onBack}>← К библиотеке</button>
+    <div className="detail" style={themedStyle}>
+      <div className="detail-bar">
+        <button className="btn-ghost" onClick={onBack}>← К библиотеке</button>
+        <button className="add-btn" onClick={generateDesign} disabled={generatingDesign}>
+          {generatingDesign ? "Оформляю…" : design ? "Обновить оформление" : "Оформить под книгу"}
+        </button>
+      </div>
 
       <div className="detail-top">
         <div className="detail-cover">
@@ -60,6 +111,7 @@ function BookDetail({ book, onBack, onUpdated }) {
         <div className="detail-info">
           <h1 className="detail-title">{book.title}</h1>
           <p className="detail-author">{book.author}</p>
+          {design && <p className="detail-statement">{design.statement}</p>}
 
           <div className="status-row">
             {STATUSES.map((s) => (
