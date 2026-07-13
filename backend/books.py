@@ -232,3 +232,21 @@ def search(q: str):
             session.commit()
 
     return {"results": results[:10]}
+
+@router.post("/books/backfill-covers")
+def backfill_covers():
+    updated = 0
+    with Session(database.engine) as session:
+        books = session.exec(
+            select(Book).where(col(Book.cover_url).is_(None))
+        ).all()
+        for book in books:
+            # свободный поиск лучше находит многословные русские названия
+            candidates = search_books(f"{book.title} {book.author}", max_results=5)
+            cover = next((c["cover_url"] for c in candidates if c["cover_url"]), None)
+            if cover:
+                book.cover_url = cover
+                session.add(book)
+                updated += 1
+        session.commit()
+    return {"updated": updated}
