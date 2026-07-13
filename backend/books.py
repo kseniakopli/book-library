@@ -1,13 +1,13 @@
 import json
 
 from fastapi import APIRouter, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, or_, col
 
 import database
-from models import Book, AISelection, ALLOWED_STATUSES
+from models import Book, AISelection, Catalog, ALLOWED_STATUSES
 from schemas import BookCreate, BookUpdate
 from i18n import ALLOWED_LANGS, msg
-from google_books import fetch_book_info
+from google_books import fetch_book_info, search_books
 from atmosphere import generate_music, generate_design
 
 router = APIRouter()
@@ -187,3 +187,48 @@ def get_book_design(book_id: int):
     if row is None:
         return {"design": None}
     return {"design": json.loads(row.payload)}
+
+@router.get("/search")
+def search(q: str):
+    q = q.strip()
+    if len(q) < 3:                       # от 3 символов — бережём внешний API
+        return {"results": []}
+
+    with Session(database.engine) as session:
+        pattern = f"%{q}%"
+        local = session.exec(
+            select(Catalog).where(
+                or_(col(Catalog.title).ilike(pattern), col(Catalog.author).ilike(pattern))
+            ).limit(10)
+        ).all()
+
+        results = [
+            {"title": c.title, "author": c.author, "cover_url": c.cover_url}
+            for c in local
+        ]
+
+        # Мало нашли в своём каталоге — идём во внешний источник и кэшируем найденное
+        if len(results) < 5:
+            external = search_books(q)
+            known_ids = {c.external_id for c in local if c.external_id}
+            seen = {(r["title"].lower(), r["author"].lower()) for r in results}
+            for item in external:
+                if item["external_id"] and item["external_id"] not in known_ids:
+                    session.add(Catalog(
+                        title=item["title"],
+                        author=item["author"],
+                        cover_url=item["cover_url"],
+                        source="google",
+                        external_id=item["external_id"],
+                    ))
+                key = (item["title"].lower(), item["author"].lower())
+                if key not in seen:
+                    results.append({
+                        "title": item["title"],
+                        "author": item["author"],
+                        "cover_url": item["cover_url"],
+                    })
+                    seen.add(key)
+            session.commit()
+
+    return {"results": results[:10]}

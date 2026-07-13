@@ -26,6 +26,16 @@ class AISelection(SQLModel, table=True):
     explanation: str = ""             # пояснение от AI
     created_at: datetime = Field(default_factory=datetime.now)
 
+# --- Каталог для поиска: наполняется из внешних источников, кэш для автоподсказки ---
+class Catalog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    title: str = Field(index=True)          # ищем по вхождению — индекс ускоряет
+    author: str = Field(index=True)
+    cover_url: Optional[str] = None
+    source: str = "google"                  # откуда (google / openlibrary)
+    external_id: Optional[str] = None       # id записи во внешнем источнике
+    created_at: datetime = Field(default_factory=datetime.now)
+
 
 ALLOWED_CATEGORIES = {"music", "food", "aroma"}
 
