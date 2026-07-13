@@ -145,3 +145,38 @@ def test_generate_music_invalid_lang(client, monkeypatch):
     monkeypatch.setattr(books, "generate_music", fake_generate_music)
     r = client.post("/books/1/music?lang=fr")
     assert r.status_code == 400
+
+def fake_search_books(query, max_results=8):
+    # Мгновенный «Google Books» без сети — два кандидата.
+    return [
+        {"title": "Мастер и Маргарита", "author": "Булгаков",
+         "cover_url": "http://x/cover.jpg", "external_id": "ext1"},
+        {"title": "Собачье сердце", "author": "Булгаков",
+         "cover_url": None, "external_id": "ext2"},
+    ]
+
+
+def test_search_too_short(client, monkeypatch):
+    monkeypatch.setattr(books, "search_books", fake_search_books)
+    r = client.get("/search?q=аб")            # меньше 3 символов
+    assert r.status_code == 200
+    assert r.json()["results"] == []
+
+
+def test_search_returns_external_results(client, monkeypatch):
+    monkeypatch.setattr(books, "search_books", fake_search_books)
+    r = client.get("/search?q=Булгаков")
+    assert r.status_code == 200
+    titles = [x["title"] for x in r.json()["results"]]
+    assert "Мастер и Маргарита" in titles
+
+
+def test_search_caches_to_catalog(client, monkeypatch):
+    monkeypatch.setattr(books, "search_books", fake_search_books)
+    client.get("/search?q=Булгаков")          # 1-й раз: внешний вызов + запись в каталог
+
+    # Ломаем внешний источник — теперь он возвращает пусто
+    monkeypatch.setattr(books, "search_books", lambda q, max_results=8: [])
+    r = client.get("/search?q=Булгаков")      # должно найтись уже в своём каталоге
+    titles = [x["title"] for x in r.json()["results"]]
+    assert "Мастер и Маргарита" in titles
