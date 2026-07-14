@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import BookDetail from "./BookDetail";
 
@@ -19,6 +19,9 @@ function App() {
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const [importMsg, setImportMsg] = useState("");
+  const fileInputRef = useRef(null);
+
   useEffect(() => {
     fetch("/books")
       .then((r) => r.json())
@@ -28,7 +31,6 @@ function App() {
       });
   }, []);
 
-  // Поиск с дебаунсом: ждём паузу в наборе, чтобы не дёргать сервер на каждый символ
   useEffect(() => {
     const term = query.trim();
     if (term.length < 3) {
@@ -44,7 +46,7 @@ function App() {
           setSearching(false);
         });
     }, 300);
-    return () => clearTimeout(timer);   // новый ввод отменяет предыдущий таймер
+    return () => clearTimeout(timer);
   }, [query]);
 
   async function addBook(candidate) {
@@ -58,6 +60,19 @@ function App() {
     setBooks((prev) => [...prev, newBook]);
     setSaving(false);
     closeModal();
+  }
+
+  async function importCsv(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/import", { method: "POST", body: formData });
+    const data = await response.json();
+    const fresh = await fetch("/books").then((r) => r.json());
+    setBooks(fresh);
+    setImportMsg(`Импортировано: ${data.imported}, пропущено: ${data.skipped}`);
+    e.target.value = "";   // сброс, чтобы можно было выбрать тот же файл снова
   }
 
   function closeModal() {
@@ -92,10 +107,24 @@ function App() {
           <h1 className="title">Библиотека</h1>
           <p className="subtitle">Атмосферные литературные вечера</p>
         </div>
-        <button className="add-btn" onClick={() => setShowModal(true)}>
-          + Добавить книгу
-        </button>
+        <div className="header-actions">
+          <input
+            type="file"
+            accept=".csv"
+            ref={fileInputRef}
+            onChange={importCsv}
+            style={{ display: "none" }}
+          />
+          <button className="btn-ghost" onClick={() => fileInputRef.current.click()}>
+            Импорт CSV
+          </button>
+          <button className="add-btn" onClick={() => setShowModal(true)}>
+            + Добавить книгу
+          </button>
+        </div>
       </header>
+
+      {importMsg && <p className="muted">{importMsg}</p>}
 
       {loading ? (
         <p className="muted">Загрузка…</p>
@@ -128,7 +157,7 @@ function App() {
       {showModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-head">
+            <div className="modal-head">
               <h2 className="modal-title">Найти книгу</h2>
               <button className="modal-close" onClick={closeModal} aria-label="Закрыть">×</button>
             </div>

@@ -1,8 +1,8 @@
+import csv
+import io
 import json
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from sqlmodel import Session, select, or_, col
-
 import database
 from models import Book, AISelection, Catalog, ALLOWED_STATUSES
 from schemas import BookCreate, BookUpdate
@@ -256,3 +256,33 @@ def backfill_covers():
                 updated += 1
         session.commit()
     return {"updated": updated}
+
+@router.post("/import")
+async def import_csv(file: UploadFile = File(...)):
+    content = await file.read()
+    text = content.decode("utf-8-sig")        # utf-8-sig убирает BOM, если он есть
+    reader = csv.DictReader(io.StringIO(text))
+
+    imported = 0
+    skipped = 0
+    with Session(database.engine) as session:
+        for row in reader:
+            title = (row.get("Название") or "").strip()
+            author = (row.get("Автор") or "").strip()
+            if not title or not author:       # нет названия/автора — пропускаем строку
+                skipped += 1
+                continue
+
+            rating = None
+            raw = (row.get("Моя оценка") or "").strip()
+            if raw.isdigit() and 1 <= int(raw) <= 10:
+                rating = int(raw)
+
+            read_date = (row.get("Дата прочтения") or "").strip()
+            status = "read" if (rating is not None or read_date) else "want"
+
+            session.add(Book(title=title, author=author, rating=rating, status=status))
+            imported += 1
+        session.commit()
+
+    return {"imported": imported, "skipped": skipped}

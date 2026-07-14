@@ -293,3 +293,5 @@ body {
   padding: 0 4px;
 }
 .modal-close:hover { color: var(--text); }
+
+.header-actions { display: flex; align-items: center; gap: 10px; }
