@@ -281,8 +281,59 @@ async def import_csv(file: UploadFile = File(...)):
             read_date = (row.get("Дата прочтения") or "").strip()
             status = "read" if (rating is not None or read_date) else "want"
 
-            session.add(Book(title=title, author=author, rating=rating, status=status))
+            isbn = (row.get("ISBN") or "").strip() or None
+            session.add(Book(title=title, author=author, rating=rating, status=status, isbn=isbn))
             imported += 1
         session.commit()
 
     return {"imported": imported, "skipped": skipped}
+
+@router.post("/books/backfill-metadata")
+def backfill_metadata(limit: int = 40, lang: str = "ru"):
+    updated = 0
+    with Session(database.engine) as session:
+        # берём порцию книг, у которых ещё нет метаданных (raw_metadata пуст)
+        books = session.exec(
+            select(Book).where(col(Book.raw_metadata).is_(None)).limit(limit)
+        ).all()
+        for book in books:
+            info = fetch_book_info(book.title, book.author, lang)
+            if not info["raw_metadata"]:
+                continue          # не нашли или сбой сети — попробуем в следующий заход
+            book.cover_url = info["cover_url"] or book.cover_url
+            book.description = info["description"] or book.description
+            book.page_count = info["page_count"]
+            book.categories = info["categories"]
+            book.published_year = info["published_year"]
+            book.language = info["language"]
+            book.external_rating = info["external_rating"]
+            book.raw_metadata = info["raw_metadata"]
+            session.add(book)
+            updated += 1
+        session.commit()
+        remaining = len(session.exec(
+            select(Book).where(col(Book.raw_metadata).is_(None))
+        ).all())
+    return {"updated": updated, "remaining": remaining}
+
+@router.post("/books/{book_id}/enrich")
+def enrich_book(book_id: int, lang: str = "ru"):
+    with Session(database.engine) as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise HTTPException(status_code=404, detail=msg("book_not_found", lang))
+
+        info = fetch_book_info(book.title, book.author, lang, isbn=book.isbn)
+        if info["raw_metadata"]:              # нашли подходящую книгу — обновляем
+            book.cover_url = info["cover_url"] or book.cover_url
+            book.description = info["description"] or book.description
+            book.page_count = info["page_count"]
+            book.categories = info["categories"]
+            book.published_year = info["published_year"]
+            book.language = info["language"]
+            book.external_rating = info["external_rating"]
+            book.raw_metadata = info["raw_metadata"]
+            session.add(book)
+            session.commit()
+            session.refresh(book)
+    return book

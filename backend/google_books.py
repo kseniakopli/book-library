@@ -8,8 +8,23 @@ load_dotenv()
 GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
 
 # --- Обогащение: тянем обложку и описание из Google Books ---
-def fetch_book_info(title: str, author: str, lang: str = "ru") -> dict:
-    """Тянем из Google Books обложку, описание и поля под статистику."""
+def _books_request(query: str) -> list:
+    """Один запрос к Google Books. Возвращает список томов; при любой ошибке — пустой список."""
+    try:
+        response = requests.get(
+            "https://www.googleapis.com/books/v1/volumes",
+            params={"q": query, "maxResults": 10, "key": GOOGLE_BOOKS_API_KEY},
+            timeout=5,
+        )
+        response.raise_for_status()
+        return response.json().get("items", [])
+    except requests.RequestException:
+        return []
+
+
+def fetch_book_info(title: str, author: str, lang: str = "ru", isbn: str = None) -> dict:
+    """Данные из Google Books. Сначала по ISBN (точное издание),
+    если не нашли — по названию+автору с проверкой заголовка."""
     result = {
         "cover_url": None,
         "description": None,
@@ -21,28 +36,38 @@ def fetch_book_info(title: str, author: str, lang: str = "ru") -> dict:
         "raw_metadata": None,
     }
     try:
-        response = requests.get(
-            "https://www.googleapis.com/books/v1/volumes",
-            params={
-                "q": f"{title} {author}",
-                "maxResults": 1,
-                "langRestrict": lang,
-                "key": GOOGLE_BOOKS_API_KEY,
-            },
-            timeout=5,
-        )
-        response.raise_for_status()
-        items = response.json().get("items", [])
-        if not items:
+        info = None
+
+        # 1) по ISBN — точное издание (без дефисов)
+        clean_isbn = isbn.replace("-", "").replace(" ", "") if isbn else None
+        if clean_isbn:
+            items = _books_request(f"isbn:{clean_isbn}")
+            if items:
+                candidate = items[0].get("volumeInfo", {})
+                # берём издание по ISBN только если в нём есть обложка или описание;
+                # иначе это «пустая» карточка — уйдём в поиск по названию
+                if candidate.get("imageLinks") or candidate.get("description"):
+                    info = candidate
+
+        # 2) не нашли по ISBN — ищем по названию+автору
+        if info is None:
+            items = _books_request(f"{title} {author}")
+            wanted = title.strip().lower()
+            for item in items:
+                candidate = item.get("volumeInfo", {})
+                found_title = (candidate.get("title") or "").strip().lower()
+                if found_title == wanted or wanted in found_title:
+                    info = candidate
+                    break
+
+        if info is None:
             return result
-        info = items[0].get("volumeInfo", {})
 
         result["description"] = info.get("description")
         image_links = info.get("imageLinks", {})
         cover = image_links.get("thumbnail") or image_links.get("smallThumbnail")
         if cover:
             result["cover_url"] = cover.replace("http://", "https://")
-
         result["page_count"] = info.get("pageCount")
         categories = info.get("categories")
         result["categories"] = json.dumps(categories, ensure_ascii=False) if categories else None

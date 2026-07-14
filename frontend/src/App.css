@@ -295,3 +295,4 @@ body {
 .modal-close:hover { color: var(--text); }
 
 .header-actions { display: flex; align-items: center; gap: 10px; }
+.detail-bar-actions { display: flex; gap: 10px; flex-wrap: wrap; }

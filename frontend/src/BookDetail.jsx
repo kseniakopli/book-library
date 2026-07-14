@@ -8,6 +8,7 @@ const STATUS_LABELS = {
 
 const STATUSES = ["want", "reading", "read"];
 
+
 function BookDetail({ book, onBack, onUpdated }) {
   const [saving, setSaving] = useState(false);
 
@@ -17,6 +18,7 @@ function BookDetail({ book, onBack, onUpdated }) {
 
   const [design, setDesign] = useState(null);
   const [generatingDesign, setGeneratingDesign] = useState(false);
+  const [enriching, setEnriching] = useState(false);
 
   useEffect(() => {
     fetch(`/books/${book.id}/music`)
@@ -71,6 +73,14 @@ function BookDetail({ book, onBack, onUpdated }) {
     setGeneratingDesign(false);
   }
 
+    async function enrich() {
+    setEnriching(true);
+    const response = await fetch(`/books/${book.id}/enrich`, { method: "POST" });
+    const updated = await response.json();
+    setEnriching(false);
+    onUpdated(updated);
+  }
+
   const active = selections.find((s) => s.source === activeSource);
 
   // Паспорт → CSS-переменные и шрифты (наследуются всеми детьми карточки)
@@ -94,9 +104,14 @@ function BookDetail({ book, onBack, onUpdated }) {
     <div className="detail" style={themedStyle}>
       <div className="detail-bar">
         <button className="btn-ghost" onClick={onBack}>← К библиотеке</button>
-        <button className="add-btn" onClick={generateDesign} disabled={generatingDesign}>
-          {generatingDesign ? "Оформляю…" : design ? "Обновить оформление" : "Оформить под книгу"}
-        </button>
+        <div className="detail-bar-actions">
+          <button className="btn-ghost" onClick={enrich} disabled={enriching}>
+            {enriching ? "Обновляю…" : "Обновить информацию"}
+          </button>
+          <button className="add-btn" onClick={generateDesign} disabled={generatingDesign}>
+            {generatingDesign ? "Оформляю…" : design ? "Обновить оформление" : "Оформить под книгу"}
+          </button>
+        </div>
       </div>
 
       <div className="detail-top">
