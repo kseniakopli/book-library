@@ -128,7 +128,10 @@ function App() {
       {showModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">Найти книгу</h2>
+                <div className="modal-head">
+              <h2 className="modal-title">Найти книгу</h2>
+              <button className="modal-close" onClick={closeModal} aria-label="Закрыть">×</button>
+            </div>
             <input
               className="search-input"
               value={query}

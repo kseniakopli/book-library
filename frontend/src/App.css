@@ -275,3 +275,21 @@ body {
 .search-text { display: flex; flex-direction: column; }
 .search-title { font-weight: 500; }
 .search-author { color: var(--muted); font-size: 13px; }
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.modal-head .modal-title { margin: 0; }
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--muted);
+  padding: 0 4px;
+}
+.modal-close:hover { color: var(--text); }

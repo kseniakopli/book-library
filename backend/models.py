@@ -15,6 +15,13 @@ class Book(SQLModel, table=True):
     status: str = "want"                   # want / reading / read
     rating: Optional[int] = None           # 1..10, только для прочитанных
     created_at: datetime = Field(default_factory=datetime.now)
+    # --- поля под статистику (из Google Books) ---
+    page_count: Optional[int] = None
+    categories: Optional[str] = None         # JSON-строка со списком жанров
+    published_year: Optional[int] = None
+    language: Optional[str] = None
+    external_rating: Optional[float] = None   # средний рейтинг Google
+    raw_metadata: Optional[str] = None        # полный volumeInfo как JSON (страховка)
 
 # --- AI-подборка «Атмосфера»: одна строка = один вариант (источник) для книги ---
 class AISelection(SQLModel, table=True):

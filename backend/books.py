@@ -23,6 +23,12 @@ def add_book(data: BookCreate, lang: str = "ru"):
         author=data.author,
         cover_url=info["cover_url"],
         description=info["description"],
+        page_count=info["page_count"],
+        categories=info["categories"],
+        published_year=info["published_year"],
+        language=info["language"],
+        external_rating=info["external_rating"],
+        raw_metadata=info["raw_metadata"],
     )
     with Session(database.engine) as session:
         session.add(book)
