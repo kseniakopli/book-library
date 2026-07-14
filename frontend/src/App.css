@@ -93,8 +93,22 @@ body {
   font-size: 13px;
 }
 
-.book-title { font-family: var(--serif); font-size: 18px; line-height: 1.2; margin: 0 0 2px; }
-.book-author { color: var(--muted); font-size: 14px; margin: 0 0 10px; }
+.book-title {   
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.2;
+  margin: 0 0 2px;
+  min-height: 2.4em;               /* место под 2 строки — карточки ровные */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;           /* длинные названия обрезаем до 2 строк */
+  -webkit-box-orient: vertical;
+  overflow: hidden;}
+.book-author {   color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 10px;
+  white-space: nowrap;             /* автор в одну строку */
+  overflow: hidden;
+  text-overflow: ellipsis; }
 
 .book-meta {
   display: flex;

@@ -51,7 +51,10 @@ function App() {
     const response = await fetch("/books", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: candidate.title, author: candidate.author }),
+      body: JSON.stringify({
+        title: candidate.title,
+        author: candidate.author,
+      }),
     });
     const newBook = await response.json();
     setBooks((prev) => [...prev, newBook]);
@@ -100,7 +103,7 @@ function App() {
     ? books.filter(
         (b) =>
           b.title.toLowerCase().includes(trimmed) ||
-          b.author.toLowerCase().includes(trimmed)
+          b.author.toLowerCase().includes(trimmed),
       )
     : null;
   const readBooks = books.filter((b) => b.status === "read");
@@ -122,7 +125,10 @@ function App() {
             onChange={importCsv}
             style={{ display: "none" }}
           />
-          <button className="btn-ghost" onClick={() => fileInputRef.current.click()}>
+          <button
+            className="btn-ghost"
+            onClick={() => fileInputRef.current.click()}
+          >
             Импорт CSV
           </button>
           <button className="add-btn" onClick={() => setShowModal(true)}>
@@ -154,9 +160,20 @@ function App() {
         )
       ) : (
         <>
-          <Shelf title="Прочитано" books={readBooks} onSelect={setSelectedBook} />
-          <Shelf title="Хочу прочитать" books={wantBooks} onSelect={setSelectedBook} />
-          <Shelf title="Рекомендации" placeholder="Скоро — на основе прочитанного" />
+          <Shelf
+            title="Прочитано"
+            books={readBooks}
+            onSelect={setSelectedBook}
+          />
+          <Shelf
+            title="Хочу прочитать"
+            books={wantBooks}
+            onSelect={setSelectedBook}
+          />
+          <Shelf
+            title="Рекомендации"
+            placeholder="Скоро — на основе прочитанного"
+          />
         </>
       )}
 
@@ -165,7 +182,13 @@ function App() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <h2 className="modal-title">Найти книгу</h2>
-              <button className="modal-close" onClick={closeModal} aria-label="Закрыть">×</button>
+              <button
+                className="modal-close"
+                onClick={closeModal}
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
             </div>
             <input
               className="search-input"
@@ -186,7 +209,11 @@ function App() {
             <ul className="search-results">
               {searchResults.map((r, i) => (
                 <li key={i}>
-                  <button className="search-item" onClick={() => addBook(r)} disabled={saving}>
+                  <button
+                    className="search-item"
+                    onClick={() => addBook(r)}
+                    disabled={saving}
+                  >
                     <span className="search-cover">
                       {r.cover_url && <img src={r.cover_url} alt="" />}
                     </span>
