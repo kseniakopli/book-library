@@ -180,3 +180,57 @@ def test_search_caches_to_catalog(client, monkeypatch):
     r = client.get("/search?q=Булгаков")      # должно найтись уже в своём каталоге
     titles = [x["title"] for x in r.json()["results"]]
     assert "Мастер и Маргарита" in titles
+
+def _upload(client, csv_text):
+    return client.post(
+        "/import",
+        files={"file": ("books.csv", csv_text.encode("utf-8"), "text/csv")},
+    )
+
+
+def test_import_creates_books(client):
+    csv_text = (
+        "Название,Автор,Дата прочтения,Моя оценка,ISBN\n"
+        "Тестовая книга,Тестовый Автор,Июль 2026 г.,7,111\n"
+        "Другая книга,Другой Автор,Июнь 2026 г.,3,222\n"
+    )
+    r = _upload(client, csv_text)
+    assert r.status_code == 200
+    assert r.json() == {"imported": 2, "skipped": 0}
+    titles = [b["title"] for b in client.get("/books").json()]
+    assert "Тестовая книга" in titles
+
+
+def test_import_sets_read_status_and_rating(client):
+    csv_text = (
+        "Название,Автор,Дата прочтения,Моя оценка,ISBN\n"
+        "Книга с оценкой,Автор,Май 2026 г.,8,333\n"
+    )
+    _upload(client, csv_text)
+    book = next(b for b in client.get("/books").json() if b["title"] == "Книга с оценкой")
+    assert book["status"] == "read"
+    assert book["rating"] == 8
+
+
+def test_import_skips_invalid_rows(client):
+    csv_text = (
+        "Название,Автор,Дата прочтения,Моя оценка,ISBN\n"
+        "Валидная,Автор,Июль 2026 г.,5,1\n"
+        ",Автор без названия,Июль 2026 г.,5,2\n"
+        "Название без автора,,Июль 2026 г.,5,3\n"
+    )
+    assert _upload(client, csv_text).json() == {"imported": 1, "skipped": 2}
+
+
+def test_import_rating_and_status_edge_cases(client):
+    csv_text = (
+        "Название,Автор,Дата прочтения,Моя оценка,ISBN\n"
+        "Без оценки,Автор,Июль 2026 г.,,9\n"      # оценки нет, но есть дата → read
+        "Кривая оценка,Автор,,абв,10\n"           # не число и без даты → want
+    )
+    _upload(client, csv_text)
+    books = client.get("/books").json()
+    b1 = next(b for b in books if b["title"] == "Без оценки")
+    assert b1["rating"] is None and b1["status"] == "read"
+    b2 = next(b for b in books if b["title"] == "Кривая оценка")
+    assert b2["rating"] is None and b2["status"] == "want"   
