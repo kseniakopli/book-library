@@ -1,17 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import BookDetail from "./BookDetail";
-
-const STATUS_LABELS = {
-  want: "Хочу прочитать",
-  reading: "Читаю",
-  read: "Прочитана",
-};
+import BookCard from "./BookCard";
+import Shelf from "./Shelf";
 
 function App() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBook, setSelectedBook] = useState(null);
+  const [filter, setFilter] = useState("");
 
   const [showModal, setShowModal] = useState(false);
   const [query, setQuery] = useState("");
@@ -72,7 +69,7 @@ function App() {
     const fresh = await fetch("/books").then((r) => r.json());
     setBooks(fresh);
     setImportMsg(`Импортировано: ${data.imported}, пропущено: ${data.skipped}`);
-    e.target.value = "";   // сброс, чтобы можно было выбрать тот же файл снова
+    e.target.value = "";
   }
 
   function closeModal() {
@@ -98,6 +95,16 @@ function App() {
     );
   }
 
+  const trimmed = filter.trim().toLowerCase();
+  const filtered = trimmed
+    ? books.filter(
+        (b) =>
+          b.title.toLowerCase().includes(trimmed) ||
+          b.author.toLowerCase().includes(trimmed)
+      )
+    : null;
+  const readBooks = books.filter((b) => b.status === "read");
+  const wantBooks = books.filter((b) => b.status === "want");
   const term = query.trim();
 
   return (
@@ -124,34 +131,33 @@ function App() {
         </div>
       </header>
 
+      <input
+        className="lib-search"
+        placeholder="Поиск по библиотеке…"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
+
       {importMsg && <p className="muted">{importMsg}</p>}
 
       {loading ? (
         <p className="muted">Загрузка…</p>
-      ) : books.length === 0 ? (
-        <p className="muted">Пока нет книг. Добавьте первую.</p>
+      ) : filtered ? (
+        filtered.length === 0 ? (
+          <p className="muted">Ничего не найдено в библиотеке.</p>
+        ) : (
+          <div className="grid">
+            {filtered.map((book) => (
+              <BookCard key={book.id} book={book} onSelect={setSelectedBook} />
+            ))}
+          </div>
+        )
       ) : (
-        <div className="grid">
-          {books.map((book) => (
-            <article className="book" key={book.id} onClick={() => setSelectedBook(book)}>
-              <div className="cover">
-                {book.cover_url ? (
-                  <img src={book.cover_url} alt={book.title} />
-                ) : (
-                  <div className="cover-empty">Нет обложки</div>
-                )}
-              </div>
-              <h2 className="book-title">{book.title}</h2>
-              <p className="book-author">{book.author}</p>
-              <div className="book-meta">
-                <span className="status">{STATUS_LABELS[book.status]}</span>
-                {book.status === "read" && book.rating != null && (
-                  <span className="rating">★ {book.rating}/10</span>
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
+        <>
+          <Shelf title="Прочитано" books={readBooks} onSelect={setSelectedBook} />
+          <Shelf title="Хочу прочитать" books={wantBooks} onSelect={setSelectedBook} />
+          <Shelf title="Рекомендации" placeholder="Скоро — на основе прочитанного" />
+        </>
       )}
 
       {showModal && (
