@@ -2,29 +2,47 @@ import os
 import requests
 from dotenv import load_dotenv
 import json
+import time
 
 
 load_dotenv()
 GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
 
 # --- Обогащение: тянем обложку и описание из Google Books ---
-def _books_request(query: str) -> list:
-    """Один запрос к Google Books. Возвращает список томов; при любой ошибке — пустой список."""
-    try:
-        response = requests.get(
-            "https://www.googleapis.com/books/v1/volumes",
-            params={"q": query, "maxResults": 10, "key": GOOGLE_BOOKS_API_KEY},
-            timeout=5,
-        )
-        response.raise_for_status()
-        return response.json().get("items", [])
-    except requests.RequestException:
-        return []
+def _books_request(query: str, attempts: int = 3) -> list:
+    """Запрос к Google Books с повтором при временных сбоях (503, тайм-аут).
+    При окончательной неудаче — пустой список."""
+    for attempt in range(attempts):
+        try:
+            response = requests.get(
+                "https://www.googleapis.com/books/v1/volumes",
+                params={"q": query, "maxResults": 10, "key": GOOGLE_BOOKS_API_KEY},
+                timeout=5,
+            )
+            response.raise_for_status()
+            return response.json().get("items", [])
+        except requests.RequestException as e:
+            # повторяем только при временных сбоях: нет ответа (тайм-аут) или 5xx.
+            # 4xx (например, 400/404) повторять бессмысленно.
+            status = getattr(e.response, "status_code", None)
+            retriable = status is None or status >= 500
+            if retriable and attempt < attempts - 1:
+                time.sleep(1)
+                continue
+            return []
+    return []
+
+
+def _author_matches(author: str, candidate: dict) -> bool:
+    """Хотя бы одно слово (длиннее 2 букв) из искомого автора есть в авторах кандидата."""
+    tokens = [t for t in author.strip().lower().split() if len(t) > 2]
+    found = " ".join(candidate.get("authors", [])).lower()
+    return any(tok in found for tok in tokens)
 
 
 def fetch_book_info(title: str, author: str, lang: str = "ru", isbn: str = None) -> dict:
-    """Данные из Google Books. Сначала по ISBN (точное издание),
-    если не нашли — по названию+автору с проверкой заголовка."""
+    """Данные из Google Books. Сначала по ISBN, если не нашли — по названию+автору.
+    Всегда проверяем и название, и автора, чтобы не подставить чужую книгу."""
     result = {
         "cover_url": None,
         "description": None,
@@ -38,25 +56,25 @@ def fetch_book_info(title: str, author: str, lang: str = "ru", isbn: str = None)
     try:
         info = None
 
-        # 1) по ISBN — точное издание (без дефисов)
+        # 1) по ISBN — точное издание; берём, только если есть данные И совпадает автор
         clean_isbn = isbn.replace("-", "").replace(" ", "") if isbn else None
         if clean_isbn:
             items = _books_request(f"isbn:{clean_isbn}")
             if items:
                 candidate = items[0].get("volumeInfo", {})
-                # берём издание по ISBN только если в нём есть обложка или описание;
-                # иначе это «пустая» карточка — уйдём в поиск по названию
-                if candidate.get("imageLinks") or candidate.get("description"):
+                has_data = candidate.get("imageLinks") or candidate.get("description")
+                if has_data and _author_matches(author, candidate):
                     info = candidate
 
-        # 2) не нашли по ISBN — ищем по названию+автору
+        # 2) не нашли по ISBN — по названию+автору
         if info is None:
             items = _books_request(f"{title} {author}")
-            wanted = title.strip().lower()
+            wanted_title = title.strip().lower()
             for item in items:
                 candidate = item.get("volumeInfo", {})
                 found_title = (candidate.get("title") or "").strip().lower()
-                if found_title == wanted or wanted in found_title:
+                title_ok = found_title == wanted_title or wanted_title in found_title
+                if title_ok and _author_matches(author, candidate):
                     info = candidate
                     break
 
