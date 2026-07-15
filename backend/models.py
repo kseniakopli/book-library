@@ -27,7 +27,7 @@ class Book(SQLModel, table=True):
 # --- AI-подборка «Атмосфера»: одна строка = один вариант (источник) для книги ---
 class AISelection(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    book_id: int = Field(foreign_key="book.id", index=True)  # к какой книге
+    book_id: int = Field(foreign_key="book.id", index=True, ondelete="CASCADE")  # к какой книге
     category: str                     # music / food / aroma
     source: str                       # Claude / ChatGPT
     payload: str                      # JSON-строка со списком (например, песен)

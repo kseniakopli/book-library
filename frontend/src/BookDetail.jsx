@@ -8,8 +8,7 @@ const STATUS_LABELS = {
 
 const STATUSES = ["want", "reading", "read"];
 
-
-function BookDetail({ book, onBack, onUpdated }) {
+function BookDetail({ book, onBack, onUpdated, onDeleted }) {
   const [saving, setSaving] = useState(false);
 
   const [selections, setSelections] = useState([]);
@@ -19,6 +18,7 @@ function BookDetail({ book, onBack, onUpdated }) {
   const [design, setDesign] = useState(null);
   const [generatingDesign, setGeneratingDesign] = useState(false);
   const [enriching, setEnriching] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetch(`/books/${book.id}/music`)
@@ -67,18 +67,35 @@ function BookDetail({ book, onBack, onUpdated }) {
 
   async function generateDesign() {
     setGeneratingDesign(true);
-    const response = await fetch(`/books/${book.id}/design`, { method: "POST" });
+    const response = await fetch(`/books/${book.id}/design`, {
+      method: "POST",
+    });
     const data = await response.json();
     setDesign(data);
     setGeneratingDesign(false);
   }
 
-    async function enrich() {
+  async function enrich() {
     setEnriching(true);
-    const response = await fetch(`/books/${book.id}/enrich`, { method: "POST" });
+    const response = await fetch(`/books/${book.id}/enrich`, {
+      method: "POST",
+    });
     const updated = await response.json();
     setEnriching(false);
     onUpdated(updated);
+  }
+
+  async function removeBook() {
+    if (
+      !window.confirm(
+        `Удалить «${book.title}»? Подборки и оформление тоже удалятся.`,
+      )
+    )
+      return;
+    setDeleting(true);
+    await fetch(`/books/${book.id}`, { method: "DELETE" });
+    setDeleting(false);
+    onDeleted(book.id);
   }
 
   const active = selections.find((s) => s.source === activeSource);
@@ -103,13 +120,30 @@ function BookDetail({ book, onBack, onUpdated }) {
   return (
     <div className="detail" style={themedStyle}>
       <div className="detail-bar">
-        <button className="btn-ghost" onClick={onBack}>← К библиотеке</button>
+        <button className="btn-ghost" onClick={onBack}>
+          ← К библиотеке
+        </button>
         <div className="detail-bar-actions">
           <button className="btn-ghost" onClick={enrich} disabled={enriching}>
             {enriching ? "Обновляю…" : "Обновить информацию"}
           </button>
-          <button className="add-btn" onClick={generateDesign} disabled={generatingDesign}>
-            {generatingDesign ? "Оформляю…" : design ? "Обновить оформление" : "Оформить под книгу"}
+          <button
+            className="btn-ghost"
+            onClick={removeBook}
+            disabled={deleting}
+          >
+            {deleting ? "Удаляю…" : "Удалить"}
+          </button>
+          <button
+            className="add-btn"
+            onClick={generateDesign}
+            disabled={generatingDesign}
+          >
+            {generatingDesign
+              ? "Оформляю…"
+              : design
+                ? "Обновить оформление"
+                : "Оформить под книгу"}
           </button>
         </div>
       </div>
@@ -149,9 +183,13 @@ function BookDetail({ book, onBack, onUpdated }) {
                 onChange={(e) => patch({ rating: Number(e.target.value) })}
                 disabled={saving}
               >
-                <option value="" disabled>—</option>
-                {[1,2,3,4,5,6,7,8,9,10].map((n) => (
-                  <option key={n} value={n}>{n}</option>
+                <option value="" disabled>
+                  —
+                </option>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
                 ))}
               </select>
             </div>
@@ -159,20 +197,34 @@ function BookDetail({ book, onBack, onUpdated }) {
         </div>
       </div>
 
-      {book.description && <p className="detail-description">{book.description}</p>}
+      {book.description && (
+        <p className="detail-description">{book.description}</p>
+      )}
 
       <section className="atmosphere">
         <div className="atmosphere-head">
           <h2 className="atmosphere-title">Атмосфера · Музыка</h2>
-          <button className="add-btn" onClick={generateMusic} disabled={generating}>
-            {generating ? "Подбираю…" : selections.length ? "Обновить" : "Подобрать музыку"}
+          <button
+            className="add-btn"
+            onClick={generateMusic}
+            disabled={generating}
+          >
+            {generating
+              ? "Подбираю…"
+              : selections.length
+                ? "Обновить"
+                : "Подобрать музыку"}
           </button>
         </div>
 
-        {generating && <p className="muted">Claude и ChatGPT подбирают музыку…</p>}
+        {generating && (
+          <p className="muted">Claude и ChatGPT подбирают музыку…</p>
+        )}
 
         {!generating && selections.length === 0 && (
-          <p className="muted">Пока нет подборки. Нажмите «Подобрать музыку».</p>
+          <p className="muted">
+            Пока нет подборки. Нажмите «Подобрать музыку».
+          </p>
         )}
 
         {selections.length > 0 && (
@@ -181,7 +233,9 @@ function BookDetail({ book, onBack, onUpdated }) {
               {selections.map((s) => (
                 <button
                   key={s.source}
-                  className={"pill " + (activeSource === s.source ? "pill-active" : "")}
+                  className={
+                    "pill " + (activeSource === s.source ? "pill-active" : "")
+                  }
                   onClick={() => setActiveSource(s.source)}
                 >
                   {s.source}

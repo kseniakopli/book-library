@@ -18,7 +18,7 @@ function App() {
 
   const [importMsg, setImportMsg] = useState("");
   const fileInputRef = useRef(null);
-  const [shelfStart, setShelfStart] = useState({});   // позиция листания полок по названию
+  const [shelfStart, setShelfStart] = useState({}); // позиция листания полок по названию
 
   const shelfProps = (title) => ({
     start: shelfStart[title] || 0,
@@ -94,6 +94,11 @@ function App() {
     setSelectedBook(updated);
   }
 
+  function handleDeleted(id) {
+    setBooks((prev) => prev.filter((b) => b.id !== id));
+    setSelectedBook(null);
+  }
+
   if (selectedBook) {
     return (
       <div className="app">
@@ -101,6 +106,7 @@ function App() {
           book={selectedBook}
           onBack={() => setSelectedBook(null)}
           onUpdated={handleUpdated}
+          onDeleted={handleDeleted}
         />
       </div>
     );

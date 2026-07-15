@@ -1,10 +1,10 @@
 import pytest
 from sqlalchemy.pool import StaticPool
-from sqlmodel import SQLModel, Session, create_engine
+from sqlmodel import SQLModel, Session, create_engine, select
 from fastapi.testclient import TestClient
 
 import database
-from models import Book
+from models import Book,AISelection
 from main import app
 import books
 from atmosphere import MusicResult, Song
@@ -235,3 +235,23 @@ def test_import_rating_and_status_edge_cases(client):
     assert b1["rating"] is None and b1["status"] == "read"
     b2 = next(b for b in books if b["title"] == "Кривая оценка")
     assert b2["rating"] is None and b2["status"] == "want"   
+
+def test_delete_book(client):
+    response = client.delete("/books/1")
+    assert response.status_code == 200
+    assert client.get("/books/1/music").status_code == 200  # музыка пустая, но книга…
+    assert client.patch("/books/1", json={"status": "read"}).status_code == 404
+
+
+def test_delete_book_not_found(client):
+    assert client.delete("/books/999").status_code == 404
+
+def test_delete_cascades_selections(client, monkeypatch):
+    monkeypatch.setattr(books, "generate_music", fake_generate_music)
+    client.post("/books/1/music")
+    client.delete("/books/1")
+    with Session(database.engine) as session:
+        rows = session.exec(
+            select(AISelection).where(AISelection.book_id == 1)
+        ).all()
+    assert rows == []
