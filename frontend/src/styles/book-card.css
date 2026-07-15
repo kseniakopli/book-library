@@ -1,0 +1,83 @@
+/* ===== Карточка книги на полке ===== */
+
+.book {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+}
+.book:hover {
+  border-color: var(--accent);
+}
+
+.cover {
+  position: relative;
+  width: 100%;
+  padding-top: 150%; /* высота = 1.5 × ширины → пропорция 2:3 */
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: var(--cover-placeholder);
+}
+.cover img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.cover .cover-empty {
+  position: absolute;
+  inset: 0;
+}
+
+.book-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.2;
+  margin: 0 0 2px;
+  height: 2.4em; /* ровно 2 строки; лишнее скрываем */
+  overflow: hidden;
+}
+
+.book-author {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 10px;
+  white-space: nowrap; /* автор в одну строку */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.status {
+  color: var(--accent);
+  background: var(--chip-bg);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.rating {
+  color: var(--text);
+  font-size: 13px;
+}

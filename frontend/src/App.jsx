@@ -54,6 +54,44 @@ function App() {
   const fileInputRef = useRef(null);
   const [shelfStart, setShelfStart] = useState({}); // позиция листания полок по названию
 
+  // Тема (задача 22): light / dark, выбор переживает перезагрузку через localStorage
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("theme") || "light",
+  );
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme; // включает [data-theme="dark"] в tokens.css
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  // Доступность модалки (задача 23): Esc закрывает, Tab не выпускает фокус наружу
+  const modalRef = useRef(null);
+  const addButtonRef = useRef(null);
+  useEffect(() => {
+    if (!showModal) return;
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        closeModal();
+        return;
+      }
+      if (e.key !== "Tab" || !modalRef.current) return;
+      const focusables = modalRef.current.querySelectorAll(
+        "button:not(:disabled), input, select",
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showModal]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const shelfProps = (title) => ({
     start: shelfStart[title] || 0,
     onStart: (v) => setShelfStart((prev) => ({ ...prev, [title]: v })),
@@ -127,6 +165,7 @@ function App() {
   function closeModal() {
     setShowModal(false);
     setQuery("");
+    addButtonRef.current?.focus(); // вернуть фокус туда, откуда открывали
   }
 
   function handleDeleted() {
@@ -155,12 +194,26 @@ function App() {
           <p className="subtitle">Атмосферные литературные вечера</p>
         </div>
         <div className="header-actions">
+          <button
+            className="btn-ghost theme-toggle"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-pressed={theme === "dark"}
+            aria-label={
+              theme === "dark"
+                ? "Включить светлую тему"
+                : "Включить вечернюю тему"
+            }
+            title={theme === "dark" ? "Светлая тема" : "Вечерняя тема"}
+          >
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
           <input
             type="file"
             accept=".csv"
             ref={fileInputRef}
             onChange={importCsv}
-            style={{ display: "none" }}
+            className="file-input-hidden"
+            aria-label="Файл CSV для импорта"
           />
           <button
             className="btn-ghost"
@@ -169,7 +222,11 @@ function App() {
           >
             {importMutation.isPending ? "Импортирую…" : "Импорт CSV"}
           </button>
-          <button className="add-btn" onClick={() => setShowModal(true)}>
+          <button
+            className="add-btn"
+            onClick={() => setShowModal(true)}
+            ref={addButtonRef}
+          >
             + Добавить книгу
           </button>
         </div>
@@ -227,7 +284,14 @@ function App() {
       )}
       {showModal && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Поиск и добавление книги"
+            ref={modalRef}
+          >
             <div className="modal-head">
               <h2 className="modal-title">Найти книгу</h2>
               <button

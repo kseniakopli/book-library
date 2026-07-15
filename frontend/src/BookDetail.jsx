@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "./api";
+import { hasReadableContrast } from "./lib/contrast";
 
 const STATUS_LABELS = {
   want: "Хочу прочитать",
@@ -32,6 +33,13 @@ function BookDetail({ book, onBack, onDeleted }) {
     queryFn: () => api.getDesign(book.id),
   });
   const design = designData?.design ?? null;
+
+  // Задача 23: применяем AI-палитру, только если текст читаем на её фоне (WCAG AA).
+  // Иначе карточка остаётся в базовой теме — statement и подборки всё равно видны.
+  const appliedDesign =
+    design && hasReadableContrast(design.palette?.text, design.palette?.bg)
+      ? design
+      : null;
 
   // --- Мутации ---
   const patchMutation = useMutation({
@@ -74,10 +82,10 @@ function BookDetail({ book, onBack, onDeleted }) {
     deleteMutation.mutate();
   }
 
-  // Подключаем шрифты из паспорта (Google Fonts)
+  // Подключаем шрифты из паспорта (Google Fonts) — только если палитра применяется
   useEffect(() => {
-    if (!design) return;
-    const families = [design.title_font, design.body_font]
+    if (!appliedDesign) return;
+    const families = [appliedDesign.title_font, appliedDesign.body_font]
       .map((f) => f.trim().replace(/ /g, "+"))
       .join("&family=");
     const link = document.createElement("link");
@@ -85,29 +93,31 @@ function BookDetail({ book, onBack, onDeleted }) {
     link.href = `https://fonts.googleapis.com/css2?family=${families}&display=swap`;
     document.head.appendChild(link);
     return () => document.head.removeChild(link);
-  }, [design]);
+  }, [appliedDesign]);
 
   const active = selections.find((s) => s.source === activeSource);
 
-  // Паспорт → CSS-переменные и шрифты (наследуются всеми детьми карточки)
-  const themedStyle = design
+  // Паспорт → CSS-переменные и шрифты (наследуются всеми детьми карточки).
+  // Статические отступы — в классе .detail-themed (styles/detail.css)
+  const themedStyle = appliedDesign
     ? {
-        "--surface": design.palette.surface,
-        "--accent": design.palette.accent,
-        "--text": design.palette.text,
-        "--muted": design.palette.muted,
-        "--border": design.palette.muted,
-        "--serif": `'${design.title_font}', Georgia, serif`,
-        background: design.palette.bg,
-        color: design.palette.text,
-        fontFamily: `'${design.body_font}', system-ui, sans-serif`,
-        padding: "28px",
-        borderRadius: "16px",
+        "--surface": appliedDesign.palette.surface,
+        "--accent": appliedDesign.palette.accent,
+        "--text": appliedDesign.palette.text,
+        "--muted": appliedDesign.palette.muted,
+        "--border": appliedDesign.palette.muted,
+        "--serif": `'${appliedDesign.title_font}', Georgia, serif`,
+        background: appliedDesign.palette.bg,
+        color: appliedDesign.palette.text,
+        fontFamily: `'${appliedDesign.body_font}', system-ui, sans-serif`,
       }
     : {};
 
   return (
-    <div className="detail" style={themedStyle}>
+    <div
+      className={"detail" + (appliedDesign ? " detail-themed" : "")}
+      style={themedStyle}
+    >
       <div className="detail-bar">
         <button className="btn-ghost" onClick={onBack}>
           ← К библиотеке
@@ -160,7 +170,7 @@ function BookDetail({ book, onBack, onDeleted }) {
       <div className="detail-top">
         <div className="detail-cover">
           {book.cover_url ? (
-            <img src={book.cover_url} alt={book.title} />
+            <img src={book.cover_url} alt={`Обложка книги «${book.title}»`} />
           ) : (
             <div className="cover-empty">Нет обложки</div>
           )}
@@ -180,13 +190,18 @@ function BookDetail({ book, onBack, onDeleted }) {
           )}
           {design && <p className="detail-statement">{design.statement}</p>}
 
-          <div className="status-row">
+          <div
+            className="status-row"
+            role="group"
+            aria-label="Статус чтения"
+          >
             {STATUSES.map((s) => (
               <button
                 key={s}
                 className={"pill " + (book.status === s ? "pill-active" : "")}
                 onClick={() => patchMutation.mutate({ status: s })}
                 disabled={saving}
+                aria-pressed={book.status === s}
               >
                 {STATUS_LABELS[s]}
               </button>
@@ -195,8 +210,11 @@ function BookDetail({ book, onBack, onDeleted }) {
 
           {book.status === "read" && (
             <div className="rating-row">
-              <span className="rating-label">Оценка:</span>
+              <label className="rating-label" htmlFor="rating-select">
+                Оценка:
+              </label>
               <select
+                id="rating-select"
                 value={book.rating ?? ""}
                 onChange={(e) =>
                   patchMutation.mutate({ rating: Number(e.target.value) })
@@ -269,7 +287,11 @@ function BookDetail({ book, onBack, onDeleted }) {
 
         {selections.length > 0 && (
           <>
-            <div className="source-tabs">
+            <div
+              className="source-tabs"
+              role="group"
+              aria-label="Источник подборки"
+            >
               {selections.map((s) => (
                 <button
                   key={s.source}
@@ -277,6 +299,7 @@ function BookDetail({ book, onBack, onDeleted }) {
                     "pill " + (activeSource === s.source ? "pill-active" : "")
                   }
                   onClick={() => setActiveSource(s.source)}
+                  aria-pressed={activeSource === s.source}
                 >
                   {s.source}
                 </button>

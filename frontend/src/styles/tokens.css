@@ -1,0 +1,49 @@
+/* ===== Дизайн-токены (задачи 19 и 22) =====
+   Все цвета и шрифты интерфейса живут только здесь.
+   Компонентные стили (styles/*.css) используют var(...) — поэтому
+   тема меняется целиком заменой значений в этом файле.
+
+   Паспорт оформления книги (AI) перекрашивает карточку, переопределяя
+   часть переменных инлайном на .detail (см. themedStyle в BookDetail.jsx):
+   --surface, --accent, --text, --muted, --border, --serif.
+   Применяется только если палитра проходит проверку контраста (lib/contrast.js). */
+
+:root {
+  color-scheme: light;
+
+  /* --- палитра: светлая (дневная) тема --- */
+  --bg: #faf7f2;
+  --surface: #ffffff;
+  --border: #e7e0d5;
+  --text: #2c2621;
+  --muted: #8a8177;
+  --accent: #b45309;
+  --on-accent: #ffffff;          /* текст на акцентном фоне */
+  --cover-placeholder: #f0ebe2;  /* фон заглушки «Нет обложки» */
+  --chip-bg: #fbf1e3;            /* фон бейджа статуса на карточке */
+  --overlay: rgba(30, 24, 18, 0.45);
+  --error: #b3564d;
+
+  /* --- типографика --- */
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ===== «Вечерняя» тема (задача 22) =====
+   Включается атрибутом data-theme="dark" на <html> (переключатель в шапке).
+   Тёплая тёмная палитра под атмосферу литературных вечеров. */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #171310;
+  --surface: #221c17;
+  --border: #3a322a;
+  --text: #e9e1d3;
+  --muted: #a19585;
+  --accent: #e08b2d;
+  --on-accent: #1c1610;
+  --cover-placeholder: #2c251e;
+  --chip-bg: #33291c;
+  --overlay: rgba(0, 0, 0, 0.6);
+  --error: #e08a80;
+}

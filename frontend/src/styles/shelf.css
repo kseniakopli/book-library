@@ -1,0 +1,57 @@
+/* ===== Полки (карусели) и сетка результатов фильтра ===== */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 24px;
+}
+
+.shelf {
+  margin-bottom: 36px;
+}
+
+.shelf-title {
+  font-family: var(--serif);
+  font-size: 22px;
+  margin: 0 0 14px;
+}
+
+.shelf-count {
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.shelf-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shelf-row {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+  /* число колонок задаётся инлайном из компонента Shelf (адаптивно) */
+}
+
+.shelf-arrow {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  font-size: 20px;
+  color: var(--text);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.shelf-arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.shelf-placeholder,
+.shelf-empty {
+  color: var(--muted);
+}
