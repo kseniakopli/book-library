@@ -1,119 +1,130 @@
-# Book Library
+# Nocturne — Book Library
 
 A personal library service for **atmospheric literary evenings**. For each book, the service
-suggests matching music, food & drinks, and scents — in two variants (from Claude and from
-ChatGPT) with short explanations — and also tracks reading status, ratings, and
-recommendations.
+suggests matching music (from Claude and from ChatGPT, with short explanations) and generates
+an AI "design passport" — a palette and font pair that re-themes the book card to match the
+book's mood. It also tracks reading status and ratings, imports an existing library from CSV,
+and enriches books with covers and metadata from Google Books.
 
-> Pet project focused on learning AI-assisted development and web development. Currently in
-> active MVP development.
+> Pet project focused on learning AI-assisted development. In active development.
 
 ## Features
 
-**Available now**
-
-- Store books in a database.
-- Add a book by title and author, with automatic cover and description lookup via the Google
-  Books API (the book is still saved if nothing is found or the service is unavailable).
-- List all books.
-- Change reading status (`want` / `reading` / `read`) and set a rating (1–10), with the rule:
-  a rating is only allowed for books with status `read`; leaving `read` clears the rating.
-- Language-aware requests (`ru` / `en`): external lookups and server messages follow the
-  requested language.
-- AI music picks: for a book, Claude and ChatGPT each suggest an atmospheric playlist with an
-  explanation; both variants are stored per source.
-
-**Planned**
-
-- Bilingual interface (RU / EN) with a language switcher.
-- AI "Atmosphere" picks for food and scents (same two-variant scheme as music).
-- Import books with ratings from CSV.
-- Recommendations based on reading history.
-- Statistics and reading tracking; authentication and multi-user support.
+- **Reading tracker** — statuses `want` / `reading` / `read`, ratings 1–10 (enforced rule:
+  only `read` books can be rated).
+- **Add via search** — find a book in Google Books (with a local search cache, TTL 30 days),
+  add it in one click; the cover shows instantly, metadata arrives in the background
+  (`pending → ready / failed`).
+- **CSV import** — idempotent (deduplication by ISBN and by title+author), row limits,
+  per-file report (imported / duplicates / skipped).
+- **AI atmosphere** — unified API for AI-generated categories:
+  - *music*: two playlists (Claude & ChatGPT) with explanations;
+  - *design passport*: palette + fonts that restyle the book card (applied only if the
+    palette passes a WCAG contrast check);
+  - *food & scents*: planned, same scheme.
+- **Structured AI outputs** — Pydantic schemas passed to both providers
+  (`messages.parse` / `chat.completions.parse`), with validation of colors and font names
+  at the boundary.
+- **Light & dark ("evening") themes** — design tokens in CSS, toggle in the header.
+- **Accessibility** — keyboard navigation, focus trap in modals, `aria` attributes,
+  contrast fallback for AI palettes.
+- **Event log** — append-only log of user and system events (foundation for future stats).
+- **Bilingual API messages** (`ru` / `en`).
 
 ## Tech stack
 
-- **Backend:** Python, FastAPI, SQLModel, SQLite
-- **Frontend (planned):** React
-- **External services:** Google Books API; Anthropic Claude and OpenAI ChatGPT (AI picks)
+- **Backend:** Python, FastAPI, SQLModel, SQLite (WAL; `DATABASE_URL` env var ready for
+  Postgres), Alembic migrations.
+- **Frontend:** React + Vite, React Query, React Router. Tests: Vitest + Testing Library + MSW.
+- **External services:** Google Books API; Anthropic Claude & OpenAI (structured outputs).
 
 ## Getting started
 
-Requires Python 3. Run from the repo root:
+Requires Python 3.12+ and Node 20+. From the repo root:
 
 ```
-# 1. Create and activate a virtual environment
+# --- Backend ---
 python -m venv venv
 venv\Scripts\activate        # Windows
 # source venv/bin/activate   # macOS / Linux
 
-# 2. Move into the backend and install dependencies
 cd backend
 pip install -r requirements.txt
 
-# 3. Set up private files (both are gitignored)
+# Private files (both gitignored):
 copy prompt_config.example.py prompt_config.py   # then edit your prompts
-# create backend/.env with your API keys:
+# create backend/.env with:
 #   ANTHROPIC_API_KEY=...
 #   OPENAI_API_KEY=...
+#   GOOGLE_BOOKS_API_KEY=...
+#   DATABASE_URL=...          # optional, defaults to sqlite:///library.db
 
-# 4. Run the development server
-uvicorn main:app --reload
+alembic upgrade head         # create / migrate the database
+uvicorn main:app --reload    # http://127.0.0.1:8000
+
+# --- Frontend (separate terminal) ---
+cd frontend
+npm install
+npm run dev                  # http://localhost:5173
 ```
 
-Then open the interactive API docs at http://127.0.0.1:8000/docs
+## API
 
-## API endpoints
+Interactive documentation (the source of truth): **http://127.0.0.1:8000/docs** (Swagger)
+or `/redoc`. Key endpoints:
 
-| Method | Path                    | Description                                             |
-|--------|-------------------------|---------------------------------------------------------|
-| POST   | `/books`                | Add a book (title, author); auto-fills cover & description |
-| GET    | `/books`                | List all books                                          |
-| PATCH  | `/books/{id}`           | Update status and/or rating (rating only for `read`)    |
-| POST   | `/books/{id}/music`     | Generate music picks (Claude + ChatGPT) and store them  |
-| GET    | `/books/{id}/music`     | Get stored music picks for a book                       |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET/POST | `/books` | List books / add a book (background enrichment) |
+| GET/PATCH/DELETE | `/books/{id}` | Read / update status & rating / delete (cascades) |
+| POST | `/books/{id}/enrich` | Manual re-enrichment from Google Books |
+| GET/POST | `/books/{id}/atmosphere/{category}` | Get / generate AI picks (`music`, `design`) |
+| GET | `/search?q=` | Book search: local catalog cache + Google Books |
+| POST | `/import` | CSV import (limits: 2 MB, 2000 rows) |
 
-Endpoints accept an optional `lang` query parameter (`ru` by default, or `en`).
+All endpoints accept `?lang=ru|en` for localized messages.
 
-## Running tests
+## Tests
 
 ```
-cd backend
-pip install pytest httpx
-pytest -v
+cd backend && pytest          # ~40 tests, in-memory DB, AI & Google mocked
+cd frontend && npm run test   # 13 tests, MSW mock backend
 ```
 
-Tests use an in-memory database (they don't touch `library.db`) and mock the AI calls, so they
-spend no API tokens. A `backend/.env` file must exist, because the AI clients are created on
-import.
+See `documentation/test-strategy.md` for what is (and isn't) covered.
 
 ## Project structure
 
 ```
 book-library/
 ├── backend/
-│   ├── main.py                   # entry point: creates the app, includes the router
-│   ├── books.py                  # API endpoints (APIRouter)
-│   ├── models.py                 # SQLModel tables (Book, AISelection)
-│   ├── schemas.py                # Pydantic request models
-│   ├── database.py               # engine and table creation
-│   ├── i18n.py                   # RU / EN messages
-│   ├── google_books.py           # Google Books enrichment
-│   ├── atmosphere.py             # AI music module (Claude + ChatGPT)
-│   ├── prompt_config.example.py  # prompt template (real prompt_config.py is private)
-│   ├── test_main.py              # pytest tests
-│   ├── requirements.txt          # dependencies
-│   └── library.db                # SQLite database (created on first run)
-├── frontend/                     # React app (planned)
-├── docs/                         # spec and phased plan (kept locally)
-└── README.md
+│   ├── main.py               # app factory: includes routers
+│   ├── routers/              # books (CRUD), atmosphere (AI), search, imports
+│   ├── services/             # ai.py (Claude/OpenAI generators), enrichment.py
+│   ├── models.py             # SQLModel tables: Book, AISelection, Catalog
+│   ├── schemas.py            # request/response models (BookCreate, BookRead, ...)
+│   ├── events.py             # append-only event log
+│   ├── deps.py, constants.py, i18n.py, google_books.py, database.py
+│   ├── alembic/              # migrations (alembic upgrade head)
+│   ├── conftest.py, tests/   # pytest suite
+│   └── prompt_config.example.py  # prompt template (real prompts are private)
+├── frontend/
+│   └── src/
+│       ├── pages/            # HomePage, BookPage
+│       ├── components/       # BookCard, Shelf, BookDetail, SearchModal, AtmosphereSection
+│       ├── hooks/            # useTheme, useFocusTrap
+│       ├── styles/           # design tokens (light/dark) + per-component css
+│       ├── api.js, queryKeys.js, constants.js, lib/contrast.js
+│       └── test/             # Vitest + MSW suite
+└── documentation/            # architecture, data model, test strategy
 ```
 
-## Roadmap
+## Documentation
 
-The MVP covers the book database, add-with-enrichment, list and detail views, statuses and
-ratings, and the first AI pick (music). Next comes the React frontend with an atmospheric
-book card, followed by CSV import, food and scent picks, and recommendations.
+- [Architecture](documentation/architecture.md) — components, data flows, key decisions.
+- [Data model](documentation/data-model.md) — tables, invariants, status lifecycles.
+- [Test strategy](documentation/test-strategy.md) and
+  [regression checklist](documentation/regression-checklist.md).
 
 ---
 
