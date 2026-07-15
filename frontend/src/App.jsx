@@ -1,13 +1,41 @@
 import { useEffect, useRef, useState } from "react";
+import { Routes, Route, useNavigate, useParams } from "react-router-dom";
 import "./App.css";
 import BookDetail from "./BookDetail";
 import BookCard from "./BookCard";
 import Shelf from "./Shelf";
 
+// Страница книги: id из URL, книга из общего списка
+function BookPage({ books, loading, onUpdated, onDeleted }) {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const book = books.find((b) => b.id === Number(id));
+
+  if (loading) return <p className="muted">Загрузка…</p>;
+  if (!book)
+    return (
+      <div>
+        <p className="muted">Книга не найдена.</p>
+        <button className="btn-ghost" onClick={() => navigate("/")}>
+          ← К библиотеке
+        </button>
+      </div>
+    );
+
+  return (
+    <BookDetail
+      book={book}
+      onBack={() => navigate("/")}
+      onUpdated={onUpdated}
+      onDeleted={onDeleted}
+    />
+  );
+}
+
 function App() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBook, setSelectedBook] = useState(null);
+  const navigate = useNavigate();
   const [filter, setFilter] = useState("");
 
   const [showModal, setShowModal] = useState(false);
@@ -91,26 +119,14 @@ function App() {
 
   function handleUpdated(updated) {
     setBooks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-    setSelectedBook(updated);
+    // setSelectedBook больше не нужен: BookPage сам возьмёт свежую книгу из списка
   }
 
   function handleDeleted(id) {
     setBooks((prev) => prev.filter((b) => b.id !== id));
-    setSelectedBook(null);
+    navigate("/");
   }
-
-  if (selectedBook) {
-    return (
-      <div className="app">
-        <BookDetail
-          book={selectedBook}
-          onBack={() => setSelectedBook(null)}
-          onUpdated={handleUpdated}
-          onDeleted={handleDeleted}
-        />
-      </div>
-    );
-  }
+  const openBook = (b) => navigate(`/books/${b.id}`);
 
   const trimmed = filter.trim().toLowerCase();
   const filtered = trimmed
@@ -124,8 +140,8 @@ function App() {
   const wantBooks = books.filter((b) => b.status === "want");
   const term = query.trim();
 
-  return (
-    <div className="app">
+  const home = (
+    <>
       <header className="header">
         <div>
           <h1 className="title">Библиотека</h1>
@@ -150,16 +166,13 @@ function App() {
           </button>
         </div>
       </header>
-
       <input
         className="lib-search"
         placeholder="Поиск по библиотеке…"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
       />
-
       {importMsg && <p className="muted">{importMsg}</p>}
-
       {loading ? (
         <p className="muted">Загрузка…</p>
       ) : filtered ? (
@@ -168,7 +181,7 @@ function App() {
         ) : (
           <div className="grid">
             {filtered.map((book) => (
-              <BookCard key={book.id} book={book} onSelect={setSelectedBook} />
+              <BookCard key={book.id} book={book} onSelect={openBook} />
             ))}
           </div>
         )
@@ -177,13 +190,13 @@ function App() {
           <Shelf
             title="Прочитано"
             books={readBooks}
-            onSelect={setSelectedBook}
+            onSelect={openBook}
             {...shelfProps("Прочитано")}
           />
           <Shelf
             title="Хочу прочитать"
             books={wantBooks}
-            onSelect={setSelectedBook}
+            onSelect={openBook}
             {...shelfProps("Хочу прочитать")}
           />
           <Shelf
@@ -192,7 +205,6 @@ function App() {
           />
         </>
       )}
-
       {showModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -244,6 +256,25 @@ function App() {
           </div>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <div className="app">
+      <Routes>
+        <Route path="/" element={home} />
+        <Route
+          path="/books/:id"
+          element={
+            <BookPage
+              books={books}
+              loading={loading}
+              onUpdated={handleUpdated}
+              onDeleted={handleDeleted}
+            />
+          }
+        />
+      </Routes>
     </div>
   );
 }
