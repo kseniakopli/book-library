@@ -153,7 +153,24 @@ function BookDetail({ book, onBack, onDeleted }) {
         </div>
 
         <div className="detail-info">
-          <h1 className="detail-title">{book.title}</h1>
+          <div className="detail-title-row">
+            {design?.symbol_svg && (
+              <img
+                className="book-symbol"
+                src={`data:image/svg+xml;utf8,${encodeURIComponent(
+                  design.symbol_svg.includes("xmlns=")
+                    ? design.symbol_svg
+                    : design.symbol_svg.replace(
+                        "<svg",
+                        '<svg xmlns="http://www.w3.org/2000/svg"',
+                      ),
+                )}`}
+                alt=""
+                aria-hidden="true"
+              />
+            )}
+            <h1 className="detail-title">{book.title}</h1>
+          </div>
           <p className="detail-author">{book.author}</p>
           {book.enrich_status === "pending" && (
             <p className="muted">Обложка и описание подгружаются…</p>
@@ -211,7 +228,7 @@ function BookDetail({ book, onBack, onDeleted }) {
         <p className="detail-description">{book.description}</p>
       )}
 
-      <AtmosphereSection bookId={book.id} category="music" />
+      <AtmosphereSection bookId={book.id} />
     </div>
   );
 }

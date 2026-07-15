@@ -7,7 +7,15 @@ from fastapi.testclient import TestClient
 import database
 from models import Book
 from main import app
-from services.ai import DesignResult, MusicResult, Palette, Song
+from services.ai import (
+    AromaResult,
+    AtmosphereItem,
+    DesignResult,
+    FoodResult,
+    MusicResult,
+    Palette,
+    Song,
+)
 
 
 @pytest.fixture(name="client")
@@ -56,6 +64,7 @@ async def fake_generate_design(title, author, lang="ru"):
             title_font="PT Serif",
             body_font="PT Serif",
             statement="Тестовое пояснение",
+            symbol_svg='<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>',
         )
     }
 
@@ -82,3 +91,27 @@ def fake_search_books(query, max_results=8):
         {"title": "Собачье сердце", "author": "Булгаков",
          "cover_url": None, "external_id": "ext2"},
     ]
+async def fake_generate_food(title, author, lang="ru"):
+    return {
+        "Claude": FoodResult(
+            items=[AtmosphereItem(title="Глинтвейн", description="Тёплый и пряный")],
+            explanation="Claude food",
+        ),
+        "ChatGPT": FoodResult(
+            items=[AtmosphereItem(title="Тыквенный суп", description="Осенний")],
+            explanation="ChatGPT food",
+        ),
+    }
+
+
+async def fake_generate_aroma(title, author, lang="ru"):
+    return {
+        "Claude": AromaResult(
+            items=[AtmosphereItem(title="Сандал", description="Дымный, тёплый")],
+            explanation="Claude aroma",
+        ),
+        "ChatGPT": AromaResult(
+            items=[AtmosphereItem(title="Кедр", description="Хвойный")],
+            explanation="ChatGPT aroma",
+        ),
+    }

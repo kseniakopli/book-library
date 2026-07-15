@@ -7,8 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 import database
-from services.ai import generate_design, generate_music
-from constants import EVENT_AI_DESIGN, EVENT_AI_MUSIC, SOURCE_CLAUDE
+from services.ai import (generate_aroma, generate_design, generate_food,generate_music,)
+from constants import (
+    EVENT_AI_AROMA,
+    EVENT_AI_DESIGN,
+    EVENT_AI_FOOD,
+    EVENT_AI_MUSIC,
+    SOURCE_CLAUDE,
+)
 from deps import get_book_or_404, get_lang
 from events import log_event
 from i18n import msg
@@ -41,7 +47,22 @@ CATEGORIES = {
         "explanation": lambda r: r.statement,
         "event": EVENT_AI_DESIGN,
     },
-    # этап 7: "food": {...}, "aroma": {...}
+    "food": {
+        "generate": generate_food,
+        "payload": lambda r: json.dumps(
+            [i.model_dump() for i in r.items], ensure_ascii=False
+        ),
+        "explanation": lambda r: r.explanation,
+        "event": EVENT_AI_FOOD,
+    },
+    "aroma": {
+        "generate": generate_aroma,
+        "payload": lambda r: json.dumps(
+            [i.model_dump() for i in r.items], ensure_ascii=False
+        ),
+        "explanation": lambda r: r.explanation,
+        "event": EVENT_AI_AROMA,
+    },
 }
 
 

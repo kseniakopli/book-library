@@ -147,3 +147,73 @@
   color: var(--muted);
   text-align: right;
 }
+/* Символ-экслибрис из паспорта (этап 7) */
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.book-symbol {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  box-sizing: border-box;
+  padding: 7px;
+  object-fit: contain; /* центрирует содержимое независимо от viewBox */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Списки еды/ароматов */
+.atmosphere-items {
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.atmosphere-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.atmosphere-item-title {
+  font-weight: 500;
+}
+.atmosphere-item-description {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* Вкладки категорий атмосферы — чуть заметнее источников */
+/* Категории атмосферы — вкладки с подчёркиванием (не путать с пилюлями источников) */
+.category-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.category-tab {
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  margin-bottom: -1px;
+  cursor: pointer;
+}
+.category-tab.active {
+  color: var(--text);
+  font-weight: 500;
+  border-bottom-color: var(--accent);
+}
+
+/* Подпись перед пилюлями источников */
+.source-label {
+  color: var(--muted);
+  font-size: 13px;
+  align-self: center;
+}

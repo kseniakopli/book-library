@@ -118,6 +118,22 @@ export const handlers = [
       selections: [],
     }),
   ),
+  http.post("/books/:id/atmosphere/:category", ({ params }) => {
+    const fixtures = {
+      music: [{ title: "Song A", artist: "Artist A" }],
+      food: [{ title: "Глинтвейн", description: "Тёплый и пряный" }],
+      aroma: [{ title: "Сандал", description: "Дымный, тёплый" }],
+    };
+    return HttpResponse.json({
+      book_id: Number(params.id),
+      category: params.category,
+      selections: ["Claude", "ChatGPT"].map((source) => ({
+        source,
+        payload: fixtures[params.category] ?? [],
+        explanation: `${source} explanation`,
+      })),
+    });
+  }),
 ];
 
 export const server = setupServer(...handlers);

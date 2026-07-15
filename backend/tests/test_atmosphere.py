@@ -122,3 +122,32 @@ def test_design_palette_rejects_non_hex():
     }
     with pytest.raises(pydantic.ValidationError):
         DesignResult.model_validate(bad)
+
+def test_generate_food_two_sources_and_persist(client, monkeypatch):
+    from conftest import fake_generate_food
+    monkeypatch.setitem(
+        atmosphere_routes.CATEGORIES["food"], "generate", fake_generate_food
+    )
+    r = client.post("/books/1/atmosphere/food")
+    assert r.status_code == 200
+    assert {s["source"] for s in r.json()["selections"]} == {"Claude", "ChatGPT"}
+    claude = next(s for s in r.json()["selections"] if s["source"] == "Claude")
+    assert claude["payload"][0] == {
+        "title": "Глинтвейн", "description": "Тёплый и пряный",
+    }
+    assert client.get("/books/1/atmosphere/food").json() == r.json()
+
+
+def test_categories_are_independent(client, monkeypatch):
+    from conftest import fake_generate_aroma
+    monkeypatch.setitem(
+        atmosphere_routes.CATEGORIES["music"], "generate", fake_generate_music
+    )
+    monkeypatch.setitem(
+        atmosphere_routes.CATEGORIES["aroma"], "generate", fake_generate_aroma
+    )
+    client.post("/books/1/atmosphere/music")
+    client.post("/books/1/atmosphere/aroma")
+    # каждая категория хранит свои 2 подборки и не задевает чужие
+    assert len(client.get("/books/1/atmosphere/music").json()["selections"]) == 2
+    assert len(client.get("/books/1/atmosphere/aroma").json()["selections"]) == 2

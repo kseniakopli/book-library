@@ -1,5 +1,4 @@
-# AI-генераторы атмосферы (бывший atmosphere.py — переименован в R1,
-# чтобы не путаться с роутером routers/atmosphere.py).
+# AI-генераторы атмосферы.
 # Контракт генераторов: async (title, author, lang) -> {источник: Pydantic-модель}
 # (для дизайна словарь собирает обёртка в routers/atmosphere.py).
 import asyncio
@@ -11,7 +10,12 @@ import anthropic
 from openai import AsyncOpenAI
 
 from constants import SOURCE_CHATGPT, SOURCE_CLAUDE
-from prompt_config import build_music_prompt, build_design_prompt
+from prompt_config import (
+    build_aroma_prompt,
+    build_design_prompt,
+    build_food_prompt,
+    build_music_prompt,
+)
 
 load_dotenv()                       # читаем ключи из .env
 claude_client = anthropic.AsyncAnthropic()
@@ -19,6 +23,7 @@ openai_client = AsyncOpenAI()
 
 
 # --- Схемы ответов AI (structured outputs строит по ним JSON-схему) ---
+
 class Song(BaseModel):
     title: str
     artist: str
@@ -29,8 +34,33 @@ class MusicResult(BaseModel):
     explanation: str
 
 
+class AtmosphereItem(BaseModel):
+    """Пункт подборки еды/напитков или ароматов: название + короткое описание."""
+    title: str
+    description: str
+
+
+class FoodResult(BaseModel):
+    items: list[AtmosphereItem]
+    explanation: str
+
+
+class AromaResult(BaseModel):
+    items: list[AtmosphereItem]
+    explanation: str
+
+
 HEX_COLOR = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 FONT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ]{0,48}$")
+
+# Запрещённые фрагменты в SVG (задача 37 для символа): скрипты, обработчики,
+# внешние ссылки. Рендерим через <img data:>, где это и так не исполняется,
+# но границу держим и на бэкенде.
+SVG_FORBIDDEN = (
+    "<script", "javascript:", "onload", "onclick", "onerror",
+    "<foreignobject", "<image", "href=",
+)
+MAX_SVG_CHARS = 20_000
 
 
 class Palette(BaseModel):
@@ -41,7 +71,6 @@ class Palette(BaseModel):
     muted: str
 
     # Security (задача 37): цвета уходят в inline-стили карточки.
-    # Пропускаем только hex — AI-ответ не сможет протащить url(...) и прочее.
     @field_validator("bg", "surface", "accent", "text", "muted")
     @classmethod
     def _hex_only(cls, v: str) -> str:
@@ -57,8 +86,8 @@ class DesignResult(BaseModel):
     title_font: str
     body_font: str
     statement: str
+    symbol_svg: str   # минималистичный векторный символ книги («экслибрис»)
 
-    # Имена шрифтов подставляются в URL Google Fonts — только буквы/цифры/пробелы
     @field_validator("title_font", "body_font")
     @classmethod
     def _safe_font(cls, v: str) -> str:
@@ -67,13 +96,28 @@ class DesignResult(BaseModel):
             raise ValueError(f"недопустимое имя шрифта: {v!r}")
         return v
 
+    @field_validator("symbol_svg")
+    @classmethod
+    def _safe_svg(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) > MAX_SVG_CHARS:
+            raise ValueError("SVG слишком большой")
+        low = v.lower()
+        if not (low.startswith("<svg") and low.endswith("</svg>")):
+            raise ValueError("symbol_svg должен быть одним элементом <svg>…</svg>")
+        if any(token in low for token in SVG_FORBIDDEN):
+            raise ValueError("SVG содержит запрещённые элементы")
+        return v
 
-async def ask_claude(title: str, author: str, lang: str = "ru") -> MusicResult:
+
+# --- Обобщённые вызовы провайдеров (7.1): промпт и модель — параметры ---
+
+async def ask_claude(prompt: str, output_model, max_tokens: int = 8000):
     message = await claude_client.messages.parse(
         model="claude-sonnet-5",
-        max_tokens=8000,
-        messages=[{"role": "user", "content": build_music_prompt(title, author, lang)}],
-        output_format=MusicResult,   # SDK сам превратит Pydantic-модель в JSON-схему
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+        output_format=output_model,
     )
     if message.parsed_output is None:
         raise ValueError(
@@ -82,11 +126,11 @@ async def ask_claude(title: str, author: str, lang: str = "ru") -> MusicResult:
     return message.parsed_output
 
 
-async def ask_openai(title: str, author: str, lang: str = "ru") -> MusicResult:
+async def ask_openai(prompt: str, output_model):
     response = await openai_client.chat.completions.parse(
         model="gpt-5.4-mini",
-        messages=[{"role": "user", "content": build_music_prompt(title, author, lang)}],
-        response_format=MusicResult,
+        messages=[{"role": "user", "content": prompt}],
+        response_format=output_model,
     )
     choice = response.choices[0]
     if choice.message.parsed is None:
@@ -97,39 +141,47 @@ async def ask_openai(title: str, author: str, lang: str = "ru") -> MusicResult:
     return choice.message.parsed
 
 
-async def safe_ask(func, title: str, author: str, lang: str) -> MusicResult:
+async def safe_ask(coro, fallback_factory):
     """Если один AI упал — не роняем весь запрос, отдаём пустой результат."""
     try:
-        return await func(title, author, lang)
+        return await coro
     except Exception as e:
         print("Ошибка одного из AI:", e)
-        return MusicResult(songs=[], explanation="(не удалось получить ответ)")
+        return fallback_factory()
 
 
-async def generate_music(title: str, author: str, lang: str = "ru") -> dict:
-    """Спрашиваем оба AI параллельно.
-    Возвращаем {'Claude': MusicResult, 'ChatGPT': MusicResult}."""
-    claude_result, openai_result = await asyncio.gather(
-        safe_ask(ask_claude, title, author, lang),
-        safe_ask(ask_openai, title, author, lang),
-    )
-    return {SOURCE_CLAUDE: claude_result, SOURCE_CHATGPT: openai_result}
-
-
-async def ask_claude_design(title: str, author: str, lang: str = "ru") -> DesignResult:
-    message = await claude_client.messages.parse(
-        model="claude-sonnet-5",
-        max_tokens=4000,
-        messages=[{"role": "user", "content": build_design_prompt(title, author, lang)}],
-        output_format=DesignResult,
-    )
-    if message.parsed_output is None:
-        raise ValueError(
-            f"Claude: пустой parsed_output (stop_reason={message.stop_reason})"
+def make_two_source_generator(build_prompt, result_model, fallback_factory):
+    """Генератор категории «спросить оба AI параллельно» (music, food, aroma).
+    Новая категория = промпт + модель результата + эта фабрика."""
+    async def generate(title: str, author: str, lang: str = "ru") -> dict:
+        prompt = build_prompt(title, author, lang)
+        claude_result, openai_result = await asyncio.gather(
+            safe_ask(ask_claude(prompt, result_model), fallback_factory),
+            safe_ask(ask_openai(prompt, result_model), fallback_factory),
         )
-    return message.parsed_output
+        return {SOURCE_CLAUDE: claude_result, SOURCE_CHATGPT: openai_result}
+    return generate
+
+
+FAILED_TEXT = "(не удалось получить ответ)"
+
+generate_music = make_two_source_generator(
+    build_music_prompt, MusicResult,
+    lambda: MusicResult(songs=[], explanation=FAILED_TEXT),
+)
+generate_food = make_two_source_generator(
+    build_food_prompt, FoodResult,
+    lambda: FoodResult(items=[], explanation=FAILED_TEXT),
+)
+generate_aroma = make_two_source_generator(
+    build_aroma_prompt, AromaResult,
+    lambda: AromaResult(items=[], explanation=FAILED_TEXT),
+)
 
 
 async def generate_design(title: str, author: str, lang: str = "ru") -> DesignResult:
-    """Дизайн-паспорт делаем одним источником (Claude) — оформление у книги одно."""
-    return await ask_claude_design(title, author, lang)
+    """Дизайн-паспорт (палитра, шрифты, символ) — одним источником (Claude).
+    max_tokens с запасом: SVG-символ бывает многословным."""
+    return await ask_claude(
+        build_design_prompt(title, author, lang), DesignResult, max_tokens=8000
+    )

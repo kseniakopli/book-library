@@ -1,26 +1,18 @@
-// Секция «Атмосфера» для списочных категорий (music; этап 7: food, aroma).
-// Выделена из BookDetail (R7): добавление категории = запись в COPY +
-// рендер payload в renderPayload.
+// Единая панель «Атмосфера»: одна кнопка генерирует все категории разом,
+// вкладки категорий (Музыка / Угощения / Ароматы), внутри — источники.
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 
-const COPY = {
-  music: {
-    heading: "Атмосфера · Музыка",
-    generate: "Подобрать музыку",
-    regenerate: "Обновить",
-    pending: "Claude и ChatGPT подбирают музыку…",
-    loading: "Загружаю подборку…",
-    empty: "Пока нет подборки. Нажмите «Подобрать музыку».",
-    error: "Не удалось подобрать музыку",
-    loadError: "Не удалось загрузить подборку.",
-  },
-  // этап 7: food: {...}, aroma: {...}
-};
+const CATEGORIES = [
+  { id: "music", label: "Музыка" },
+  { id: "food", label: "Угощения" },
+  { id: "aroma", label: "Ароматы" },
+];
+const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
 
-// payload зависит от категории: для музыки это список {title, artist}
+// payload зависит от категории: музыка — {title, artist}, остальные — {title, description}
 function renderPayload(category, payload) {
   if (category === "music") {
     return (
@@ -34,74 +26,126 @@ function renderPayload(category, payload) {
       </ol>
     );
   }
-  return null;
+  return (
+    <ul className="atmosphere-items">
+      {payload.map((item, i) => (
+        <li className="atmosphere-item" key={i}>
+          <span className="atmosphere-item-title">{item.title}</span>
+          <span className="atmosphere-item-description">
+            {item.description}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
-function AtmosphereSection({ bookId, category }) {
+function AtmosphereSection({ bookId }) {
   const queryClient = useQueryClient();
+  const [activeCategory, setActiveCategory] = useState("music");
   const [activeSource, setActiveSource] = useState("Claude");
-  const copy = COPY[category];
 
-  const {
-    data,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery({
-    queryKey: keys.atmosphere(bookId, category),
-    queryFn: () => api.getAtmosphere(bookId, category),
+  // По запросу на категорию — каждый со своим кэшем
+  const music = useQuery({
+    queryKey: keys.atmosphere(bookId, "music"),
+    queryFn: () => api.getAtmosphere(bookId, "music"),
   });
-  const selections = data?.selections ?? [];
+  const food = useQuery({
+    queryKey: keys.atmosphere(bookId, "food"),
+    queryFn: () => api.getAtmosphere(bookId, "food"),
+  });
+  const aroma = useQuery({
+    queryKey: keys.atmosphere(bookId, "aroma"),
+    queryFn: () => api.getAtmosphere(bookId, "aroma"),
+  });
+  const byCategory = { music, food, aroma };
 
-  const generateMutation = useMutation({
-    mutationFn: () => api.generateAtmosphere(bookId, category),
-    // POST возвращает тот же формат, что GET — кладём ответ прямо в кэш
-    onSuccess: (fresh) =>
-      queryClient.setQueryData(keys.atmosphere(bookId, category), fresh),
+  // Одна кнопка — все категории параллельно (на бэкенде это 6 AI-вызовов)
+  const generateAll = useMutation({
+    mutationFn: async () => {
+      const results = await Promise.all(
+        CATEGORY_IDS.map((c) => api.generateAtmosphere(bookId, c)),
+      );
+      return Object.fromEntries(CATEGORY_IDS.map((c, i) => [c, results[i]]));
+    },
+    onSuccess: (fresh) => {
+      for (const c of CATEGORY_IDS) {
+        queryClient.setQueryData(keys.atmosphere(bookId, c), fresh[c]);
+      }
+    },
   });
 
+  const current = byCategory[activeCategory];
+  const selections = current.data?.selections ?? [];
   const active = selections.find((s) => s.source === activeSource);
+  const hasAny = CATEGORY_IDS.some(
+    (c) => (byCategory[c].data?.selections?.length ?? 0) > 0,
+  );
 
   return (
     <section className="atmosphere">
       <div className="atmosphere-head">
-        <h2 className="atmosphere-title">{copy.heading}</h2>
+        <h2 className="atmosphere-title">Атмосфера</h2>
         <button
           className="add-btn"
-          onClick={() => generateMutation.mutate()}
-          disabled={generateMutation.isPending}
+          onClick={() => generateAll.mutate()}
+          disabled={generateAll.isPending}
         >
-          {generateMutation.isPending
+          {generateAll.isPending
             ? "Подбираю…"
-            : selections.length
-              ? copy.regenerate
-              : copy.generate}
+            : hasAny
+              ? "Обновить атмосферу"
+              : "Подобрать атмосферу"}
         </button>
       </div>
 
-      {isLoading && <p className="muted">{copy.loading}</p>}
+      <div
+        className="category-tabs"
+        role="group"
+        aria-label="Категория атмосферы"
+      >
+        {CATEGORIES.map((c) => (
+          <button
+            key={c.id}
+            className={
+              "category-tab" + (activeCategory === c.id ? " active" : "")
+            }
+            onClick={() => setActiveCategory(c.id)}
+            aria-pressed={activeCategory === c.id}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
 
-      {isError && (
+      {generateAll.isPending && (
+        <p className="muted">Claude и ChatGPT собирают атмосферу вечера…</p>
+      )}
+      {generateAll.isError && (
         <p className="error">
-          {copy.loadError}{" "}
-          <button className="btn-ghost" onClick={() => refetch()}>
+          Не удалось подобрать атмосферу: {generateAll.error.message}
+        </p>
+      )}
+
+      {current.isLoading && <p className="muted">Загружаю подборку…</p>}
+      {current.isError && (
+        <p className="error">
+          Не удалось загрузить подборку.{" "}
+          <button className="btn-ghost" onClick={() => current.refetch()}>
             Повторить
           </button>
         </p>
       )}
 
-      {generateMutation.isPending && <p className="muted">{copy.pending}</p>}
-
-      {generateMutation.isError && (
-        <p className="error">
-          {copy.error}: {generateMutation.error.message}
-        </p>
-      )}
-
-      {!isLoading &&
-        !isError &&
-        !generateMutation.isPending &&
-        selections.length === 0 && <p className="muted">{copy.empty}</p>}
+      {!current.isLoading &&
+        !current.isError &&
+        !generateAll.isPending &&
+        selections.length === 0 && (
+          <p className="muted">
+            Пока пусто. Нажмите «Подобрать атмосферу» — музыка, угощения и
+            ароматы подберутся разом.
+          </p>
+        )}
 
       {selections.length > 0 && (
         <>
@@ -110,6 +154,7 @@ function AtmosphereSection({ bookId, category }) {
             role="group"
             aria-label="Источник подборки"
           >
+            <span className="source-label">Вариант:</span>
             {selections.map((s) => (
               <button
                 key={s.source}
@@ -127,7 +172,7 @@ function AtmosphereSection({ bookId, category }) {
           {active && (
             <>
               <p className="atmosphere-explanation">{active.explanation}</p>
-              {renderPayload(category, active.payload)}
+              {renderPayload(activeCategory, active.payload)}
             </>
           )}
         </>
