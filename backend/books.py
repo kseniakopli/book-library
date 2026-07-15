@@ -123,6 +123,7 @@ async def generate_book_music(book_id: int, lang: str = "ru"):
         ).all()
         for row in old:
             session.delete(row)
+        session.flush()   # применяем DELETE до вставки новых строк
 
         for source, result in results.items():
             songs = [song.model_dump() for song in result.songs]
@@ -195,6 +196,7 @@ async def generate_book_design(book_id: int, lang: str = "ru"):
         ).all()
         for row in old:
             session.delete(row)
+        session.flush() 
         session.add(AISelection(
             book_id=book_id,
             category="design",

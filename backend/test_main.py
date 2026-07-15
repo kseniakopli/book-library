@@ -8,6 +8,8 @@ from models import Book,AISelection
 from main import app
 import books
 from atmosphere import MusicResult, Song
+from sqlalchemy.exc import IntegrityError
+
 
 
 @pytest.fixture(name="client")
@@ -264,3 +266,15 @@ def test_get_book(client):
 
 def test_get_book_not_found(client):
     assert client.get("/books/999").status_code == 404
+
+def test_aiselection_unique_constraint(client):
+    with Session(database.engine) as session:
+        session.add(AISelection(
+            book_id=1, category="music", source="Claude", payload="[]",
+        ))
+        session.commit()
+        session.add(AISelection(
+            book_id=1, category="music", source="Claude", payload="[]",
+        ))
+        with pytest.raises(IntegrityError):
+            session.commit()

@@ -1,7 +1,6 @@
 from datetime import datetime
 from typing import Optional
-
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
 # --- Таблица «книги». Одна такая строка = одна книга в БД ---
@@ -26,6 +25,12 @@ class Book(SQLModel, table=True):
 
 # --- AI-подборка «Атмосфера»: одна строка = один вариант (источник) для книги ---
 class AISelection(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint(
+            "book_id", "category", "source",
+            name="uq_aiselection_book_category_source",
+        ),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     book_id: int = Field(foreign_key="book.id", index=True, ondelete="CASCADE")  # к какой книге
     category: str                     # music / food / aroma
