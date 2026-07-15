@@ -1,8 +1,11 @@
 venv/
 __pycache__/
 *.db
+*.db-wal
+*.db-shm
 .env
 *.pyc
+node_modules/
 
 # Внутренняя документация (ТЗ, план) — не публикуем на GitHub
 docs/
