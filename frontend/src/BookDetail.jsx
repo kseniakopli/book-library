@@ -169,6 +169,15 @@ function BookDetail({ book, onBack, onDeleted }) {
         <div className="detail-info">
           <h1 className="detail-title">{book.title}</h1>
           <p className="detail-author">{book.author}</p>
+          {book.enrich_status === "pending" && (
+            <p className="muted">Обложка и описание подгружаются…</p>
+          )}
+          {book.enrich_status === "failed" && (
+            <p className="error">
+              Не удалось получить данные о книге — нажмите «Обновить
+              информацию».
+            </p>
+          )}
           {design && <p className="detail-statement">{design.statement}</p>}
 
           <div className="status-row">

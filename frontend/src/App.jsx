@@ -18,6 +18,8 @@ function BookPage({ onDeleted }) {
   } = useQuery({
     queryKey: ["books", Number(id)],
     queryFn: () => api.getBook(id),
+    refetchInterval: (q) =>
+      q.state.data?.enrich_status === "pending" ? 2000 : false,
   });
 
   if (isLoading) return <p className="muted">Загрузка…</p>;
@@ -66,6 +68,9 @@ function App() {
   } = useQuery({
     queryKey: ["books"],
     queryFn: api.getBooks,
+    // пока есть книги со статусом pending — опрашиваем список каждые 2 секунды
+    refetchInterval: (q) =>
+      q.state.data?.some((b) => b.enrich_status === "pending") ? 2000 : false,
   });
 
   // Поиск: debounce оставляем, а сам запрос — через useQuery.

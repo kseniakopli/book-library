@@ -88,3 +88,16 @@ if "UNIQUE" not in table_sql:
 else:
     print("aiselection: unique уже есть")
 conn.close()
+
+# --- Миграция 4: статус фонового обогащения ---
+conn = sqlite3.connect("library.db")
+existing = {row[1] for row in conn.execute("PRAGMA table_info(book)")}
+if "enrich_status" not in existing:
+    conn.execute(
+        "ALTER TABLE book ADD COLUMN enrich_status TEXT NOT NULL DEFAULT 'ready'"
+    )
+    conn.commit()
+    print("book: добавлена колонка enrich_status")
+else:
+    print("book: enrich_status уже есть")
+conn.close()

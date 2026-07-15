@@ -2,7 +2,7 @@ import csv
 import io
 import json
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File
 from sqlmodel import Session, select, or_, col
 import database
 from models import Book, AISelection, Catalog, ALLOWED_STATUSES
@@ -22,28 +22,57 @@ def _norm_isbn(value):
     return value.replace("-", "").replace(" ", "") if value else None
 
 
+def _enrich_in_background(book_id: int, lang: str) -> None:
+    """Фоновая задача: сходить в Google Books и дозаполнить книгу.
+    Ошибка не роняет ничего — просто ставим статус failed."""
+    try:
+        with Session(database.engine) as session:
+            book = session.get(Book, book_id)
+            if book is None:               # книгу успели удалить
+                return
+            title, author = book.title, book.author
+
+        info = fetch_book_info(title, author, lang)   # медленный внешний вызов — вне сессии
+
+        with Session(database.engine) as session:
+            book = session.get(Book, book_id)
+            if book is None:
+                return
+            book.cover_url = info["cover_url"]
+            book.description = info["description"]
+            book.page_count = info["page_count"]
+            book.categories = info["categories"]
+            book.published_year = info["published_year"]
+            book.language = info["language"]
+            book.external_rating = info["external_rating"]
+            book.raw_metadata = info["raw_metadata"]
+            book.enrich_status = "ready"
+            session.add(book)
+            session.commit()
+        log_event("enriched", book_id, detail="ok" if info["raw_metadata"] else "miss")
+    except Exception as e:
+        print("Фоновое обогащение не удалось:", e)
+        with Session(database.engine) as session:
+            book = session.get(Book, book_id)
+            if book is not None:
+                book.enrich_status = "failed"
+                session.add(book)
+                session.commit()
+        log_event("enriched", book_id, detail="failed")
+
+
 @router.post("/books")
-def add_book(data: BookCreate, lang: str = "ru"):
+def add_book(data: BookCreate, background_tasks: BackgroundTasks, lang: str = "ru"):
     if lang not in ALLOWED_LANGS:
         raise HTTPException(status_code=400, detail=msg("bad_lang", lang))
-    info = fetch_book_info(data.title, data.author, lang)
-    book = Book(
-        title=data.title,
-        author=data.author,
-        cover_url=info["cover_url"],
-        description=info["description"],
-        page_count=info["page_count"],
-        categories=info["categories"],
-        published_year=info["published_year"],
-        language=info["language"],
-        external_rating=info["external_rating"],
-        raw_metadata=info["raw_metadata"],
-    )
+    # книга сохраняется сразу, без похода в Google Books — ответ мгновенный
+    book = Book(title=data.title, author=data.author, enrich_status="pending")
     with Session(database.engine) as session:
         session.add(book)
         session.commit()
         session.refresh(book)
     log_event("book_added", book.id, detail="source=manual")
+    background_tasks.add_task(_enrich_in_background, book.id, lang)  # запустится после ответа
     return book
 
 

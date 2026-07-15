@@ -278,3 +278,37 @@ def test_aiselection_unique_constraint(client):
         ))
         with pytest.raises(IntegrityError):
             session.commit()
+
+def fake_book_info(title, author, lang="ru", isbn=None):
+    return {
+        "cover_url": "http://example.com/c.jpg",
+        "description": "desc",
+        "page_count": 100,
+        "categories": None,
+        "published_year": 2000,
+        "language": "ru",
+        "external_rating": None,
+        "raw_metadata": "{}",
+    }
+
+
+def test_add_book_enriches_in_background(client, monkeypatch):
+    monkeypatch.setattr(books, "fetch_book_info", fake_book_info)
+    r = client.post("/books", json={"title": "New", "author": "Auth"})
+    assert r.status_code == 200
+    assert r.json()["enrich_status"] == "pending"   # ответ ушёл до обогащения
+    book_id = r.json()["id"]
+    r2 = client.get(f"/books/{book_id}")            # фон уже отработал
+    assert r2.json()["enrich_status"] == "ready"
+    assert r2.json()["cover_url"] == "http://example.com/c.jpg"
+
+
+def test_add_book_enrichment_failure_sets_failed(client, monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(books, "fetch_book_info", boom)
+    r = client.post("/books", json={"title": "New2", "author": "Auth"})
+    book_id = r.json()["id"]
+    r2 = client.get(f"/books/{book_id}")
+    assert r2.json()["enrich_status"] == "failed"
