@@ -3,33 +3,41 @@ import requests
 from dotenv import load_dotenv
 import json
 import time
+import random
 
 
 load_dotenv()
 GOOGLE_BOOKS_API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
 
 # --- Обогащение: тянем обложку и описание из Google Books ---
-def _books_request(query: str, attempts: int = 3) -> list:
-    """Запрос к Google Books с повтором при временных сбоях (503, тайм-аут).
-    При окончательной неудаче — пустой список."""
+def _books_request(query: str, max_results: int = 10, attempts: int = 3) -> list:
+    """Запрос к Google Books с повтором при временных сбоях.
+    Повторяем при тайм-ауте, 5xx и 429 (лимит частоты); при окончательной
+    неудаче — пустой список. Пауза: Retry-After (если пришёл) или
+    экспоненциальный backoff с джиттером."""
     for attempt in range(attempts):
         try:
             response = requests.get(
                 "https://www.googleapis.com/books/v1/volumes",
-                params={"q": query, "maxResults": 10, "key": GOOGLE_BOOKS_API_KEY},
+                params={"q": query, "maxResults": max_results, "key": GOOGLE_BOOKS_API_KEY},
                 timeout=5,
             )
             response.raise_for_status()
             return response.json().get("items", [])
         except requests.RequestException as e:
-            # повторяем только при временных сбоях: нет ответа (тайм-аут) или 5xx.
-            # 4xx (например, 400/404) повторять бессмысленно.
             status = getattr(e.response, "status_code", None)
-            retriable = status is None or status >= 500
-            if retriable and attempt < attempts - 1:
-                time.sleep(1)
-                continue
-            return []
+            # временные сбои: нет ответа (тайм-аут), 5xx или 429; 4xx не повторяем
+            retriable = status is None or status == 429 or status >= 500
+            if not retriable or attempt == attempts - 1:
+                return []
+            # уважаем Retry-After при 429, иначе backoff 1с, 2с… + случайный джиттер
+            retry_after = None
+            if e.response is not None:
+                header = e.response.headers.get("Retry-After", "")
+                if header.isdigit():
+                    retry_after = int(header)
+            delay = retry_after if retry_after is not None else (2 ** attempt) + random.random()
+            time.sleep(delay)
     return []
 
 
@@ -101,32 +109,24 @@ def fetch_book_info(title: str, author: str, lang: str = "ru", isbn: str = None)
 
 def search_books(query: str, max_results: int = 8) -> list[dict]:
     """Свободный поиск в Google Books — список кандидатов
-    [{title, author, cover_url, external_id}]. При ошибке сети — пустой список."""
+    [{title, author, cover_url, external_id}]. Идёт через устойчивый
+    _books_request (повторы при сбоях), при неудаче — пустой список."""
     results = []
-    try:
-        response = requests.get(
-            "https://www.googleapis.com/books/v1/volumes",
-            params={"q": query, "maxResults": max_results, "key": GOOGLE_BOOKS_API_KEY},
-            timeout=5,
-        )
-        response.raise_for_status()
-        for item in response.json().get("items", []):
-            info = item.get("volumeInfo", {})
-            title = info.get("title")
-            if not title:
-                continue
-            authors = info.get("authors", [])
-            author = ", ".join(authors) if authors else "—"
-            image_links = info.get("imageLinks", {})
-            cover = image_links.get("thumbnail") or image_links.get("smallThumbnail")
-            if cover:
-                cover = cover.replace("http://", "https://")
-            results.append({
-                "title": title,
-                "author": author,
-                "cover_url": cover,
-                "external_id": item.get("id"),
-            })
-    except requests.RequestException:
-        pass
+    for item in _books_request(query, max_results=max_results):
+        info = item.get("volumeInfo", {})
+        title = info.get("title")
+        if not title:
+            continue
+        authors = info.get("authors", [])
+        author = ", ".join(authors) if authors else "—"
+        image_links = info.get("imageLinks", {})
+        cover = image_links.get("thumbnail") or image_links.get("smallThumbnail")
+        if cover:
+            cover = cover.replace("http://", "https://")
+        results.append({
+            "title": title,
+            "author": author,
+            "cover_url": cover,
+            "external_id": item.get("id"),
+        })
     return results

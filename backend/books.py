@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, UploadFile, File
 from sqlmodel import Session, select, or_, col
 import database
@@ -9,8 +10,16 @@ from schemas import BookCreate, BookUpdate
 from i18n import ALLOWED_LANGS, msg
 from google_books import fetch_book_info, search_books
 from atmosphere import generate_music, generate_design
+from events import log_event
 
 router = APIRouter()
+
+CATALOG_TTL_DAYS = 30   # сколько дней запись каталога считается свежей
+
+
+def _norm_isbn(value):
+    """ISBN без дефисов и пробелов — для сравнения/дедупликации."""
+    return value.replace("-", "").replace(" ", "") if value else None
 
 
 @router.post("/books")
@@ -34,6 +43,7 @@ def add_book(data: BookCreate, lang: str = "ru"):
         session.add(book)
         session.commit()
         session.refresh(book)
+    log_event("book_added", book.id, detail="source=manual")
     return book
 
 
@@ -64,6 +74,11 @@ def update_book(book_id: int, data: BookUpdate, lang: str = "ru"):
         session.add(book)
         session.commit()
         session.refresh(book)
+
+    if data.status is not None:
+        log_event("status_changed", book_id, detail=book.status)
+    if data.rating is not None and book.rating is not None:
+        log_event("rated", book_id, detail=str(book.rating))
     return book
 
 
@@ -110,6 +125,7 @@ async def generate_book_music(book_id: int, lang: str = "ru"):
             ))
         session.commit()
 
+    log_event("ai_music_generated", book_id)
     # 4) отдаём результат
     return {
         "book_id": book_id,
@@ -178,6 +194,7 @@ async def generate_book_design(book_id: int, lang: str = "ru"):
         ))
         session.commit()
 
+    log_event("ai_design_generated", book_id)
     return result
 
 
@@ -200,11 +217,14 @@ def search(q: str):
     if len(q) < 3:                       # от 3 символов — бережём внешний API
         return {"results": []}
 
+    cutoff = datetime.now() - timedelta(days=CATALOG_TTL_DAYS)
     with Session(database.engine) as session:
         pattern = f"%{q}%"
+        # берём только свежие записи каталога (TTL) — протухшие игнорируем
         local = session.exec(
             select(Catalog).where(
-                or_(col(Catalog.title).ilike(pattern), col(Catalog.author).ilike(pattern))
+                Catalog.created_at >= cutoff,
+                or_(col(Catalog.title).ilike(pattern), col(Catalog.author).ilike(pattern)),
             ).limit(10)
         ).all()
 
@@ -213,20 +233,27 @@ def search(q: str):
             for c in local
         ]
 
-        # Мало нашли в своём каталоге — идём во внешний источник и кэшируем найденное
+        # мало нашли в своём каталоге — идём во внешний источник и кэшируем/обновляем
         if len(results) < 5:
             external = search_books(q)
-            known_ids = {c.external_id for c in local if c.external_id}
             seen = {(r["title"].lower(), r["author"].lower()) for r in results}
             for item in external:
-                if item["external_id"] and item["external_id"] not in known_ids:
-                    session.add(Catalog(
-                        title=item["title"],
-                        author=item["author"],
-                        cover_url=item["cover_url"],
-                        source="google",
-                        external_id=item["external_id"],
-                    ))
+                if item["external_id"]:
+                    existing = session.exec(
+                        select(Catalog).where(Catalog.external_id == item["external_id"])
+                    ).first()
+                    if existing:
+                        existing.created_at = datetime.now()      # обновляем TTL
+                        existing.cover_url = item["cover_url"] or existing.cover_url
+                        session.add(existing)
+                    else:
+                        session.add(Catalog(
+                            title=item["title"],
+                            author=item["author"],
+                            cover_url=item["cover_url"],
+                            source="google",
+                            external_id=item["external_id"],
+                        ))
                 key = (item["title"].lower(), item["author"].lower())
                 if key not in seen:
                     results.append({
@@ -237,6 +264,7 @@ def search(q: str):
                     seen.add(key)
             session.commit()
 
+    log_event("search", detail=f"q={q}; found={len(results)}")
     return {"results": results[:10]}
 
 @router.post("/books/backfill-covers")
@@ -265,12 +293,25 @@ async def import_csv(file: UploadFile = File(...)):
 
     imported = 0
     skipped = 0
+    duplicates = 0
     with Session(database.engine) as session:
+        # ключи уже существующих книг — чтобы не задваивать при повторном импорте
+        existing = session.exec(select(Book)).all()
+        seen_isbn = {_norm_isbn(b.isbn) for b in existing if b.isbn}
+        seen_key = {(b.title.strip().lower(), b.author.strip().lower()) for b in existing}
+
         for row in reader:
             title = (row.get("Название") or "").strip()
             author = (row.get("Автор") or "").strip()
             if not title or not author:       # нет названия/автора — пропускаем строку
                 skipped += 1
+                continue
+
+            isbn = (row.get("ISBN") or "").strip() or None
+            clean_isbn = _norm_isbn(isbn)
+            key = (title.lower(), author.lower())
+            if (clean_isbn and clean_isbn in seen_isbn) or key in seen_key:
+                duplicates += 1               # такая книга уже есть — пропускаем
                 continue
 
             rating = None
@@ -281,12 +322,15 @@ async def import_csv(file: UploadFile = File(...)):
             read_date = (row.get("Дата прочтения") or "").strip()
             status = "read" if (rating is not None or read_date) else "want"
 
-            isbn = (row.get("ISBN") or "").strip() or None
             session.add(Book(title=title, author=author, rating=rating, status=status, isbn=isbn))
             imported += 1
+            if clean_isbn:
+                seen_isbn.add(clean_isbn)
+            seen_key.add(key)
         session.commit()
 
-    return {"imported": imported, "skipped": skipped}
+    log_event("import", detail=f"imported={imported}; duplicates={duplicates}; skipped={skipped}")
+    return {"imported": imported, "duplicates": duplicates, "skipped": skipped}
 
 @router.post("/books/backfill-metadata")
 def backfill_metadata(limit: int = 40, lang: str = "ru"):
@@ -324,7 +368,8 @@ def enrich_book(book_id: int, lang: str = "ru"):
             raise HTTPException(status_code=404, detail=msg("book_not_found", lang))
 
         info = fetch_book_info(book.title, book.author, lang, isbn=book.isbn)
-        if info["raw_metadata"]:              # нашли подходящую книгу — обновляем
+        found = bool(info["raw_metadata"])
+        if found:                             # нашли подходящую книгу — обновляем
             book.cover_url = info["cover_url"] or book.cover_url
             book.description = info["description"] or book.description
             book.page_count = info["page_count"]
@@ -336,4 +381,5 @@ def enrich_book(book_id: int, lang: str = "ru"):
             session.add(book)
             session.commit()
             session.refresh(book)
+    log_event("enriched", book_id, detail="ok" if found else "miss")
     return book

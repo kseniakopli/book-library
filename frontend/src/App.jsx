@@ -18,6 +18,12 @@ function App() {
 
   const [importMsg, setImportMsg] = useState("");
   const fileInputRef = useRef(null);
+  const [shelfStart, setShelfStart] = useState({});   // позиция листания полок по названию
+
+  const shelfProps = (title) => ({
+    start: shelfStart[title] || 0,
+    onStart: (v) => setShelfStart((prev) => ({ ...prev, [title]: v })),
+  });
 
   useEffect(() => {
     fetch("/books")
@@ -71,7 +77,9 @@ function App() {
     const data = await response.json();
     const fresh = await fetch("/books").then((r) => r.json());
     setBooks(fresh);
-    setImportMsg(`Импортировано: ${data.imported}, пропущено: ${data.skipped}`);
+    setImportMsg(
+      `Импортировано: ${data.imported}, дубликаты: ${data.duplicates ?? 0}, пропущено: ${data.skipped}`,
+    );
     e.target.value = "";
   }
 
@@ -164,11 +172,13 @@ function App() {
             title="Прочитано"
             books={readBooks}
             onSelect={setSelectedBook}
+            {...shelfProps("Прочитано")}
           />
           <Shelf
             title="Хочу прочитать"
             books={wantBooks}
             onSelect={setSelectedBook}
+            {...shelfProps("Хочу прочитать")}
           />
           <Shelf
             title="Рекомендации"

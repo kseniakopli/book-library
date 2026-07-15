@@ -196,7 +196,8 @@ def test_import_creates_books(client):
     )
     r = _upload(client, csv_text)
     assert r.status_code == 200
-    assert r.json() == {"imported": 2, "skipped": 0}
+    body = r.json()
+    assert body["imported"] == 2 and body["skipped"] == 0
     titles = [b["title"] for b in client.get("/books").json()]
     assert "Тестовая книга" in titles
 
@@ -219,7 +220,7 @@ def test_import_skips_invalid_rows(client):
         ",Автор без названия,Июль 2026 г.,5,2\n"
         "Название без автора,,Июль 2026 г.,5,3\n"
     )
-    assert _upload(client, csv_text).json() == {"imported": 1, "skipped": 2}
+    assert _upload(client, csv_text).json() == {"imported": 1, "duplicates": 0, "skipped": 2}
 
 
 def test_import_rating_and_status_edge_cases(client):
