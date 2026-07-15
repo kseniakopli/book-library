@@ -10,4 +10,10 @@ export default defineConfig({
       '/import': 'http://127.0.0.1:8000',
     },
   },
+  // Конфигурация Vitest (задача 20): jsdom-окружение + общий setup с MSW
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    globals: true,
+  },
 })
