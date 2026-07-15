@@ -8,7 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "./api";
 
 // Страница книги: id из URL, книга из общего списка
-function BookPage({ onUpdated, onDeleted }) {
+function BookPage({ onDeleted }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const {
@@ -35,7 +35,6 @@ function BookPage({ onUpdated, onDeleted }) {
     <BookDetail
       book={book}
       onBack={() => navigate("/")}
-      onUpdated={onUpdated}
       onDeleted={onDeleted}
     />
   );
@@ -59,7 +58,12 @@ function App() {
   });
 
   // Список книг: кэш под ключом ["books"], загрузка и обновление — забота React Query
-  const { data: books = [], isLoading: loading } = useQuery({
+  const {
+    data: books = [],
+    isLoading: loading,
+    isError: booksError,
+    refetch: refetchBooks,
+  } = useQuery({
     queryKey: ["books"],
     queryFn: api.getBooks,
   });
@@ -72,7 +76,11 @@ function App() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const { data: searchData, isFetching: searching } = useQuery({
+  const {
+    data: searchData,
+    isFetching: searching,
+    isError: searchError,
+  } = useQuery({
     queryKey: ["search", debouncedTerm],
     queryFn: () => api.searchBooks(debouncedTerm),
     enabled: debouncedTerm.length >= 3, // не дёргать бэкенд, пока меньше 3 символов
@@ -116,11 +124,6 @@ function App() {
     setQuery("");
   }
 
-  function handleUpdated() {
-    // инвалидация по префиксу ["books"] обновит и список, и карточки ["books", id]
-    queryClient.invalidateQueries({ queryKey: ["books"] });
-  }
-
   function handleDeleted() {
     queryClient.invalidateQueries({ queryKey: ["books"] });
     navigate("/");
@@ -157,8 +160,9 @@ function App() {
           <button
             className="btn-ghost"
             onClick={() => fileInputRef.current.click()}
+            disabled={importMutation.isPending}
           >
-            Импорт CSV
+            {importMutation.isPending ? "Импортирую…" : "Импорт CSV"}
           </button>
           <button className="add-btn" onClick={() => setShowModal(true)}>
             + Добавить книгу
@@ -172,8 +176,20 @@ function App() {
         onChange={(e) => setFilter(e.target.value)}
       />
       {importMsg && <p className="muted">{importMsg}</p>}
+      {importMutation.isError && (
+        <p className="error">
+          Импорт не удался: {importMutation.error.message}
+        </p>
+      )}
       {loading ? (
         <p className="muted">Загрузка…</p>
+      ) : booksError ? (
+        <p className="error">
+          Не удалось загрузить библиотеку.{" "}
+          <button className="btn-ghost" onClick={() => refetchBooks()}>
+            Повторить
+          </button>
+        </p>
       ) : filtered ? (
         filtered.length === 0 ? (
           <p className="muted">Ничего не найдено в библиотеке.</p>
@@ -229,8 +245,21 @@ function App() {
               <p className="muted search-hint">Введите хотя бы 3 символа</p>
             )}
             {searching && <p className="muted search-hint">Ищу…</p>}
-            {!searching && term.length >= 3 && searchResults.length === 0 && (
-              <p className="muted search-hint">Ничего не найдено</p>
+            {!searchError &&
+              !searching &&
+              term.length >= 3 &&
+              searchResults.length === 0 && (
+                <p className="muted search-hint">Ничего не найдено</p>
+              )}
+            {searchError && (
+              <p className="error search-hint">
+                Поиск не удался. Попробуйте ещё раз.
+              </p>
+            )}
+            {addBookMutation.isError && (
+              <p className="error search-hint">
+                Не удалось добавить книгу: {addBookMutation.error.message}
+              </p>
             )}
 
             <ul className="search-results">
@@ -264,14 +293,7 @@ function App() {
         <Route path="/" element={home} />
         <Route
           path="/books/:id"
-          element={
-            <BookPage
-              books={books}
-              loading={loading}
-              onUpdated={handleUpdated}
-              onDeleted={handleDeleted}
-            />
-          }
+          element={<BookPage onDeleted={handleDeleted} />}
         />
       </Routes>
     </div>

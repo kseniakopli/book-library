@@ -511,3 +511,7 @@ body {
 .shelf-empty {
   color: var(--muted);
 }
+.error {
+  color: #b3564d;
+  font-size: 14px;
+}

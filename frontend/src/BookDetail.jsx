@@ -15,12 +15,18 @@ function BookDetail({ book, onBack, onDeleted }) {
   const [activeSource, setActiveSource] = useState("Claude");
 
   // --- Данные: музыка и паспорт оформления (кэшируются по id книги) ---
-  const { data: musicData } = useQuery({
+  const {
+    data: musicData,
+    isLoading: musicLoading,
+    isError: musicError,
+    refetch: refetchMusic,
+  } = useQuery({
     queryKey: ["music", book.id],
     queryFn: () => api.getMusic(book.id),
   });
   const selections = musicData?.selections ?? [];
 
+  // Паспорт без обработки ошибки: не загрузился — карточка в базовой теме
   const { data: designData } = useQuery({
     queryKey: ["design", book.id],
     queryFn: () => api.getDesign(book.id),
@@ -135,6 +141,22 @@ function BookDetail({ book, onBack, onDeleted }) {
         </div>
       </div>
 
+      {(patchMutation.isError ||
+        designMutation.isError ||
+        enrichMutation.isError ||
+        deleteMutation.isError) && (
+        <p className="error">
+          {patchMutation.isError &&
+            `Не удалось сохранить: ${patchMutation.error.message}. `}
+          {designMutation.isError &&
+            `Оформление не удалось: ${designMutation.error.message}. `}
+          {enrichMutation.isError &&
+            `Обновление не удалось: ${enrichMutation.error.message}. `}
+          {deleteMutation.isError &&
+            `Удаление не удалось: ${deleteMutation.error.message}.`}
+        </p>
+      )}
+
       <div className="detail-top">
         <div className="detail-cover">
           {book.cover_url ? (
@@ -206,15 +228,35 @@ function BookDetail({ book, onBack, onDeleted }) {
           </button>
         </div>
 
+        {musicLoading && <p className="muted">Загружаю подборку…</p>}
+
+        {musicError && (
+          <p className="error">
+            Не удалось загрузить подборку.{" "}
+            <button className="btn-ghost" onClick={() => refetchMusic()}>
+              Повторить
+            </button>
+          </p>
+        )}
+
         {musicMutation.isPending && (
           <p className="muted">Claude и ChatGPT подбирают музыку…</p>
         )}
 
-        {!musicMutation.isPending && selections.length === 0 && (
-          <p className="muted">
-            Пока нет подборки. Нажмите «Подобрать музыку».
+        {musicMutation.isError && (
+          <p className="error">
+            Не удалось подобрать музыку: {musicMutation.error.message}
           </p>
         )}
+
+        {!musicLoading &&
+          !musicError &&
+          !musicMutation.isPending &&
+          selections.length === 0 && (
+            <p className="muted">
+              Пока нет подборки. Нажмите «Подобрать музыку».
+            </p>
+          )}
 
         {selections.length > 0 && (
           <>
