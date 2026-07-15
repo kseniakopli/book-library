@@ -3,7 +3,7 @@ import { test, expect } from "vitest";
 import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import Shelf from "../Shelf";
+import Shelf from "../components/Shelf";
 
 const books = Array.from({ length: 7 }, (_, i) => ({
   id: i + 1,

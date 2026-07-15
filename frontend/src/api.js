@@ -28,11 +28,12 @@ export const importCsv = (file) => {
   formData.append("file", file);
   return request("/import", { method: "POST", body: formData });
 };
-export const getMusic = (id) => request(`/books/${id}/music`);
-export const generateMusic = (id) =>
-  request(`/books/${id}/music`, { method: "POST" });
-export const getDesign = (id) => request(`/books/${id}/design`);
-export const generateDesign = (id) =>
-  request(`/books/${id}/design`, { method: "POST" });
 export const enrichBook = (id) =>
   request(`/books/${id}/enrich`, { method: "POST" });
+
+// Атмосфера: единые эндпоинты для всех категорий (music, design; этап 7 добавит свои).
+// GET и POST возвращают одинаковый формат: { book_id, category, selections: [...] }
+export const getAtmosphere = (id, category) =>
+  request(`/books/${id}/atmosphere/${category}`);
+export const generateAtmosphere = (id, category) =>
+  request(`/books/${id}/atmosphere/${category}`, { method: "POST" });

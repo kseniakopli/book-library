@@ -110,8 +110,14 @@ export const handlers = [
     HttpResponse.json({ imported: 2, duplicates: 1, skipped: 0 }),
   ),
 
-  http.get("/books/:id/music", () => HttpResponse.json({ selections: [] })),
-  http.get("/books/:id/design", () => HttpResponse.json({ design: null })),
+  // Атмосфера: единый формат для всех категорий (music, design, ...)
+  http.get("/books/:id/atmosphere/:category", ({ params }) =>
+    HttpResponse.json({
+      book_id: Number(params.id),
+      category: params.category,
+      selections: [],
+    }),
+  ),
 ];
 
 export const server = setupServer(...handlers);
