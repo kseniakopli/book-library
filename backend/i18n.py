@@ -12,6 +12,12 @@ MESSAGES = {
                           "en": "Rating must be between 1 and 10"},
     "rating_needs_read": {"ru": "Оценку можно ставить только книге со статусом read",
                           "en": "Rating is only allowed for books with status 'read'"},
+    "import_too_large":     {"ru": "Файл слишком большой (лимит 2 МБ)",
+                             "en": "File is too large (2 MB limit)"},
+    "import_bad_encoding":  {"ru": "Файл должен быть в кодировке UTF-8",
+                             "en": "File must be UTF-8 encoded"},
+    "import_too_many_rows": {"ru": "Слишком много строк (лимит 2000)",
+                             "en": "Too many rows (2000 limit)"},
 }
 
 

@@ -317,11 +317,49 @@ def test_add_book_with_external_id(client, monkeypatch):
     monkeypatch.setattr(books, "fetch_volume_by_id", lambda vid: fake_book_info("t", "a"))
     r = client.post("/books", json={
         "title": "T", "author": "A",
-        "cover_url": "http://example.com/candidate.jpg",
+        "cover_url": "https://example.com/candidate.jpg",
         "external_id": "abc123",
     })
-    assert r.json()["cover_url"] == "http://example.com/candidate.jpg"  # видна сразу
+    assert r.json()["cover_url"] == "https://example.com/candidate.jpg"  # видна сразу
     book_id = r.json()["id"]
     r2 = client.get(f"/books/{book_id}")
     assert r2.json()["enrich_status"] == "ready"
     assert r2.json()["description"] == "desc"   # доехало из fetch_volume_by_id
+
+def test_add_book_rejects_non_https_cover(client):
+    r = client.post("/books", json={
+        "title": "T", "author": "A", "cover_url": "javascript:alert(1)",
+    })
+    assert r.status_code == 422
+
+
+def test_design_palette_rejects_non_hex():
+    import pydantic
+    from atmosphere import DesignResult
+    bad = {
+        "base_mood": "мрак",
+        "palette": {"bg": "url(https://evil.example)", "surface": "#ffffff",
+                    "accent": "#ffffff", "text": "#ffffff", "muted": "#ffffff"},
+        "title_font": "PT Serif", "body_font": "PT Serif", "statement": "…",
+    }
+    with pytest.raises(pydantic.ValidationError):
+        DesignResult.model_validate(bad)
+
+
+def test_import_rejects_bad_encoding(client):
+    data = "Название,Автор\nКнига,Кто-то".encode("cp1251")
+    r = client.post("/import", files={"file": ("books.csv", data, "text/csv")})
+    assert r.status_code == 400
+
+
+def test_import_rejects_huge_file(client):
+    data = b"a" * (2 * 1024 * 1024 + 10)
+    r = client.post("/import", files={"file": ("books.csv", data, "text/csv")})
+    assert r.status_code == 400
+
+
+def test_import_rejects_too_many_rows(client):
+    rows = "\n".join(f"Книга {i},Автор" for i in range(2101))
+    data = ("Название,Автор\n" + rows).encode("utf-8")
+    r = client.post("/import", files={"file": ("books.csv", data, "text/csv")})
+    assert r.status_code == 400

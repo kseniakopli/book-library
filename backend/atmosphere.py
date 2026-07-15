@@ -1,6 +1,6 @@
 import asyncio
-
-from pydantic import BaseModel
+import re
+from pydantic import BaseModel, field_validator
 from dotenv import load_dotenv
 import anthropic
 from openai import AsyncOpenAI
@@ -21,12 +21,26 @@ class MusicResult(BaseModel):
     songs: list[Song]
     explanation: str
 
+HEX_COLOR = re.compile(r"^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+FONT_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 ]{0,48}$")
+
+
 class Palette(BaseModel):
     bg: str
     surface: str
     accent: str
     text: str
     muted: str
+
+    # Security (задача 37): цвета уходят в inline-стили карточки.
+    # Пропускаем только hex — AI-ответ не сможет протащить url(...) и прочее.
+    @field_validator("bg", "surface", "accent", "text", "muted")
+    @classmethod
+    def _hex_only(cls, v: str) -> str:
+        v = v.strip()
+        if not HEX_COLOR.match(v):
+            raise ValueError(f"не hex-цвет: {v!r}")
+        return v
 
 
 class DesignResult(BaseModel):
@@ -35,6 +49,15 @@ class DesignResult(BaseModel):
     title_font: str
     body_font: str
     statement: str
+
+    # Имена шрифтов подставляются в URL Google Fonts — только буквы/цифры/пробелы
+    @field_validator("title_font", "body_font")
+    @classmethod
+    def _safe_font(cls, v: str) -> str:
+        v = v.strip()
+        if not FONT_NAME.match(v):
+            raise ValueError(f"недопустимое имя шрифта: {v!r}")
+        return v
 
 
 

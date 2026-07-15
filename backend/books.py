@@ -15,7 +15,8 @@ from events import log_event
 router = APIRouter()
 
 CATALOG_TTL_DAYS = 30   # сколько дней запись каталога считается свежей
-
+MAX_IMPORT_BYTES = 2 * 1024 * 1024   # лимит CSV-файла: 2 МБ
+MAX_IMPORT_ROWS = 2000               # лимит строк за один импорт
 
 def _norm_isbn(value):
     """ISBN без дефисов и пробелов — для сравнения/дедупликации."""
@@ -335,9 +336,16 @@ def backfill_covers():
     return {"updated": updated}
 
 @router.post("/import")
-async def import_csv(file: UploadFile = File(...)):
-    content = await file.read()
-    text = content.decode("utf-8-sig")        # utf-8-sig убирает BOM, если он есть
+async def import_csv(file: UploadFile = File(...), lang: str = "ru"):
+    content = await file.read(MAX_IMPORT_BYTES + 1)   # читаем на байт больше лимита
+    if len(content) > MAX_IMPORT_BYTES:
+        raise HTTPException(status_code=400, detail=msg("import_too_large", lang))
+    try:
+        text = content.decode("utf-8-sig")    # utf-8-sig убирает BOM, если он есть
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail=msg("import_bad_encoding", lang))
+    if text.count("\n") > MAX_IMPORT_ROWS:
+        raise HTTPException(status_code=400, detail=msg("import_too_many_rows", lang))
     reader = csv.DictReader(io.StringIO(text))
 
     imported = 0
