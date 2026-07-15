@@ -1,6 +1,6 @@
 // Главная: шапка с темой и импортом, поиск по библиотеке, полки.
 // Выделена из App.jsx (R6).
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
@@ -20,7 +20,19 @@ function HomePage() {
   const [importMsg, setImportMsg] = useState("");
   const fileInputRef = useRef(null);
   const addButtonRef = useRef(null);
-  const [shelfStart, setShelfStart] = useState({}); // позиция листания полок по названию
+  // Позиция полок: HomePage размонтируется при уходе на карточку книги,
+  // поэтому state не выживает — храним в sessionStorage (переживает возврат и F5,
+  // чистится при закрытии вкладки)
+  const [shelfStart, setShelfStart] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("shelfStart")) || {};
+    } catch {
+      return {};
+    }
+  });
+  useEffect(() => {
+    sessionStorage.setItem("shelfStart", JSON.stringify(shelfStart));
+  }, [shelfStart]);
 
   const shelfProps = (title) => ({
     start: shelfStart[title] || 0,
@@ -130,7 +142,9 @@ function HomePage() {
 
       {importMsg && <p className="muted">{importMsg}</p>}
       {importMutation.isError && (
-        <p className="error">Импорт не удался: {importMutation.error.message}</p>
+        <p className="error">
+          Импорт не удался: {importMutation.error.message}
+        </p>
       )}
 
       {loading ? (

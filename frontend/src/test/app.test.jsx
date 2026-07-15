@@ -3,6 +3,7 @@ import { test, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderApp } from "./utils";
+import { db } from "./server";
 
 test("полки показывают книги из API", async () => {
   renderApp();
@@ -51,4 +52,38 @@ test("карточка книги открывается с клавиатуры
   expect(
     await screen.findByRole("heading", { name: "Дом огней" }),
   ).toBeInTheDocument();
+});
+
+test("позиция полки переживает уход на карточку и возврат", async () => {
+  // 7 книг «Хочу прочитать»: при ширине jsdom (1024px) на полке 5 карточек,
+  // значит есть вторая страница листания
+  db.books = Array.from({ length: 7 }, (_, i) => ({
+    id: i + 1,
+    title: `Книга ${i + 1}`,
+    author: "Автор",
+    status: "want",
+    rating: null,
+    cover_url: null,
+    description: null,
+    enrich_status: "ready",
+  }));
+
+  renderApp();
+  await screen.findByText("Книга 1");
+
+  // листаем вперёд: видны книги 3–7
+  await userEvent.click(screen.getByRole("button", { name: "Вперёд" }));
+  expect(screen.getByText("Книга 6")).toBeInTheDocument();
+  expect(screen.queryByText("Книга 1")).not.toBeInTheDocument();
+
+  // уходим на карточку и возвращаемся
+  await userEvent.click(
+    screen.getByRole("button", { name: "Книга 6 — Автор" }),
+  );
+  await screen.findByRole("heading", { name: "Книга 6" });
+  await userEvent.click(screen.getByRole("button", { name: "← К библиотеке" }));
+
+  // полка открылась на той же странице листания, а не с начала
+  expect(await screen.findByText("Книга 6")).toBeInTheDocument();
+  expect(screen.queryByText("Книга 1")).not.toBeInTheDocument();
 });
