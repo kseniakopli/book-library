@@ -88,6 +88,16 @@ def list_books():
         books = session.exec(select(Book)).all()
     return books
 
+@router.get("/books/{book_id}")
+def get_book(book_id: int, lang: str = "ru"):
+    if lang not in ALLOWED_LANGS:
+        raise HTTPException(status_code=400, detail=msg("bad_lang", lang))
+    with Session(database.engine) as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            raise HTTPException(status_code=404, detail=msg("book_not_found", lang))
+    return book
+
 @router.post("/books/{book_id}/music")
 async def generate_book_music(book_id: int, lang: str = "ru"):
     if lang not in ALLOWED_LANGS:

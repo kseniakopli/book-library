@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as api from "./api";
 
 const STATUS_LABELS = {
   want: "Хочу прочитать",
@@ -8,29 +10,63 @@ const STATUS_LABELS = {
 
 const STATUSES = ["want", "reading", "read"];
 
-function BookDetail({ book, onBack, onUpdated, onDeleted }) {
-  const [saving, setSaving] = useState(false);
-
-  const [selections, setSelections] = useState([]);
+function BookDetail({ book, onBack, onDeleted }) {
+  const queryClient = useQueryClient();
   const [activeSource, setActiveSource] = useState("Claude");
-  const [generating, setGenerating] = useState(false);
 
-  const [design, setDesign] = useState(null);
-  const [generatingDesign, setGeneratingDesign] = useState(false);
-  const [enriching, setEnriching] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  // --- Данные: музыка и паспорт оформления (кэшируются по id книги) ---
+  const { data: musicData } = useQuery({
+    queryKey: ["music", book.id],
+    queryFn: () => api.getMusic(book.id),
+  });
+  const selections = musicData?.selections ?? [];
 
-  useEffect(() => {
-    fetch(`/books/${book.id}/music`)
-      .then((r) => r.json())
-      .then((data) => setSelections(data.selections));
-  }, [book.id]);
+  const { data: designData } = useQuery({
+    queryKey: ["design", book.id],
+    queryFn: () => api.getDesign(book.id),
+  });
+  const design = designData?.design ?? null;
 
-  useEffect(() => {
-    fetch(`/books/${book.id}/design`)
-      .then((r) => r.json())
-      .then((data) => setDesign(data.design));
-  }, [book.id]);
+  // --- Мутации ---
+  const patchMutation = useMutation({
+    mutationFn: (body) => api.patchBook({ id: book.id, ...body }),
+    // инвалидация по префиксу ["books"]: обновятся и список, и эта карточка
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["books"] }),
+  });
+  const saving = patchMutation.isPending;
+
+  const musicMutation = useMutation({
+    mutationFn: () => api.generateMusic(book.id),
+    // POST возвращает тот же формат, что GET — кладём ответ прямо в кэш без перезапроса
+    onSuccess: (data) => queryClient.setQueryData(["music", book.id], data),
+  });
+
+  const designMutation = useMutation({
+    mutationFn: () => api.generateDesign(book.id),
+    // а тут формат ответа POST отличается от GET — проще перезапросить
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["design", book.id] }),
+  });
+
+  const enrichMutation = useMutation({
+    mutationFn: () => api.enrichBook(book.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["books"] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.deleteBook(book.id),
+    onSuccess: onDeleted, // App: инвалидация + возврат на главную
+  });
+
+  function removeBook() {
+    if (
+      !window.confirm(
+        `Удалить «${book.title}»? Подборки и оформление тоже удалятся.`,
+      )
+    )
+      return;
+    deleteMutation.mutate();
+  }
 
   // Подключаем шрифты из паспорта (Google Fonts)
   useEffect(() => {
@@ -44,59 +80,6 @@ function BookDetail({ book, onBack, onUpdated, onDeleted }) {
     document.head.appendChild(link);
     return () => document.head.removeChild(link);
   }, [design]);
-
-  async function patch(body) {
-    setSaving(true);
-    const response = await fetch(`/books/${book.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const updated = await response.json();
-    setSaving(false);
-    onUpdated(updated);
-  }
-
-  async function generateMusic() {
-    setGenerating(true);
-    const response = await fetch(`/books/${book.id}/music`, { method: "POST" });
-    const data = await response.json();
-    setSelections(data.selections);
-    setGenerating(false);
-  }
-
-  async function generateDesign() {
-    setGeneratingDesign(true);
-    const response = await fetch(`/books/${book.id}/design`, {
-      method: "POST",
-    });
-    const data = await response.json();
-    setDesign(data);
-    setGeneratingDesign(false);
-  }
-
-  async function enrich() {
-    setEnriching(true);
-    const response = await fetch(`/books/${book.id}/enrich`, {
-      method: "POST",
-    });
-    const updated = await response.json();
-    setEnriching(false);
-    onUpdated(updated);
-  }
-
-  async function removeBook() {
-    if (
-      !window.confirm(
-        `Удалить «${book.title}»? Подборки и оформление тоже удалятся.`,
-      )
-    )
-      return;
-    setDeleting(true);
-    await fetch(`/books/${book.id}`, { method: "DELETE" });
-    setDeleting(false);
-    onDeleted(book.id);
-  }
 
   const active = selections.find((s) => s.source === activeSource);
 
@@ -124,26 +107,30 @@ function BookDetail({ book, onBack, onUpdated, onDeleted }) {
           ← К библиотеке
         </button>
         <div className="detail-bar-actions">
-          <button className="btn-ghost" onClick={enrich} disabled={enriching}>
-            {enriching ? "Обновляю…" : "Обновить информацию"}
-          </button>
           <button
             className="btn-ghost"
-            onClick={removeBook}
-            disabled={deleting}
+            onClick={() => enrichMutation.mutate()}
+            disabled={enrichMutation.isPending}
           >
-            {deleting ? "Удаляю…" : "Удалить"}
+            {enrichMutation.isPending ? "Обновляю…" : "Обновить информацию"}
           </button>
           <button
             className="add-btn"
-            onClick={generateDesign}
-            disabled={generatingDesign}
+            onClick={() => designMutation.mutate()}
+            disabled={designMutation.isPending}
           >
-            {generatingDesign
+            {designMutation.isPending
               ? "Оформляю…"
               : design
                 ? "Обновить оформление"
                 : "Оформить под книгу"}
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={removeBook}
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? "Удаляю…" : "Удалить"}
           </button>
         </div>
       </div>
@@ -167,7 +154,7 @@ function BookDetail({ book, onBack, onUpdated, onDeleted }) {
               <button
                 key={s}
                 className={"pill " + (book.status === s ? "pill-active" : "")}
-                onClick={() => patch({ status: s })}
+                onClick={() => patchMutation.mutate({ status: s })}
                 disabled={saving}
               >
                 {STATUS_LABELS[s]}
@@ -180,7 +167,9 @@ function BookDetail({ book, onBack, onUpdated, onDeleted }) {
               <span className="rating-label">Оценка:</span>
               <select
                 value={book.rating ?? ""}
-                onChange={(e) => patch({ rating: Number(e.target.value) })}
+                onChange={(e) =>
+                  patchMutation.mutate({ rating: Number(e.target.value) })
+                }
                 disabled={saving}
               >
                 <option value="" disabled>
@@ -206,10 +195,10 @@ function BookDetail({ book, onBack, onUpdated, onDeleted }) {
           <h2 className="atmosphere-title">Атмосфера · Музыка</h2>
           <button
             className="add-btn"
-            onClick={generateMusic}
-            disabled={generating}
+            onClick={() => musicMutation.mutate()}
+            disabled={musicMutation.isPending}
           >
-            {generating
+            {musicMutation.isPending
               ? "Подбираю…"
               : selections.length
                 ? "Обновить"
@@ -217,11 +206,11 @@ function BookDetail({ book, onBack, onUpdated, onDeleted }) {
           </button>
         </div>
 
-        {generating && (
+        {musicMutation.isPending && (
           <p className="muted">Claude и ChatGPT подбирают музыку…</p>
         )}
 
-        {!generating && selections.length === 0 && (
+        {!musicMutation.isPending && selections.length === 0 && (
           <p className="muted">
             Пока нет подборки. Нажмите «Подобрать музыку».
           </p>

@@ -4,15 +4,24 @@ import "./App.css";
 import BookDetail from "./BookDetail";
 import BookCard from "./BookCard";
 import Shelf from "./Shelf";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as api from "./api";
 
 // Страница книги: id из URL, книга из общего списка
-function BookPage({ books, loading, onUpdated, onDeleted }) {
+function BookPage({ onUpdated, onDeleted }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const book = books.find((b) => b.id === Number(id));
+  const {
+    data: book,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["books", Number(id)],
+    queryFn: () => api.getBook(id),
+  });
 
-  if (loading) return <p className="muted">Загрузка…</p>;
-  if (!book)
+  if (isLoading) return <p className="muted">Загрузка…</p>;
+  if (isError || !book)
     return (
       <div>
         <p className="muted">Книга не найдена.</p>
@@ -33,16 +42,12 @@ function BookPage({ books, loading, onUpdated, onDeleted }) {
 }
 
 function App() {
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [filter, setFilter] = useState("");
 
   const [showModal, setShowModal] = useState(false);
   const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searching, setSearching] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   const [importMsg, setImportMsg] = useState("");
   const fileInputRef = useRef(null);
@@ -53,77 +58,71 @@ function App() {
     onStart: (v) => setShelfStart((prev) => ({ ...prev, [title]: v })),
   });
 
-  useEffect(() => {
-    fetch("/books")
-      .then((r) => r.json())
-      .then((data) => {
-        setBooks(data);
-        setLoading(false);
-      });
-  }, []);
+  // Список книг: кэш под ключом ["books"], загрузка и обновление — забота React Query
+  const { data: books = [], isLoading: loading } = useQuery({
+    queryKey: ["books"],
+    queryFn: api.getBooks,
+  });
 
+  // Поиск: debounce оставляем, а сам запрос — через useQuery.
+  // Повторный ввод того же запроса возьмётся из кэша без похода в сеть.
+  const [debouncedTerm, setDebouncedTerm] = useState("");
   useEffect(() => {
-    const term = query.trim();
-    if (term.length < 3) {
-      setSearchResults([]);
-      return;
-    }
-    setSearching(true);
-    const timer = setTimeout(() => {
-      fetch(`/search?q=${encodeURIComponent(term)}`)
-        .then((r) => r.json())
-        .then((data) => {
-          setSearchResults(data.results);
-          setSearching(false);
-        });
-    }, 300);
-    return () => clearTimeout(timer);
+    const t = setTimeout(() => setDebouncedTerm(query.trim()), 300);
+    return () => clearTimeout(t);
   }, [query]);
 
-  async function addBook(candidate) {
-    setSaving(true);
-    const response = await fetch("/books", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: candidate.title,
-        author: candidate.author,
-      }),
-    });
-    const newBook = await response.json();
-    setBooks((prev) => [...prev, newBook]);
-    setSaving(false);
-    closeModal();
+  const { data: searchData, isFetching: searching } = useQuery({
+    queryKey: ["search", debouncedTerm],
+    queryFn: () => api.searchBooks(debouncedTerm),
+    enabled: debouncedTerm.length >= 3, // не дёргать бэкенд, пока меньше 3 символов
+  });
+  const searchResults =
+    debouncedTerm.length >= 3 ? (searchData?.results ?? []) : [];
+
+  // Мутации: после успеха инвалидируем кэш — список перезапросится сам
+  const addBookMutation = useMutation({
+    mutationFn: api.createBook,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["books"] });
+      closeModal();
+    },
+  });
+  const saving = addBookMutation.isPending;
+
+  const importMutation = useMutation({
+    mutationFn: api.importCsv,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["books"] });
+      setImportMsg(
+        `Импортировано: ${data.imported}, дубликаты: ${data.duplicates ?? 0}, пропущено: ${data.skipped}`,
+      );
+    },
+  });
+
+  function addBook(candidate) {
+    addBookMutation.mutate(candidate);
   }
 
-  async function importCsv(e) {
+  function importCsv(e) {
     const file = e.target.files[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch("/import", { method: "POST", body: formData });
-    const data = await response.json();
-    const fresh = await fetch("/books").then((r) => r.json());
-    setBooks(fresh);
-    setImportMsg(
-      `Импортировано: ${data.imported}, дубликаты: ${data.duplicates ?? 0}, пропущено: ${data.skipped}`,
-    );
+    importMutation.mutate(file);
     e.target.value = "";
   }
 
   function closeModal() {
     setShowModal(false);
     setQuery("");
-    setSearchResults([]);
   }
 
-  function handleUpdated(updated) {
-    setBooks((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
-    // setSelectedBook больше не нужен: BookPage сам возьмёт свежую книгу из списка
+  function handleUpdated() {
+    // инвалидация по префиксу ["books"] обновит и список, и карточки ["books", id]
+    queryClient.invalidateQueries({ queryKey: ["books"] });
   }
 
-  function handleDeleted(id) {
-    setBooks((prev) => prev.filter((b) => b.id !== id));
+  function handleDeleted() {
+    queryClient.invalidateQueries({ queryKey: ["books"] });
     navigate("/");
   }
   const openBook = (b) => navigate(`/books/${b.id}`);

@@ -255,3 +255,12 @@ def test_delete_cascades_selections(client, monkeypatch):
             select(AISelection).where(AISelection.book_id == 1)
         ).all()
     assert rows == []
+
+def test_get_book(client):
+    r = client.get("/books/1")
+    assert r.status_code == 200
+    assert r.json()["title"] == "Test"
+
+
+def test_get_book_not_found(client):
+    assert client.get("/books/999").status_code == 404
