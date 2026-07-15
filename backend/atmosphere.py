@@ -1,4 +1,3 @@
-import json
 import asyncio
 
 from pydantic import BaseModel
@@ -40,34 +39,33 @@ class DesignResult(BaseModel):
 
 
 
-def extract_json(raw_text: str) -> dict:
-    """Достаём JSON-объект из ответа модели (на случай лишнего текста вокруг)."""
-    start = raw_text.find("{")
-    end = raw_text.rfind("}")
-    return json.loads(raw_text[start:end + 1])
-
-
 async def ask_claude(title: str, author: str, lang: str = "ru") -> MusicResult:
-    message = await claude_client.messages.create(
+    message = await claude_client.messages.parse(
         model="claude-sonnet-5",
-        max_tokens=4000,
+        max_tokens=8000,
         messages=[{"role": "user", "content": build_music_prompt(title, author, lang)}],
+        output_format=MusicResult,   # SDK сам превратит Pydantic-модель в JSON-схему
     )
-    raw_text = ""
-    for block in message.content:
-        if block.type == "text":
-            raw_text = block.text
-            break
-    return MusicResult.model_validate(extract_json(raw_text))
+    if message.parsed_output is None:
+        raise ValueError(
+            f"Claude: пустой parsed_output (stop_reason={message.stop_reason})"
+        )
+    return message.parsed_output
 
 
 async def ask_openai(title: str, author: str, lang: str = "ru") -> MusicResult:
-    response = await openai_client.chat.completions.create(
+    response = await openai_client.chat.completions.parse(
         model="gpt-5.4-mini",
         messages=[{"role": "user", "content": build_music_prompt(title, author, lang)}],
+        response_format=MusicResult,
     )
-    raw_text = response.choices[0].message.content
-    return MusicResult.model_validate(extract_json(raw_text))
+    choice = response.choices[0]
+    if choice.message.parsed is None:
+        raise ValueError(
+            f"OpenAI: пустой parsed (finish_reason={choice.finish_reason}, "
+            f"refusal={choice.message.refusal})"
+        )
+    return choice.message.parsed
 
 
 async def safe_ask(func, title: str, author: str, lang: str) -> MusicResult:
@@ -89,17 +87,17 @@ async def generate_music(title: str, author: str, lang: str = "ru") -> dict:
     return {"Claude": claude_result, "ChatGPT": openai_result}
 
 async def ask_claude_design(title: str, author: str, lang: str = "ru") -> DesignResult:
-    message = await claude_client.messages.create(
+    message = await claude_client.messages.parse(
         model="claude-sonnet-5",
-        max_tokens=1500,
+        max_tokens=4000,
         messages=[{"role": "user", "content": build_design_prompt(title, author, lang)}],
+        output_format=DesignResult,
     )
-    raw_text = ""
-    for block in message.content:
-        if block.type == "text":
-            raw_text = block.text
-            break
-    return DesignResult.model_validate(extract_json(raw_text))
+    if message.parsed_output is None:
+        raise ValueError(
+            f"Claude: пустой parsed_output (stop_reason={message.stop_reason})"
+        )
+    return message.parsed_output
 
 
 async def generate_design(title: str, author: str, lang: str = "ru") -> DesignResult:

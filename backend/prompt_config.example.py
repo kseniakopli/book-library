@@ -8,26 +8,10 @@ def build_music_prompt(title: str, author: str, lang: str = "ru") -> str:
     language = "русском" if lang == "ru" else "английском"
     return f"""Ты — музыкальный куратор. Подбери 12 реальных существующих песен
 к книге «{title}» ({author}). Пояснение напиши на {language} языке.
-Ответь ТОЛЬКО валидным JSON, без текста до и после, по схеме:
-{{
-  "songs": [
-    {{"title": "название", "artist": "исполнитель"}}
-  ],
-  "explanation": "2-3 предложения"
-}}"""
+"""
 
 
 def build_design_prompt(title: str, author: str, lang: str = "ru") -> str:
     language = "русском" if lang == "ru" else "английском"
     return f"""Собери «паспорт атмосферы» для оформления карточки книги
-«{title}» ({author}). Ответь ТОЛЬКО валидным JSON по схеме:
-{{
-  "base_mood": "одно слово-настроение",
-  "palette": {{
-    "bg": "#hex", "surface": "#hex", "accent": "#hex",
-    "text": "#hex", "muted": "#hex"
-  }},
-  "title_font": "Google Font для заголовков",
-  "body_font": "Google Font для текста",
-  "statement": "атмосферная строка на {language} языке"
-}}"""
+«{title}» ({author}). """
