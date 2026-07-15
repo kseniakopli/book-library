@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, field_validator
@@ -26,3 +27,24 @@ class BookCreate(BaseModel):
 class BookUpdate(BaseModel):
     status: Optional[str] = None
     rating: Optional[int] = None
+
+
+class BookRead(BaseModel):
+    """Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —
+    полный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний)."""
+    id: int
+    user_id: int
+    title: str
+    author: str
+    cover_url: Optional[str] = None
+    description: Optional[str] = None
+    status: str
+    rating: Optional[int] = None
+    created_at: datetime
+    page_count: Optional[int] = None
+    categories: Optional[str] = None
+    published_year: Optional[int] = None
+    language: Optional[str] = None
+    external_rating: Optional[float] = None
+    isbn: Optional[str] = None
+    enrich_status: str

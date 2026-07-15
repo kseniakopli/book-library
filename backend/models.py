@@ -51,6 +51,4 @@ class Catalog(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
-ALLOWED_CATEGORIES = {"music", "food", "aroma"}
-
-ALLOWED_STATUSES = {"want", "reading", "read"}
+# ALLOWED_STATUSES и прочие константы переехали в constants.py (рефакторинг R3)

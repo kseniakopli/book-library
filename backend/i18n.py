@@ -18,6 +18,8 @@ MESSAGES = {
                              "en": "File must be UTF-8 encoded"},
     "import_too_many_rows": {"ru": "Слишком много строк (лимит 2000)",
                              "en": "Too many rows (2000 limit)"},
+    "bad_category":         {"ru": "Неизвестная категория атмосферы",
+                             "en": "Unknown atmosphere category"},
 }
 
 
