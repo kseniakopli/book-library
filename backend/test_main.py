@@ -312,3 +312,16 @@ def test_add_book_enrichment_failure_sets_failed(client, monkeypatch):
     book_id = r.json()["id"]
     r2 = client.get(f"/books/{book_id}")
     assert r2.json()["enrich_status"] == "failed"
+
+def test_add_book_with_external_id(client, monkeypatch):
+    monkeypatch.setattr(books, "fetch_volume_by_id", lambda vid: fake_book_info("t", "a"))
+    r = client.post("/books", json={
+        "title": "T", "author": "A",
+        "cover_url": "http://example.com/candidate.jpg",
+        "external_id": "abc123",
+    })
+    assert r.json()["cover_url"] == "http://example.com/candidate.jpg"  # видна сразу
+    book_id = r.json()["id"]
+    r2 = client.get(f"/books/{book_id}")
+    assert r2.json()["enrich_status"] == "ready"
+    assert r2.json()["description"] == "desc"   # доехало из fetch_volume_by_id

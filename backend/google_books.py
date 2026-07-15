@@ -47,6 +47,28 @@ def _author_matches(author: str, candidate: dict) -> bool:
     found = " ".join(candidate.get("authors", [])).lower()
     return any(tok in found for tok in tokens)
 
+def _parse_volume_info(info: dict) -> dict:
+    """volumeInfo Google Books → наш плоский словарь с метаданными."""
+    result = {
+        "cover_url": None, "description": None, "page_count": None,
+        "categories": None, "published_year": None, "language": None,
+        "external_rating": None, "raw_metadata": None,
+    }
+    result["description"] = info.get("description")
+    image_links = info.get("imageLinks", {})
+    cover = image_links.get("thumbnail") or image_links.get("smallThumbnail")
+    if cover:
+        result["cover_url"] = cover.replace("http://", "https://")
+    result["page_count"] = info.get("pageCount")
+    categories = info.get("categories")
+    result["categories"] = json.dumps(categories, ensure_ascii=False) if categories else None
+    published = info.get("publishedDate", "")
+    result["published_year"] = int(published[:4]) if published[:4].isdigit() else None
+    result["language"] = info.get("language")
+    result["external_rating"] = info.get("averageRating")
+    result["raw_metadata"] = json.dumps(info, ensure_ascii=False)
+    return result
+
 
 def fetch_book_info(title: str, author: str, lang: str = "ru", isbn: str = None) -> dict:
     """Данные из Google Books. Сначала по ISBN, если не нашли — по названию+автору.
@@ -86,22 +108,8 @@ def fetch_book_info(title: str, author: str, lang: str = "ru", isbn: str = None)
                     info = candidate
                     break
 
-        if info is None:
-            return result
-
-        result["description"] = info.get("description")
-        image_links = info.get("imageLinks", {})
-        cover = image_links.get("thumbnail") or image_links.get("smallThumbnail")
-        if cover:
-            result["cover_url"] = cover.replace("http://", "https://")
-        result["page_count"] = info.get("pageCount")
-        categories = info.get("categories")
-        result["categories"] = json.dumps(categories, ensure_ascii=False) if categories else None
-        published = info.get("publishedDate", "")
-        result["published_year"] = int(published[:4]) if published[:4].isdigit() else None
-        result["language"] = info.get("language")
-        result["external_rating"] = info.get("averageRating")
-        result["raw_metadata"] = json.dumps(info, ensure_ascii=False)
+            if info is not None:
+                result = _parse_volume_info(info)
     except requests.RequestException:
         pass
     return result
@@ -130,3 +138,28 @@ def search_books(query: str, max_results: int = 8) -> list[dict]:
             "external_id": item.get("id"),
         })
     return results
+
+def fetch_volume_by_id(volume_id: str, attempts: int = 3) -> dict:
+    """Обогащение без поиска: том Google Books точно по его id.
+    Никакого сопоставления названий — пользователь уже выбрал книгу сам."""
+    empty = {
+        "cover_url": None, "description": None, "page_count": None,
+        "categories": None, "published_year": None, "language": None,
+        "external_rating": None, "raw_metadata": None,
+    }
+    for attempt in range(attempts):
+        try:
+            response = requests.get(
+                f"https://www.googleapis.com/books/v1/volumes/{volume_id}",
+                params={"key": GOOGLE_BOOKS_API_KEY},
+                timeout=5,
+            )
+            response.raise_for_status()
+            return _parse_volume_info(response.json().get("volumeInfo", {}))
+        except requests.RequestException as e:
+            status = getattr(e.response, "status_code", None)
+            retriable = status is None or status == 429 or status >= 500
+            if not retriable or attempt == attempts - 1:
+                return empty
+            time.sleep((2 ** attempt) + random.random())
+    return empty

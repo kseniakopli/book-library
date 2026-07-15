@@ -8,7 +8,7 @@ import database
 from models import Book, AISelection, Catalog, ALLOWED_STATUSES
 from schemas import BookCreate, BookUpdate
 from i18n import ALLOWED_LANGS, msg
-from google_books import fetch_book_info, search_books
+from google_books import fetch_book_info, fetch_volume_by_id, search_books
 from atmosphere import generate_music, generate_design
 from events import log_event
 
@@ -22,7 +22,7 @@ def _norm_isbn(value):
     return value.replace("-", "").replace(" ", "") if value else None
 
 
-def _enrich_in_background(book_id: int, lang: str) -> None:
+def _enrich_in_background(book_id: int, lang: str, external_id: str = None) -> None:
     """Фоновая задача: сходить в Google Books и дозаполнить книгу.
     Ошибка не роняет ничего — просто ставим статус failed."""
     try:
@@ -32,13 +32,16 @@ def _enrich_in_background(book_id: int, lang: str) -> None:
                 return
             title, author = book.title, book.author
 
-        info = fetch_book_info(title, author, lang)   # медленный внешний вызов — вне сессии
+        if external_id:                     # пользователь выбрал конкретный том — берём его
+            info = fetch_volume_by_id(external_id)
+        else:                               # книга «вслепую» (например, из CSV) — ищем
+            info = fetch_book_info(title, author, lang)
 
         with Session(database.engine) as session:
             book = session.get(Book, book_id)
             if book is None:
                 return
-            book.cover_url = info["cover_url"]
+            book.cover_url = info["cover_url"] or book.cover_url
             book.description = info["description"]
             book.page_count = info["page_count"]
             book.categories = info["categories"]
@@ -66,13 +69,18 @@ def add_book(data: BookCreate, background_tasks: BackgroundTasks, lang: str = "r
     if lang not in ALLOWED_LANGS:
         raise HTTPException(status_code=400, detail=msg("bad_lang", lang))
     # книга сохраняется сразу, без похода в Google Books — ответ мгновенный
-    book = Book(title=data.title, author=data.author, enrich_status="pending")
+    book = Book(
+        title=data.title,
+        author=data.author,
+        cover_url=data.cover_url,          # обложка кандидата видна сразу
+        enrich_status="pending",
+    )
     with Session(database.engine) as session:
         session.add(book)
         session.commit()
         session.refresh(book)
     log_event("book_added", book.id, detail="source=manual")
-    background_tasks.add_task(_enrich_in_background, book.id, lang)  # запустится после ответа
+    background_tasks.add_task(_enrich_in_background, book.id, lang, data.external_id)
     return book
 
 
