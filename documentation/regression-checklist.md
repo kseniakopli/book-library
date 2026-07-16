@@ -13,7 +13,8 @@ keys in `backend/.env`. ~15 minutes.
 - [ ] Home page loads; shelves show correct counts
 - [ ] Shelf pagination: arrows page through; position survives opening a book and returning
 - [ ] Library filter narrows by title and author; clearing restores shelves
-- [ ] Book page opens by click; direct URL `/books/N` works; F5 works; browser Back works
+- [ ] Book page opens by click; direct URL `/books/N` works; **F5 shows the app, not raw
+      API JSON** (Vite proxy bypass for text/html); browser Back works
 
 ## Add & import
 - [ ] Search modal: results appear after 3+ chars; candidate with cover adds instantly

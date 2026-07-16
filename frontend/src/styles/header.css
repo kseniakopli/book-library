@@ -5,7 +5,15 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
+  /* Липкая шапка: кнопки доступны при любой прокрутке.
+     Фон обязателен — иначе контент просвечивает под ней */
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  padding: 16px 0 14px;
+  border-bottom: 1px solid var(--border);
 }
 
 .title {

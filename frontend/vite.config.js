@@ -5,7 +5,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/books': 'http://127.0.0.1:8000',
+      '/books': {
+        target: 'http://127.0.0.1:8000',
+        // F5 или прямой заход на /books/3 — навигация браузера (Accept: text/html):
+        // отдаём SPA, а не проксируем в API. Fetch из кода просит JSON — идёт в API.
+        bypass: (req) =>
+          req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
+      },
       '/search': 'http://127.0.0.1:8000',
       '/import': 'http://127.0.0.1:8000',
     },
