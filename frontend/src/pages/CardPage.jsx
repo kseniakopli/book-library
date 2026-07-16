@@ -68,12 +68,21 @@ function CardPage() {
 
   // Треки: объединённый список обоих AI (как в Spotify-плейлисте), первые 5
   const songs = dedupeSongs(music.flatMap((s) => s.payload)).slice(0, 5);
-  // Угощения/ароматы: подборка Claude (или первая доступная) ЦЕЛИКОМ —
+  // Угощения/ароматы: пункты ОБОИХ AI (дубли по названию убраны) —
   // лишнее Ксения убирает крестиками (решение 16.07 вместо правки текста)
-  const pick = (sel) =>
-    (sel.find((s) => s.source === "Claude") ?? sel[0])?.payload ?? [];
-  const allFoods = pick(food);
-  const allAromas = pick(aroma);
+  const mergeItems = (sel) => {
+    const seen = new Set();
+    return sel
+      .flatMap((s) => s.payload)
+      .filter((item) => {
+        const key = item.title.trim().toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  };
+  const allFoods = mergeItems(food);
+  const allAromas = mergeItems(aroma);
   const foods = allFoods
     .map((item, idx) => ({ item, idx }))
     .filter(({ idx }) => !removed.food.includes(idx));
