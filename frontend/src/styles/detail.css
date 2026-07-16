@@ -16,7 +16,7 @@
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 28px;
 }
 .detail-bar-actions {
   display: flex;
@@ -151,7 +151,7 @@
 .detail-title-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
 }
 .book-symbol {
   width: 48px;
@@ -216,4 +216,14 @@
   color: var(--muted);
   font-size: 13px;
   align-self: center;
+}
+
+/* Оценка Google — в одном стиле с селектом моей оценки (задача 45) */
+.rating-badge {
+  font-size: 15px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
 }

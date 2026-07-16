@@ -197,28 +197,41 @@ function BookDetail({ book, onBack, onDeleted }) {
             ))}
           </div>
 
-          {book.status === "read" && (
+          {(book.status === "read" || book.external_rating != null) && (
             <div className="rating-row">
-              <label className="rating-label" htmlFor="rating-select">
-                Оценка:
-              </label>
-              <select
-                id="rating-select"
-                value={book.rating ?? ""}
-                onChange={(e) =>
-                  patchMutation.mutate({ rating: Number(e.target.value) })
-                }
-                disabled={saving}
-              >
-                <option value="" disabled>
-                  —
-                </option>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+              {book.status === "read" && (
+                <>
+                  <label className="rating-label" htmlFor="rating-select">
+                    Оценка:
+                  </label>
+                  <select
+                    id="rating-select"
+                    value={book.rating ?? ""}
+                    onChange={(e) =>
+                      patchMutation.mutate({ rating: Number(e.target.value) })
+                    }
+                    disabled={saving}
+                  >
+                    <option value="" disabled>
+                      —
+                    </option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+              {book.external_rating != null && (
+                <span
+                  className="rating-badge"
+                  title="Средний рейтинг Google Books (шкала 1–5)"
+                >
+                  ★ {String(book.external_rating.toFixed(1)).replace(".", ",")}{" "}
+                  · Google
+                </span>
+              )}
             </div>
           )}
         </div>
