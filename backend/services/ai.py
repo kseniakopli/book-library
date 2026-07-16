@@ -10,12 +10,23 @@ import anthropic
 from openai import AsyncOpenAI
 
 from constants import SOURCE_CHATGPT, SOURCE_CLAUDE
+import prompt_config
 from prompt_config import (
     build_aroma_prompt,
     build_design_prompt,
     build_food_prompt,
     build_music_prompt,
 )
+
+
+def _with_style(prompt: str) -> str:
+    """Общие правила стиля (STYLE_RULES из prompt_config) дописываются
+    к КАЖДОМУ AI-запросу — единая точка, категории про неё не знают.
+    Константа необязательна: нет — промпт уходит как есть."""
+    rules = getattr(prompt_config, "STYLE_RULES", "").strip()
+    if not rules:
+        return prompt
+    return f"{prompt.rstrip()}\n\nОбщие правила стиля (обязательны):\n{rules}"
 
 load_dotenv()                       # читаем ключи из .env
 claude_client = anthropic.AsyncAnthropic()
@@ -154,7 +165,7 @@ def make_two_source_generator(build_prompt, result_model, fallback_factory):
     """Генератор категории «спросить оба AI параллельно» (music, food, aroma).
     Новая категория = промпт + модель результата + эта фабрика."""
     async def generate(title: str, author: str, lang: str = "ru") -> dict:
-        prompt = build_prompt(title, author, lang)
+        prompt = _with_style(build_prompt(title, author, lang))
         claude_result, openai_result = await asyncio.gather(
             safe_ask(ask_claude(prompt, result_model), fallback_factory),
             safe_ask(ask_openai(prompt, result_model), fallback_factory),
@@ -183,5 +194,7 @@ async def generate_design(title: str, author: str, lang: str = "ru") -> DesignRe
     """Дизайн-паспорт (палитра, шрифты, символ) — одним источником (Claude).
     max_tokens с запасом: SVG-символ бывает многословным."""
     return await ask_claude(
-        build_design_prompt(title, author, lang), DesignResult, max_tokens=8000
+        _with_style(build_design_prompt(title, author, lang)),
+        DesignResult,
+        max_tokens=8000,
     )
