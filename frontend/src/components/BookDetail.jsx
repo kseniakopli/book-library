@@ -189,9 +189,11 @@ function BookDetail({ book, onBack, onDeleted }) {
                 aria-hidden="true"
               />
             )}
-            <h1 className="detail-title">{book.title}</h1>
+            <div className="detail-title-text">
+              <h1 className="detail-title">{book.title}</h1>
+              <p className="detail-author">{book.author}</p>
+            </div>
           </div>
-          <p className="detail-author">{book.author}</p>
           {book.enrich_status === "pending" && (
             <p className="muted">Обложка и описание подгружаются…</p>
           )}

@@ -183,8 +183,11 @@
 /* Символ-экслибрис из паспорта (этап 7) */
 .detail-title-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;   /* символ прижат к верху, не растаскивает строки */
   gap: 18px;
+}
+.detail-title-text {
+  min-width: 0;   /* название и автор — одна колонка, одна левая линия */
 }
 .book-symbol {
   width: 48px;
