@@ -2,7 +2,7 @@
 // Тексты редактируются прямо на превью (contentEditable) — правки попадают
 // в печать/PDF. Кнопка печати открывает диалог браузера: там «Сохранить как PDF»
 // или двусторонняя печать (A6, поля «Нет», переворот по короткому краю).
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import * as api from "../api";
@@ -41,6 +41,10 @@ function CardPage() {
     queryKey: keys.book(id),
     queryFn: () => api.getBook(id),
   });
+  // Убранные с карточки пункты (по исходному индексу в подборке)
+  const [removed, setRemoved] = useState({ food: [], aroma: [] });
+  const removeItem = (kind, idx) =>
+    setRemoved((r) => ({ ...r, [kind]: [...r[kind], idx] }));
   const design =
     useAtmosphere(id, "design").data?.selections?.[0]?.payload ?? null;
   const music = useAtmosphere(id, "music").data?.selections ?? [];
@@ -64,11 +68,18 @@ function CardPage() {
 
   // Треки: объединённый список обоих AI (как в Spotify-плейлисте), первые 5
   const songs = dedupeSongs(music.flatMap((s) => s.payload)).slice(0, 5);
-  // Угощения/ароматы: подборка Claude (или первая доступная)
+  // Угощения/ароматы: подборка Claude (или первая доступная) ЦЕЛИКОМ —
+  // лишнее Ксения убирает крестиками (решение 16.07 вместо правки текста)
   const pick = (sel) =>
     (sel.find((s) => s.source === "Claude") ?? sel[0])?.payload ?? [];
-  const foods = pick(food).slice(0, 4);
-  const aromas = pick(aroma).slice(0, 3);
+  const allFoods = pick(food);
+  const allAromas = pick(aroma);
+  const foods = allFoods
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ idx }) => !removed.food.includes(idx));
+  const aromas = allAromas
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ idx }) => !removed.aroma.includes(idx));
 
   let genres = "";
   try {
@@ -92,7 +103,8 @@ function CardPage() {
       : "system-ui, sans-serif",
   };
 
-  const ready = songs.length > 0 && foods.length > 0 && aromas.length > 0;
+  const ready =
+    songs.length > 0 && allFoods.length > 0 && allAromas.length > 0;
 
   // Вставка в contentEditable — только простым текстом: иначе браузер
   // притащит чужие шрифты/цвета из буфера обмена
@@ -182,20 +194,48 @@ function CardPage() {
           Вечер с этой книгой
         </h2>
         <h4>Угощения</h4>
-        <div contentEditable suppressContentEditableWarning>
-          {foods.map((f, i) => (
-            <div className="pc-item" key={i}>
-              <b>{f.title}</b>
-              <br />
-              <span>{f.description}</span>
+        <div>
+          {foods.map(({ item, idx }) => (
+            <div className="pc-item" key={idx}>
+              <button
+                className="pc-remove"
+                onClick={() => removeItem("food", idx)}
+                title="Убрать с карточки"
+                aria-label={`Убрать «${item.title}»`}
+              >
+                ×
+              </button>
+              <div
+                className="pc-item-text"
+                contentEditable
+                suppressContentEditableWarning
+              >
+                <b>{item.title}</b>
+                <br />
+                <span>{item.description}</span>
+              </div>
             </div>
           ))}
         </div>
         <h4>Ароматы</h4>
-        <div contentEditable suppressContentEditableWarning>
-          {aromas.map((a, i) => (
-            <div className="pc-item" key={i}>
-              <b>{a.title}</b> — <span>{a.description}</span>
+        <div>
+          {aromas.map(({ item, idx }) => (
+            <div className="pc-item" key={idx}>
+              <button
+                className="pc-remove"
+                onClick={() => removeItem("aroma", idx)}
+                title="Убрать с карточки"
+                aria-label={`Убрать «${item.title}»`}
+              >
+                ×
+              </button>
+              <div
+                className="pc-item-text"
+                contentEditable
+                suppressContentEditableWarning
+              >
+                <b>{item.title}</b> — <span>{item.description}</span>
+              </div>
             </div>
           ))}
         </div>

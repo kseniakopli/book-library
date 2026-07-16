@@ -161,6 +161,31 @@
   font-size: 9pt;
   padding: 1mm 0;
   line-height: 1.35;
+  display: flex;
+  gap: 2mm;
+  align-items: flex-start;
+}
+.pc-item-text {
+  flex: 1;
+  min-width: 0;
+}
+/* Крестик «убрать пункт» — только на экране, в печать не попадает */
+.pc-remove {
+  flex: none;
+  width: 4.5mm;
+  height: 4.5mm;
+  padding: 0;
+  border: 0.3mm solid var(--c-muted);
+  border-radius: 50%;
+  background: none;
+  color: var(--c-muted);
+  font-size: 8pt;
+  line-height: 1;
+  cursor: pointer;
+}
+.pc-remove:hover {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
 }
 .pc-item span {
   color: var(--c-muted);
@@ -203,6 +228,9 @@
     display: block;
   }
   .card-controls {
+    display: none;
+  }
+  .pc-remove {
     display: none;
   }
   .pcard {
