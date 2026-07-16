@@ -160,8 +160,11 @@ function BookDetail({ book, onBack, onDeleted }) {
         </p>
       )}
 
-      <div className="detail-top">
-        <div className="detail-cover">
+      {/* Задача 46: две колонки — информация слева (sticky), атмосфера справа */}
+      <div className="detail-columns">
+        <div className="detail-main">
+          <div className="detail-top">
+            <div className="detail-cover">
           {book.cover_url ? (
             <img src={book.cover_url} alt={`Обложка книги «${book.title}»`} />
           ) : (
@@ -294,11 +297,13 @@ function BookDetail({ book, onBack, onDeleted }) {
         </div>
       </div>
 
-      {book.description && (
-        <p className="detail-description">{book.description}</p>
-      )}
+          {book.description && (
+            <p className="detail-description">{book.description}</p>
+          )}
+        </div>
 
-      <AtmosphereSection bookId={book.id} />
+        <AtmosphereSection bookId={book.id} />
+      </div>
     </div>
   );
 }
