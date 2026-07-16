@@ -1,12 +1,13 @@
 // Карточка книги: паспорт оформления, статус/оценка, действия.
 // Секция «Атмосфера» вынесена в AtmosphereSection (R7).
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { STATUS_LABELS, STATUSES } from "../constants";
 import { hasReadableContrast } from "../lib/contrast";
+import { centeredSvgDataUri } from "../lib/svg";
 import AtmosphereSection from "./AtmosphereSection";
 
 function BookDetail({ book, onBack, onDeleted }) {
@@ -19,6 +20,13 @@ function BookDetail({ book, onBack, onDeleted }) {
     queryFn: () => api.getAtmosphere(book.id, "design"),
   });
   const design = designData?.selections?.[0]?.payload ?? null;
+
+  // Символ: перецентровка viewBox по реальным границам рисунка (мемо —
+  // внутри есть работа с DOM, незачем повторять на каждый рендер)
+  const symbolUri = useMemo(
+    () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
+    [design?.symbol_svg],
+  );
 
   // Задача 23: применяем AI-палитру, только если текст читаем на её фоне (WCAG AA).
   const appliedDesign =
@@ -174,17 +182,10 @@ function BookDetail({ book, onBack, onDeleted }) {
 
         <div className="detail-info">
           <div className="detail-title-row">
-            {design?.symbol_svg && (
+            {symbolUri && (
               <img
                 className="book-symbol"
-                src={`data:image/svg+xml;utf8,${encodeURIComponent(
-                  design.symbol_svg.includes("xmlns=")
-                    ? design.symbol_svg
-                    : design.symbol_svg.replace(
-                        "<svg",
-                        '<svg xmlns="http://www.w3.org/2000/svg"',
-                      ),
-                )}`}
+                src={symbolUri}
                 alt=""
                 aria-hidden="true"
               />

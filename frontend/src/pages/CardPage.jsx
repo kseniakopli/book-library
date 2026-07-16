@@ -7,7 +7,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
-import { svgDataUri } from "../lib/svg";
+import { centeredSvgDataUri } from "../lib/svg";
 import "../styles/card.css";
 
 const DEFAULT_PALETTE = {
@@ -47,6 +47,11 @@ function CardPage() {
     setRemoved((r) => ({ ...r, [kind]: [...r[kind], idx] }));
   const design =
     useAtmosphere(id, "design").data?.selections?.[0]?.payload ?? null;
+  // Символ с перецентрованным viewBox (см. lib/svg.js)
+  const symbolUri = useMemo(
+    () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
+    [design?.symbol_svg],
+  );
   const music = useAtmosphere(id, "music").data?.selections ?? [];
   const food = useAtmosphere(id, "food").data?.selections ?? [];
   const aroma = useAtmosphere(id, "aroma").data?.selections ?? [];
@@ -152,9 +157,7 @@ function CardPage() {
       {/* ======== ЛИЦО ======== */}
       <div className="pcard">
         <div className="pc-symbol-plate">
-          {design?.symbol_svg && (
-            <img src={svgDataUri(design.symbol_svg)} alt="" />
-          )}
+          {symbolUri && <img src={symbolUri} alt="" />}
         </div>
         <h1 className="pc-title" contentEditable suppressContentEditableWarning>
           {book.title}
@@ -249,9 +252,7 @@ function CardPage() {
           ))}
         </div>
         <div className="pc-footer">
-          {design?.symbol_svg && (
-            <img src={svgDataUri(design.symbol_svg)} alt="" />
-          )}
+          {symbolUri && <img src={symbolUri} alt="" />}
           <span contentEditable suppressContentEditableWarning>
             <b>Nocturne</b> — атмосферные литературные вечера.
             <br />
