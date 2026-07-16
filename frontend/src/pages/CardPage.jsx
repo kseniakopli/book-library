@@ -94,8 +94,17 @@ function CardPage() {
 
   const ready = songs.length > 0 && foods.length > 0 && aromas.length > 0;
 
+  // Вставка в contentEditable — только простым текстом: иначе браузер
+  // притащит чужие шрифты/цвета из буфера обмена
+  function handlePaste(e) {
+    if (!e.target.closest("[contenteditable]")) return;
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, text);
+  }
+
   return (
-    <div className="card-page" style={style}>
+    <div className="card-page" style={style} onPaste={handlePaste}>
       <div className="card-controls">
         <Link className="btn-ghost" to={`/books/${id}`}>
           ← К книге

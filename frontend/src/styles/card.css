@@ -36,6 +36,13 @@
   outline: 1px dashed var(--c-muted);
   outline-offset: 2px;
 }
+/* Браузер при редактировании вставляет свои <span>/<font> без класса —
+   принудительно наследуем шрифт карточки (наши стилизованные элементы
+   с классами и <b> не задеваются) */
+.pcard [contenteditable] :not([class]) {
+  font-family: inherit !important;
+  font-size: inherit !important;
+}
 
 /* --- лицо --- */
 .pc-symbol-plate {
