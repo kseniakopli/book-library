@@ -138,15 +138,8 @@ function CardPage() {
           {book.external_rating != null &&
             `★ ${String(book.external_rating.toFixed(1)).replace(".", ",")} · Google`}
         </p>
-        {design?.statement && (
-          <p
-            className="pc-statement"
-            contentEditable
-            suppressContentEditableWarning
-          >
-            «{design.statement}»
-          </p>
-        )}
+        {/* Statement на карточку не выводим (решение 16.07): длинная цитата
+            вытесняла треки — приоритет у «Музыки вечера» */}
         <div className="pc-tracks">
           <h4>Музыка вечера</h4>
           <div contentEditable suppressContentEditableWarning>
