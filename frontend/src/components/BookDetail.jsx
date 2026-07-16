@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { STATUS_LABELS, STATUSES } from "../constants";
-import { hasReadableContrast } from "../lib/contrast";
+import { bestTextOn, hasReadableContrast, withAlpha } from "../lib/contrast";
 import { centeredSvgDataUri } from "../lib/svg";
 import AtmosphereSection from "./AtmosphereSection";
 
@@ -101,9 +101,12 @@ function BookDetail({ book, onBack, onDeleted }) {
     ? {
         "--surface": appliedDesign.palette.surface,
         "--accent": appliedDesign.palette.accent,
+        // задача 49: текст на accent — вычисляем по контрасту (тема сюда не дотягивается)
+        "--on-accent": bestTextOn(appliedDesign.palette.accent),
         "--text": appliedDesign.palette.text,
         "--muted": appliedDesign.palette.muted,
-        "--border": appliedDesign.palette.muted,
+        // задача 49: границы — полупрозрачный muted, чтобы не сливались с текстом
+        "--border": withAlpha(appliedDesign.palette.muted, "66"),
         "--serif": `'${appliedDesign.title_font}', Georgia, serif`,
         background: appliedDesign.palette.bg,
         color: appliedDesign.palette.text,
@@ -129,7 +132,7 @@ function BookDetail({ book, onBack, onDeleted }) {
             {enrichMutation.isPending ? "Обновляю…" : "Обновить информацию"}
           </button>
           <button
-            className="add-btn"
+            className="btn-ghost"
             onClick={() => designMutation.mutate()}
             disabled={designMutation.isPending}
           >
@@ -143,7 +146,7 @@ function BookDetail({ book, onBack, onDeleted }) {
             Печатная карточка
           </Link>
           <button
-            className="btn-ghost"
+            className="btn-danger"
             onClick={removeBook}
             disabled={deleteMutation.isPending}
           >

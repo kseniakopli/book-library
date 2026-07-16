@@ -56,6 +56,10 @@
   gap: 10px;
   flex-wrap: wrap;
 }
+/* «Удалить» отделена от безобидных соседей (задача 47) */
+.detail-bar-actions .btn-danger {
+  margin-left: 16px;
+}
 
 .detail-top {
   display: flex;

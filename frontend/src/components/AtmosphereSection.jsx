@@ -86,8 +86,10 @@ function AtmosphereSection({ bookId }) {
     <section className="atmosphere">
       <div className="atmosphere-head">
         <h2 className="atmosphere-title">Атмосфера</h2>
+        {/* задача 47: accent — только пока атмосферы нет (главное действие
+            страницы); повторная генерация — обычная кнопка */}
         <button
-          className="add-btn"
+          className={hasAny ? "btn-ghost" : "add-btn"}
           onClick={() => generateAll.mutate()}
           disabled={generateAll.isPending}
         >

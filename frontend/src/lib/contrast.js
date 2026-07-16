@@ -40,3 +40,23 @@ export function hasReadableContrast(fg, bg, threshold = 4.5) {
   const ratio = contrastRatio(fg, bg);
   return ratio !== null && ratio >= threshold;
 }
+
+// Задача 49: контрастный цвет текста для произвольного фона (accent паспорта)
+export function bestTextOn(bg, light = "#ffffff", dark = "#1c1610") {
+  const lightRatio = contrastRatio(light, bg) ?? 0;
+  const darkRatio = contrastRatio(dark, bg) ?? 0;
+  return lightRatio >= darkRatio ? light : dark;
+}
+
+// Задача 49: hex-цвет с прозрачностью (для границ из muted паспорта)
+export function withAlpha(hex, alpha = "66") {
+  const m = hex?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return hex;
+  let h = m[1];
+  if (h.length === 3)
+    h = h
+      .split("")
+      .map((c) => c + c)
+      .join("");
+  return `#${h}${alpha}`;
+}

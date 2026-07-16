@@ -16,7 +16,7 @@
   --surface: #ffffff;
   --border: #e7e0d5;
   --text: #2c2621;
-  --muted: #8a8177;
+  --muted: #6d655b;   /* задача 48: было #8a8177 (3.6:1) — теперь ≥4.5:1 на --bg */
   --accent: #b45309;
   --on-accent: #ffffff;          /* текст на акцентном фоне */
   --cover-placeholder: #f0ebe2;  /* фон заглушки «Нет обложки» */

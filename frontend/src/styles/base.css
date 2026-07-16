@@ -65,6 +65,26 @@ body {
   cursor: pointer;
 }
 
+/* Разрушительные действия (задача 47): видны, но не приглашают нажать */
+.btn-danger {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--error);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.btn-danger:hover,
+.btn-danger:focus-visible {
+  border-color: var(--error);
+}
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Пилюли (статусы, вкладки источников) */
 .pill {
   font-family: inherit;
