@@ -48,3 +48,4 @@ class BookRead(BaseModel):
     external_rating: Optional[float] = None
     isbn: Optional[str] = None
     enrich_status: str
+    spotify_playlist_url: Optional[str] = None

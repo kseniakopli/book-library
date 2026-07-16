@@ -22,7 +22,8 @@ class Book(SQLModel, table=True):
     external_rating: Optional[float] = None   # средний рейтинг Google
     raw_metadata: Optional[str] = None        # полный volumeInfo как JSON (страховка)
     isbn: Optional[str] = None
-    enrich_status: str = "ready"   
+    enrich_status: str = "ready"                 # pending / ready / failed
+    spotify_playlist_url: Optional[str] = None   # постоянная ссылка на плейлист (этап 10.2)
 
 # --- AI-подборка «Атмосфера»: одна строка = один вариант (источник) для книги ---
 class AISelection(SQLModel, table=True):

@@ -7,6 +7,9 @@ __pycache__/
 *.pyc
 node_modules/
 
+# Токен Spotify (refresh_token) — приватный, живёт рядом с .env
+spotify_token.json
+
 # Внутренняя документация (ТЗ, план) — не публикуем на GitHub
 docs/
 

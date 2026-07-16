@@ -20,6 +20,8 @@ MESSAGES = {
                              "en": "Too many rows (2000 limit)"},
     "bad_category":         {"ru": "Неизвестная категория атмосферы",
                              "en": "Unknown atmosphere category"},
+    "no_music_for_playlist": {"ru": "Сначала подберите музыку — плейлист собирается из неё",
+                              "en": "Generate music first — the playlist is built from it"},
 }
 
 

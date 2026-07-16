@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from routers import atmosphere, books, imports, search
+from routers import atmosphere, books, imports, search, spotify
 
 app = FastAPI(
     title="Nocturne API",
@@ -12,6 +12,7 @@ app.include_router(books.router)       # CRUD книг + ручной enrich
 app.include_router(atmosphere.router)  # AI-атмосфера: /books/{id}/atmosphere/{category}
 app.include_router(search.router)      # поиск: локальный каталог + Google Books
 app.include_router(imports.router)     # импорт CSV и backfill-операции
+app.include_router(spotify.router)     # Spotify-плейлисты: /books/{id}/playlist, /callback
 
 # Схему базы ведёт Alembic (папка alembic/, команда: alembic upgrade head).
 # create_all остался только в тестах — там база одноразовая, in-memory.

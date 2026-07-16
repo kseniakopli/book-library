@@ -50,6 +50,19 @@ function BookDetail({ book, onBack, onDeleted }) {
     onSuccess: onDeleted, // BookPage: инвалидация + возврат на главную
   });
 
+  // Spotify-плейлист (этап 10.2): первый раз откроется окно авторизации Spotify,
+  // после него плейлисты создаются в один клик
+  const playlistMutation = useMutation({
+    mutationFn: () => api.createPlaylist(book.id),
+    onSuccess: (data) => {
+      if (data.status === "auth_required") {
+        window.open(data.auth_url, "_blank", "noopener");
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: keys.books });
+    },
+  });
+
   function removeBook() {
     if (
       !window.confirm(
@@ -233,6 +246,46 @@ function BookDetail({ book, onBack, onDeleted }) {
                 </span>
               )}
             </div>
+          )}
+
+          <div className="playlist-row">
+            {book.spotify_playlist_url ? (
+              <a
+                className="btn-ghost playlist-link"
+                href={book.spotify_playlist_url}
+                target="_blank"
+                rel="noreferrer"
+              >
+                ♫ Открыть плейлист в Spotify
+              </a>
+            ) : (
+              <button
+                className="btn-ghost"
+                onClick={() => playlistMutation.mutate()}
+                disabled={playlistMutation.isPending}
+              >
+                {playlistMutation.isPending
+                  ? "Создаю плейлист…"
+                  : "♫ Создать плейлист в Spotify"}
+              </button>
+            )}
+          </div>
+          {playlistMutation.data?.status === "auth_required" && (
+            <p className="muted">
+              Разрешите доступ в открывшемся окне Spotify — плейлист создастся
+              автоматически.
+            </p>
+          )}
+          {playlistMutation.data?.not_found?.length > 0 && (
+            <p className="muted">
+              Не нашлись в Spotify:{" "}
+              {playlistMutation.data.not_found.join(", ")}
+            </p>
+          )}
+          {playlistMutation.isError && (
+            <p className="error">
+              Плейлист не создался: {playlistMutation.error.message}
+            </p>
           )}
         </div>
       </div>

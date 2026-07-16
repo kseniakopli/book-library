@@ -30,6 +30,8 @@ export const importCsv = (file) => {
 };
 export const enrichBook = (id) =>
   request(`/books/${id}/enrich`, { method: "POST" });
+export const createPlaylist = (id) =>
+  request(`/books/${id}/playlist`, { method: "POST" });
 
 // Атмосфера: единые эндпоинты для всех категорий (music, design; этап 7 добавит свои).
 // GET и POST возвращают одинаковый формат: { book_id, category, selections: [...] }

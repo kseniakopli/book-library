@@ -218,6 +218,15 @@
   align-self: center;
 }
 
+/* Spotify-плейлист (этап 10.2) */
+.playlist-row {
+  margin-top: 16px;
+}
+.playlist-link {
+  display: inline-block;
+  text-decoration: none;
+}
+
 /* Оценка Google — в одном стиле с селектом моей оценки (задача 45) */
 .rating-badge {
   font-size: 15px;
