@@ -26,7 +26,9 @@ function Shelf({ title, books = [], onSelect, placeholder, start = 0, onStart })
   if (placeholder) {
     return (
       <section className="shelf">
-        <h2 className="shelf-title">{title}</h2>
+        <div className="shelf-head">
+          <h2 className="shelf-title">{title}</h2>
+        </div>
         <p className="shelf-placeholder">{placeholder}</p>
       </section>
     );
@@ -35,7 +37,9 @@ function Shelf({ title, books = [], onSelect, placeholder, start = 0, onStart })
   if (books.length === 0) {
     return (
       <section className="shelf">
-        <h2 className="shelf-title">{title}</h2>
+        <div className="shelf-head">
+          <h2 className="shelf-title">{title}</h2>
+        </div>
         <p className="shelf-empty">Здесь пока пусто</p>
       </section>
     );
@@ -54,9 +58,17 @@ function Shelf({ title, books = [], onSelect, placeholder, start = 0, onStart })
 
   return (
     <section className="shelf">
-      <h2 className="shelf-title">
-        {title} <span className="shelf-count">{books.length}</span>
-      </h2>
+      <div className="shelf-head">
+        <h2 className="shelf-title">
+          {title} <span className="shelf-count">{books.length}</span>
+        </h2>
+        {books.length > pageSize && (
+          <span className="shelf-range">
+            {safeStart + 1}–{Math.min(safeStart + pageSize, books.length)} из{" "}
+            {books.length}
+          </span>
+        )}
+      </div>
       <div className="shelf-body">
         <button
           className="shelf-arrow"

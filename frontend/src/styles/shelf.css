@@ -10,10 +10,22 @@
   margin-bottom: 36px;
 }
 
+.shelf-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+}
 .shelf-title {
   font-family: var(--serif);
   font-size: 22px;
-  margin: 0 0 14px;
+  margin: 0;
+}
+.shelf-range {
+  color: var(--muted);
+  font-size: 13px;
+  flex: none;
 }
 
 .shelf-count {

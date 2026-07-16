@@ -20,11 +20,24 @@
   font-family: var(--serif);
   font-size: 40px;
   margin: 0;
+  transition: font-size 0.15s ease;
 }
 
 .subtitle {
   color: var(--muted);
   margin: 4px 0 0;
+}
+
+/* Задача 50: после прокрутки шапка ужимается — больше места контенту */
+.header-compact {
+  padding: 10px 0;
+  align-items: center;
+}
+.header-compact .title {
+  font-size: 22px;
+}
+.header-compact .subtitle {
+  display: none;
 }
 
 .header-actions {

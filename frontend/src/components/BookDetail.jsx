@@ -178,6 +178,11 @@ function BookDetail({ book, onBack, onDeleted }) {
             <div className="detail-cover">
           {book.cover_url ? (
             <img src={book.cover_url} alt={`Обложка книги «${book.title}»`} />
+          ) : symbolUri ? (
+            // задача 50: вместо «Нет обложки» — символ-экслибрис книги
+            <div className="cover-empty cover-symbol">
+              <img src={symbolUri} alt="" aria-hidden="true" />
+            </div>
           ) : (
             <div className="cover-empty">Нет обложки</div>
           )}

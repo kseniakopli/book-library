@@ -9,6 +9,17 @@
   justify-content: center;
   padding: 20px;
   background: var(--overlay);
+  animation: modal-fade 140ms ease-out;   /* задача 50: мягкое появление */
+}
+@keyframes modal-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-overlay {
+    animation: none;
+  }
 }
 
 .modal {

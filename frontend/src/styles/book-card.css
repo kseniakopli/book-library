@@ -8,9 +8,22 @@
   border-radius: 12px;
   padding: 14px;
   cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
 }
 .book:hover {
   border-color: var(--accent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .book,
+  .book:hover {
+    transition: none;
+    transform: none;
+  }
 }
 
 .cover {

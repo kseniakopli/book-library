@@ -267,12 +267,26 @@
   text-decoration: none;
 }
 
-/* Оценка Google — в одном стиле с селектом моей оценки (задача 45) */
+/* Оценка Google (задачи 45/50): информационный бейдж — без рамки,
+   чтобы не выглядел кликабельным рядом с настоящими контролами */
 .rating-badge {
   font-size: 15px;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 8px;
-  padding: 6px 10px;
+  padding: 7px 10px;
+}
+
+/* Задача 50: у книги без обложки заглушку занимает символ-экслибрис */
+.detail-cover .cover-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.detail-cover .cover-symbol img {
+  width: 55%;
+  height: 55%;
+  object-fit: contain;
+  opacity: 0.9;
 }

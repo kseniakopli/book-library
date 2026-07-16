@@ -39,6 +39,14 @@ function HomePage() {
     onStart: (v) => setShelfStart((prev) => ({ ...prev, [title]: v })),
   });
 
+  // Задача 50: компактная липкая шапка после прокрутки
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 40);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   // Список книг: кэш keys.books; пока есть pending — поллинг каждые 2 секунды
   const {
     data: books = [],
@@ -89,7 +97,7 @@ function HomePage() {
 
   return (
     <>
-      <header className="header">
+      <header className={"header" + (scrolled ? " header-compact" : "")}>
         <div>
           <h1 className="title">Библиотека</h1>
           <p className="subtitle">Атмосферные литературные вечера</p>
