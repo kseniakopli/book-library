@@ -1,0 +1,204 @@
+/* ===== Печатная карточка книги (этап 10.4, макет «Медальон») =====
+   Размеры в мм — реальный A6 (105×148) и на экране, и на печати.
+   Цвета/шрифты приходят CSS-переменными --c-* из CardPage (палитра паспорта). */
+
+.card-page {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.card-controls {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.pcard {
+  width: 105mm;
+  height: 148mm;
+  box-sizing: border-box;
+  padding: 8mm;
+  border-radius: 3mm;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--c-serif);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+.pcard [contenteditable]:hover {
+  outline: 1px dashed var(--c-muted);
+  outline-offset: 2px;
+}
+
+/* --- лицо --- */
+.pc-symbol-plate {
+  width: 42mm;
+  height: 42mm;
+  margin: 2mm auto 4mm;
+  border: 0.4mm solid var(--c-muted);
+  border-radius: 50%;
+  background: var(--c-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.pc-symbol-plate img {
+  width: 30mm;
+  height: 30mm;
+  object-fit: contain;
+}
+.pc-title {
+  font-size: 19pt;
+  text-align: center;
+  margin: 0 0 1.5mm;
+  line-height: 1.15;
+}
+.pc-author {
+  text-align: center;
+  font-size: 10.5pt;
+  color: var(--c-muted);
+  margin: 0 0 1mm;
+}
+.pc-meta {
+  text-align: center;
+  font-size: 8.5pt;
+  color: var(--c-muted);
+  margin: 0 0 3mm;
+}
+.pc-statement {
+  font-style: italic;
+  font-size: 9pt;
+  line-height: 1.45;
+  margin: 0 0 3.5mm;
+  text-align: center;
+}
+.pc-tracks {
+  border-top: 0.3mm solid var(--c-muted);
+  padding-top: 2.5mm;
+  flex: 1;
+  min-height: 0;
+}
+.pcard h4 {
+  font-size: 8pt;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin: 0 0 1.5mm;
+  font-family: var(--c-sans);
+}
+.pc-track {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  font-size: 8.5pt;
+  padding: 0.9mm 0;
+  border-bottom: 0.2mm dotted var(--c-muted);
+}
+.pc-track span:last-child {
+  color: var(--c-muted);
+  text-align: right;
+}
+.pc-qr-row {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+  margin-top: 3mm;
+  flex: none;
+}
+.pc-qr {
+  width: 22mm;
+  height: 22mm;
+  flex: none;
+  background: #fff;   /* белая подложка — QR обязан быть контрастным */
+  border-radius: 1mm;
+}
+.pc-qr-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 7pt;
+  color: #333;
+  text-align: center;
+  font-family: var(--c-sans);
+}
+.pc-qr-hint {
+  font-size: 8.5pt;
+  line-height: 1.4;
+  color: var(--c-muted);
+  font-family: var(--c-sans);
+  margin: 0;
+}
+
+/* --- оборот --- */
+.pc-back h4 {
+  margin-top: 4mm;
+}
+.pc-back-title {
+  font-size: 13pt;
+  margin: 0 0 4mm;
+  text-align: center;
+}
+.pc-item {
+  font-size: 9pt;
+  padding: 1mm 0;
+  line-height: 1.35;
+}
+.pc-item span {
+  color: var(--c-muted);
+}
+.pc-footer {
+  margin-top: auto;
+  border-top: 0.3mm solid var(--c-muted);
+  padding-top: 2.5mm;
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  font-family: var(--c-sans);
+  font-size: 8pt;
+  color: var(--c-muted);
+  flex: none;
+}
+.pc-footer img {
+  width: 7mm;
+  height: 7mm;
+  object-fit: contain;
+}
+.pc-footer b {
+  color: var(--c-text);
+}
+
+/* --- печать: два листа A6 без полей, контролы скрыты --- */
+@media print {
+  @page {
+    size: 105mm 148mm;
+    margin: 0;
+  }
+  body {
+    background: none;
+  }
+  /* прячем всё приложение, кроме карточки */
+  .app > *:not(.card-page) {
+    display: none !important;
+  }
+  .card-page {
+    display: block;
+  }
+  .card-controls {
+    display: none;
+  }
+  .pcard {
+    box-shadow: none;
+    border-radius: 0;
+    page-break-after: always;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

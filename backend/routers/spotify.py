@@ -1,9 +1,11 @@
 # Spotify-плейлисты (этап 10.2): создание плейлиста по музыкальной атмосфере книги.
+# + QR-код плейлиста для печатной карточки (этап 10.4).
+import io
 import json
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlmodel import Session, select
 
 import database
@@ -69,6 +71,25 @@ def create_book_playlist(book_id: int, lang: str = Depends(get_lang)):
             }
 
         return _create_and_save(session, book, lang)
+
+
+@router.get("/books/{book_id}/qr")
+def playlist_qr(book_id: int, lang: str = Depends(get_lang)):
+    """QR-код со ссылкой на Spotify-плейлист книги (для печатной карточки).
+    QR статичен: кодирует постоянный URL плейлиста, «протухнуть» не может."""
+    with Session(database.engine) as session:
+        book = get_book_or_404(session, book_id, lang)
+        url = book.spotify_playlist_url
+    if not url:
+        raise HTTPException(status_code=404, detail=msg("no_playlist_for_qr", lang))
+
+    import qrcode  # импорт внутри: библиотека нужна только этому эндпоинту
+
+    img = qrcode.make(url, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return StreamingResponse(buf, media_type="image/png")
 
 
 @router.get("/callback")

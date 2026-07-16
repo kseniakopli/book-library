@@ -22,6 +22,8 @@ MESSAGES = {
                              "en": "Unknown atmosphere category"},
     "no_music_for_playlist": {"ru": "Сначала подберите музыку — плейлист собирается из неё",
                               "en": "Generate music first — the playlist is built from it"},
+    "no_playlist_for_qr":   {"ru": "Сначала создайте Spotify-плейлист — QR кодирует его ссылку",
+                             "en": "Create the Spotify playlist first — the QR encodes its link"},
 }
 
 

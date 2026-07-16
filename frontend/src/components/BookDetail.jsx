@@ -1,6 +1,7 @@
 // Карточка книги: паспорт оформления, статус/оценка, действия.
 // Секция «Атмосфера» вынесена в AtmosphereSection (R7).
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
@@ -130,6 +131,9 @@ function BookDetail({ book, onBack, onDeleted }) {
                 ? "Обновить оформление"
                 : "Оформить под книгу"}
           </button>
+          <Link className="btn-ghost playlist-link" to={`/books/${book.id}/card`}>
+            Печатная карточка
+          </Link>
           <button
             className="btn-ghost"
             onClick={removeBook}

@@ -99,6 +99,28 @@ def test_playlist_book_not_found(client, monkeypatch):
     assert client.post("/books/999/playlist").status_code == 404
 
 
+def _set_playlist_url(url="https://open.spotify.com/playlist/test123"):
+    from models import Book
+    with Session(database.engine) as session:
+        book = session.get(Book, 1)
+        book.spotify_playlist_url = url
+        session.add(book)
+        session.commit()
+
+
+def test_qr_requires_playlist(client):
+    assert client.get("/books/1/qr").status_code == 404
+
+
+def test_qr_returns_png(client):
+    pytest.importorskip("qrcode")   # пропускаем, пока qrcode не установлен
+    _set_playlist_url()
+    r = client.get("/books/1/qr")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert r.content[:8] == b"\x89PNG\r\n\x1a\n"   # магические байты PNG
+
+
 def test_dedupe_songs_unit():
     songs = [
         {"title": "A", "artist": "X"},
