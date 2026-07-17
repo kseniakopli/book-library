@@ -40,10 +40,13 @@ function HomePage() {
     onStart: (v) => setShelfStart((prev) => ({ ...prev, [title]: v })),
   });
 
-  // Задача 50: компактная липкая шапка после прокрутки
+  // Задача 50: компактная липкая шапка после прокрутки.
+  // Пороги разные (гистерезис): сжатие укорачивает страницу на ~60px,
+  // и с одним порогом состояние зацикливалось бы на границе
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
+    const onScroll = () =>
+      setScrolled((prev) => (prev ? window.scrollY > 8 : window.scrollY > 90));
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
