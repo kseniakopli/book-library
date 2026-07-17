@@ -1,7 +1,11 @@
 # CRUD книг: статусы, оценки, локализация, удаление, фоновое обогащение.
 import pytest
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session
 
+import database
 from conftest import fake_book_info
+from models import Book
 
 
 # --- статусы и оценки ---
@@ -34,6 +38,15 @@ def test_invalid_status(client):
 
 def test_book_not_found(client):
     assert client.patch("/books/999", json={"status": "read"}).status_code == 404
+
+
+def test_db_enforces_rating_only_for_read(client):
+    """Задача 7: CHECK в БД отбивает оценку у непрочитанной книги,
+    даже если какой-то будущий код забудет про инвариант."""
+    with Session(database.engine) as session:
+        session.add(Book(title="X", author="Y", status="want", rating=7))
+        with pytest.raises(IntegrityError):
+            session.commit()
 
 
 # --- локализация ---

@@ -1,10 +1,19 @@
 from datetime import datetime
 from typing import Optional
+from sqlalchemy import CheckConstraint
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
 # --- Таблица «книги». Одна такая строка = одна книга в БД ---
 class Book(SQLModel, table=True):
+    __table_args__ = (
+        # Задача 7: инвариант «оценка только у прочитанной» — на уровне БД,
+        # страховка для любых будущих путей записи
+        CheckConstraint(
+            "rating IS NULL OR status = 'read'",
+            name="ck_book_rating_only_read",
+        ),
+    )
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = 1                       # пока один пользователь; связь под будущий вход
     title: str
