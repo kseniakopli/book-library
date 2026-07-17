@@ -73,14 +73,19 @@ npm run dev                  # http://localhost:5173
 Interactive documentation (the source of truth): **http://127.0.0.1:8000/docs** (Swagger)
 or `/redoc`. Key endpoints:
 
+All endpoints live under the versioned prefix **`/api/v1`** (except the Spotify
+OAuth `/callback`, which is registered externally):
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET/POST | `/books` | List books / add a book (background enrichment) |
-| GET/PATCH/DELETE | `/books/{id}` | Read / update status & rating / delete (cascades) |
-| POST | `/books/{id}/enrich` | Manual re-enrichment from Google Books |
-| GET/POST | `/books/{id}/atmosphere/{category}` | Get / generate AI picks (`music`, `design`) |
-| GET | `/search?q=` | Book search: local catalog cache + Google Books |
-| POST | `/import` | CSV import (limits: 2 MB, 2000 rows) |
+| GET/POST | `/api/v1/books` | List books (supports `limit`/`offset`) / add a book |
+| GET/PATCH/DELETE | `/api/v1/books/{id}` | Read / update status, rating, read date / delete |
+| POST | `/api/v1/books/{id}/enrich` | Manual re-enrichment from Google Books |
+| GET/POST | `/api/v1/books/{id}/atmosphere/{category}` | Get / generate AI picks (`music`, `design`, `food`, `aroma`) |
+| POST | `/api/v1/books/{id}/playlist` | Create a Spotify playlist from the book's music |
+| GET | `/api/v1/books/{id}/qr` | QR code of the playlist (for the printed card) |
+| GET | `/api/v1/search?q=` | Book search: local catalog cache + Google Books |
+| POST | `/api/v1/import` | CSV import (limits: 2 MB, 2000 rows) |
 
 All endpoints accept `?lang=ru|en` for localized messages.
 

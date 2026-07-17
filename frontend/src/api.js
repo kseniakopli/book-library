@@ -1,7 +1,12 @@
 // Единый слой запросов к бэкенду. Бросает ошибку при не-2xx —
 // React Query превратит её в isError у запроса/мутации.
+
+// Задача 34: версионированный префикс. Экспортируется для не-fetch мест
+// (например, src у QR-картинки на печатной карточке).
+export const API = "/api/v1";
+
 async function request(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(`${API}${url}`, options);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail || `Ошибка ${response.status}`);
@@ -43,7 +48,7 @@ export const enrichBook = (id) =>
 export const createPlaylist = (id) =>
   request(`/books/${id}/playlist`, { method: "POST" });
 
-// Атмосфера: единые эндпоинты для всех категорий (music, design; этап 7 добавит свои).
+// Атмосфера: единые эндпоинты для всех категорий (music, design, food, aroma).
 // GET и POST возвращают одинаковый формат: { book_id, category, selections: [...] }
 export const getAtmosphere = (id, category) =>
   request(`/books/${id}/atmosphere/${category}`);

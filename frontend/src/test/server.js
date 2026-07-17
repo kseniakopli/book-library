@@ -52,14 +52,14 @@ const notFound = () =>
   HttpResponse.json({ detail: "Книга не найдена" }, { status: 404 });
 
 export const handlers = [
-  http.get("/books", () => HttpResponse.json(db.books)),
+  http.get("/api/v1/books", () => HttpResponse.json(db.books)),
 
-  http.get("/books/:id", ({ params }) => {
+  http.get("/api/v1/books/:id", ({ params }) => {
     const book = findBook(params);
     return book ? HttpResponse.json(book) : notFound();
   }),
 
-  http.post("/books", async ({ request }) => {
+  http.post("/api/v1/books", async ({ request }) => {
     const body = await request.json();
     const book = {
       id: 100 + db.books.length,
@@ -76,7 +76,7 @@ export const handlers = [
     return HttpResponse.json(book);
   }),
 
-  http.patch("/books/:id", async ({ params, request }) => {
+  http.patch("/api/v1/books/:id", async ({ params, request }) => {
     const book = findBook(params);
     if (!book) return notFound();
     const body = await request.json();
@@ -85,14 +85,14 @@ export const handlers = [
     return HttpResponse.json(book);
   }),
 
-  http.delete("/books/:id", ({ params }) => {
+  http.delete("/api/v1/books/:id", ({ params }) => {
     const book = findBook(params);
     if (!book) return notFound();
     db.books = db.books.filter((b) => b.id !== book.id);
     return HttpResponse.json({ deleted: book.id });
   }),
 
-  http.get("/search", ({ request }) => {
+  http.get("/api/v1/search", ({ request }) => {
     const q = (new URL(request.url).searchParams.get("q") || "").toLowerCase();
     const results = q.includes("гарри")
       ? [
@@ -107,19 +107,19 @@ export const handlers = [
     return HttpResponse.json({ results });
   }),
 
-  http.post("/import", () =>
+  http.post("/api/v1/import", () =>
     HttpResponse.json({ imported: 2, duplicates: 1, skipped: 0 }),
   ),
 
   // Атмосфера: единый формат для всех категорий (music, design, ...)
-  http.get("/books/:id/atmosphere/:category", ({ params }) =>
+  http.get("/api/v1/books/:id/atmosphere/:category", ({ params }) =>
     HttpResponse.json({
       book_id: Number(params.id),
       category: params.category,
       selections: [],
     }),
   ),
-  http.post("/books/:id/atmosphere/:category", ({ params }) => {
+  http.post("/api/v1/books/:id/atmosphere/:category", ({ params }) => {
     const fixtures = {
       music: [{ title: "Song A", artist: "Artist A" }],
       food: [{ title: "Глинтвейн", description: "Тёплый и пряный" }],

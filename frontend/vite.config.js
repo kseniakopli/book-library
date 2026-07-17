@@ -4,16 +4,10 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Задача 34: всё API под /api/v1 — префикс не пересекается с маршрутами SPA,
+    // поэтому прежний bypass-хак для F5 на /books/N больше не нужен
     proxy: {
-      '/books': {
-        target: 'http://127.0.0.1:8000',
-        // F5 или прямой заход на /books/3 — навигация браузера (Accept: text/html):
-        // отдаём SPA, а не проксируем в API. Fetch из кода просит JSON — идёт в API.
-        bypass: (req) =>
-          req.headers.accept?.includes('text/html') ? '/index.html' : undefined,
-      },
-      '/search': 'http://127.0.0.1:8000',
-      '/import': 'http://127.0.0.1:8000',
+      '/api': 'http://127.0.0.1:8000',
     },
   },
   // Конфигурация Vitest (задача 20): jsdom-окружение + общий setup с MSW

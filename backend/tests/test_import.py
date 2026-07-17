@@ -7,7 +7,7 @@ from dates import parse_read_date
 
 def _upload(client, csv_text):
     return client.post(
-        "/import",
+        "/api/v1/import",
         files={"file": ("books.csv", csv_text.encode("utf-8"), "text/csv")},
     )
 
@@ -22,7 +22,7 @@ def test_import_creates_books(client):
     assert r.status_code == 200
     body = r.json()
     assert body["imported"] == 2 and body["skipped"] == 0
-    titles = [b["title"] for b in client.get("/books").json()]
+    titles = [b["title"] for b in client.get("/api/v1/books").json()]
     assert "Тестовая книга" in titles
 
 
@@ -32,7 +32,7 @@ def test_import_sets_read_status_and_rating(client):
         "Книга с оценкой,Автор,Май 2026 г.,8,333\n"
     )
     _upload(client, csv_text)
-    book = next(b for b in client.get("/books").json() if b["title"] == "Книга с оценкой")
+    book = next(b for b in client.get("/api/v1/books").json() if b["title"] == "Книга с оценкой")
     assert book["status"] == "read"
     assert book["rating"] == 8
 
@@ -54,7 +54,7 @@ def test_import_rating_and_status_edge_cases(client):
         "Кривая оценка,Автор,,абв,10\n"           # не число и без даты → want
     )
     _upload(client, csv_text)
-    books = client.get("/books").json()
+    books = client.get("/api/v1/books").json()
     b1 = next(b for b in books if b["title"] == "Без оценки")
     assert b1["rating"] is None and b1["status"] == "read"
     b2 = next(b for b in books if b["title"] == "Кривая оценка")
@@ -80,7 +80,7 @@ def test_import_saves_read_at(client):
     )
     _upload(client, csv_text)
     book = next(
-        b for b in client.get("/books").json() if b["title"] == "Датированная"
+        b for b in client.get("/api/v1/books").json() if b["title"] == "Датированная"
     )
     assert book["read_at"].startswith("2026-07-01")
 
@@ -93,12 +93,12 @@ def test_backfill_metadata_runs_in_background(client, monkeypatch):
 
     monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
     # книга из фикстуры — без метаданных
-    r = client.post("/books/backfill-metadata")
+    r = client.post("/api/v1/books/backfill-metadata")
     assert r.status_code == 200
     assert r.json() == {"scheduled": 1, "remaining": 0}
 
     # TestClient уже выполнил фон — книга обогащена и снова ready
-    book = client.get("/books/1").json()
+    book = client.get("/api/v1/books/1").json()
     assert book["enrich_status"] == "ready"
     assert book["page_count"] == 100
 
@@ -110,26 +110,26 @@ def test_backfill_metadata_failure_marks_failed(client, monkeypatch):
         raise RuntimeError("network down")
 
     monkeypatch.setattr(enrichment, "fetch_book_info", boom)
-    client.post("/books/backfill-metadata")
-    assert client.get("/books/1").json()["enrich_status"] == "failed"
+    client.post("/api/v1/books/backfill-metadata")
+    assert client.get("/api/v1/books/1").json()["enrich_status"] == "failed"
 
 
 # --- лимиты (задача 38) ---
 
 def test_import_rejects_bad_encoding(client):
     data = "Название,Автор\nКнига,Кто-то".encode("cp1251")
-    r = client.post("/import", files={"file": ("books.csv", data, "text/csv")})
+    r = client.post("/api/v1/import", files={"file": ("books.csv", data, "text/csv")})
     assert r.status_code == 400
 
 
 def test_import_rejects_huge_file(client):
     data = b"a" * (2 * 1024 * 1024 + 10)
-    r = client.post("/import", files={"file": ("books.csv", data, "text/csv")})
+    r = client.post("/api/v1/import", files={"file": ("books.csv", data, "text/csv")})
     assert r.status_code == 400
 
 
 def test_import_rejects_too_many_rows(client):
     rows = "\n".join(f"Книга {i},Автор" for i in range(2101))
     data = ("Название,Автор\n" + rows).encode("utf-8")
-    r = client.post("/import", files={"file": ("books.csv", data, "text/csv")})
+    r = client.post("/api/v1/import", files={"file": ("books.csv", data, "text/csv")})
     assert r.status_code == 400

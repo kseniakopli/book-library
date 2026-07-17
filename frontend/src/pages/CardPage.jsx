@@ -188,7 +188,7 @@ function CardPage() {
           {book.spotify_playlist_url ? (
             <img
               className="pc-qr"
-              src={`/books/${id}/qr`}
+              src={`${api.API}/books/${id}/qr`}
               alt="QR-код плейлиста в Spotify"
             />
           ) : (

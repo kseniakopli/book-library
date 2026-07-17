@@ -27,7 +27,7 @@ def _mock_design(monkeypatch):
 
 def test_generate_music_two_sources(client, monkeypatch):
     _mock_music(monkeypatch)
-    r = client.post("/books/1/atmosphere/music")
+    r = client.post("/api/v1/books/1/atmosphere/music")
     assert r.status_code == 200
     sources = {s["source"] for s in r.json()["selections"]}
     assert sources == {"Claude", "ChatGPT"}
@@ -35,8 +35,8 @@ def test_generate_music_two_sources(client, monkeypatch):
 
 def test_generated_music_is_persisted(client, monkeypatch):
     _mock_music(monkeypatch)
-    client.post("/books/1/atmosphere/music")
-    r = client.get("/books/1/atmosphere/music")
+    client.post("/api/v1/books/1/atmosphere/music")
+    r = client.get("/api/v1/books/1/atmosphere/music")
     assert r.status_code == 200
     claude = next(s for s in r.json()["selections"] if s["source"] == "Claude")
     assert claude["payload"][0]["title"] == "Song A"
@@ -45,38 +45,38 @@ def test_generated_music_is_persisted(client, monkeypatch):
 
 def test_regenerate_does_not_duplicate(client, monkeypatch):
     _mock_music(monkeypatch)
-    client.post("/books/1/atmosphere/music")
-    client.post("/books/1/atmosphere/music")            # второй раз
-    r = client.get("/books/1/atmosphere/music")
+    client.post("/api/v1/books/1/atmosphere/music")
+    client.post("/api/v1/books/1/atmosphere/music")            # второй раз
+    r = client.get("/api/v1/books/1/atmosphere/music")
     assert len(r.json()["selections"]) == 2  # всё ещё 2 варианта, а не 4
 
 
 def test_generate_music_book_not_found(client, monkeypatch):
     _mock_music(monkeypatch)
-    assert client.post("/books/999/atmosphere/music").status_code == 404
+    assert client.post("/api/v1/books/999/atmosphere/music").status_code == 404
 
 
 def test_generate_music_invalid_lang(client, monkeypatch):
     _mock_music(monkeypatch)
-    assert client.post("/books/1/atmosphere/music?lang=fr").status_code == 400
+    assert client.post("/api/v1/books/1/atmosphere/music?lang=fr").status_code == 400
 
 
 # --- паспорт оформления ---
 
 def test_generate_and_get_design(client, monkeypatch):
     _mock_design(monkeypatch)
-    r = client.post("/books/1/atmosphere/design")
+    r = client.post("/api/v1/books/1/atmosphere/design")
     assert r.status_code == 200
     selection = r.json()["selections"][0]
     assert selection["source"] == "Claude"
     assert selection["payload"]["palette"]["accent"] == "#e08b2d"
 
-    r2 = client.get("/books/1/atmosphere/design")
+    r2 = client.get("/api/v1/books/1/atmosphere/design")
     assert r2.json() == r.json()   # POST и GET отдают один формат
 
 
 def test_design_absent_is_empty_list(client):
-    r = client.get("/books/1/atmosphere/design")
+    r = client.get("/api/v1/books/1/atmosphere/design")
     assert r.status_code == 200
     assert r.json()["selections"] == []
 
@@ -84,14 +84,14 @@ def test_design_absent_is_empty_list(client):
 # --- общее ---
 
 def test_unknown_category_404(client):
-    assert client.get("/books/1/atmosphere/weather").status_code == 404
-    assert client.post("/books/1/atmosphere/weather").status_code == 404
+    assert client.get("/api/v1/books/1/atmosphere/weather").status_code == 404
+    assert client.post("/api/v1/books/1/atmosphere/weather").status_code == 404
 
 
 def test_delete_cascades_selections(client, monkeypatch):
     _mock_music(monkeypatch)
-    client.post("/books/1/atmosphere/music")
-    client.delete("/books/1")
+    client.post("/api/v1/books/1/atmosphere/music")
+    client.delete("/api/v1/books/1")
     with Session(database.engine) as session:
         rows = session.exec(
             select(AISelection).where(AISelection.book_id == 1)
@@ -128,14 +128,14 @@ def test_generate_food_two_sources_and_persist(client, monkeypatch):
     monkeypatch.setitem(
         atmosphere_routes.CATEGORIES["food"], "generate", fake_generate_food
     )
-    r = client.post("/books/1/atmosphere/food")
+    r = client.post("/api/v1/books/1/atmosphere/food")
     assert r.status_code == 200
     assert {s["source"] for s in r.json()["selections"]} == {"Claude", "ChatGPT"}
     claude = next(s for s in r.json()["selections"] if s["source"] == "Claude")
     assert claude["payload"][0] == {
         "title": "Глинтвейн", "description": "Тёплый и пряный",
     }
-    assert client.get("/books/1/atmosphere/food").json() == r.json()
+    assert client.get("/api/v1/books/1/atmosphere/food").json() == r.json()
 
 
 def test_categories_are_independent(client, monkeypatch):
@@ -146,8 +146,8 @@ def test_categories_are_independent(client, monkeypatch):
     monkeypatch.setitem(
         atmosphere_routes.CATEGORIES["aroma"], "generate", fake_generate_aroma
     )
-    client.post("/books/1/atmosphere/music")
-    client.post("/books/1/atmosphere/aroma")
+    client.post("/api/v1/books/1/atmosphere/music")
+    client.post("/api/v1/books/1/atmosphere/aroma")
     # каждая категория хранит свои 2 подборки и не задевает чужие
-    assert len(client.get("/books/1/atmosphere/music").json()["selections"]) == 2
-    assert len(client.get("/books/1/atmosphere/aroma").json()["selections"]) == 2
+    assert len(client.get("/api/v1/books/1/atmosphere/music").json()["selections"]) == 2
+    assert len(client.get("/api/v1/books/1/atmosphere/aroma").json()["selections"]) == 2

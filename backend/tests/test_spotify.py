@@ -31,7 +31,7 @@ def _add_music(book_id=1):
 
 def test_playlist_requires_auth(client, monkeypatch):
     monkeypatch.setattr(spotify_service, "has_token", lambda: False)
-    r = client.post("/books/1/playlist")
+    r = client.post("/api/v1/books/1/playlist")
     assert r.status_code == 200
     assert r.json()["status"] == "auth_required"
     assert "accounts.spotify.com" in r.json()["auth_url"]
@@ -52,7 +52,7 @@ def test_playlist_created_and_saved(client, monkeypatch):
 
     monkeypatch.setattr(spotify_service, "create_playlist_from_songs", fake_create)
 
-    r = client.post("/books/1/playlist")
+    r = client.post("/api/v1/books/1/playlist")
     assert r.status_code == 200
     assert r.json()["status"] == "created"
     assert r.json()["playlist_url"] == "https://open.spotify.com/playlist/test123"
@@ -62,7 +62,7 @@ def test_playlist_created_and_saved(client, monkeypatch):
 
     # ссылка сохранилась у книги и видна в API
     assert (
-        client.get("/books/1").json()["spotify_playlist_url"]
+        client.get("/api/v1/books/1").json()["spotify_playlist_url"]
         == "https://open.spotify.com/playlist/test123"
     )
 
@@ -75,13 +75,13 @@ def test_playlist_existing_returned_without_recreation(client, monkeypatch):
         lambda name, songs: {"url": "https://open.spotify.com/playlist/first",
                              "found": 1, "not_found": []},
     )
-    client.post("/books/1/playlist")
+    client.post("/api/v1/books/1/playlist")
 
     def boom(name, songs):
         raise AssertionError("плейлист не должен создаваться повторно")
 
     monkeypatch.setattr(spotify_service, "create_playlist_from_songs", boom)
-    r = client.post("/books/1/playlist")
+    r = client.post("/api/v1/books/1/playlist")
     assert r.json() == {
         "status": "exists",
         "playlist_url": "https://open.spotify.com/playlist/first",
@@ -90,13 +90,13 @@ def test_playlist_existing_returned_without_recreation(client, monkeypatch):
 
 def test_playlist_without_music_rejected(client, monkeypatch):
     monkeypatch.setattr(spotify_service, "has_token", lambda: True)
-    r = client.post("/books/1/playlist")
+    r = client.post("/api/v1/books/1/playlist")
     assert r.status_code == 400
 
 
 def test_playlist_book_not_found(client, monkeypatch):
     monkeypatch.setattr(spotify_service, "has_token", lambda: True)
-    assert client.post("/books/999/playlist").status_code == 404
+    assert client.post("/api/v1/books/999/playlist").status_code == 404
 
 
 def _set_playlist_url(url="https://open.spotify.com/playlist/test123"):
@@ -109,13 +109,13 @@ def _set_playlist_url(url="https://open.spotify.com/playlist/test123"):
 
 
 def test_qr_requires_playlist(client):
-    assert client.get("/books/1/qr").status_code == 404
+    assert client.get("/api/v1/books/1/qr").status_code == 404
 
 
 def test_qr_returns_png(client):
     pytest.importorskip("qrcode")   # пропускаем, пока qrcode не установлен
     _set_playlist_url()
-    r = client.get("/books/1/qr")
+    r = client.get("/api/v1/books/1/qr")
     assert r.status_code == 200
     assert r.headers["content-type"] == "image/png"
     assert r.content[:8] == b"\x89PNG\r\n\x1a\n"   # магические байты PNG

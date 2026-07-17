@@ -18,6 +18,10 @@ from models import AISelection, Book
 
 router = APIRouter(tags=["spotify"])
 
+# Задача 34: /callback живёт БЕЗ префикса /api/v1 — этот адрес зарегистрирован
+# как redirect URI в кабинете Spotify, менять его там не хотим
+callback_router = APIRouter(tags=["spotify"])
+
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 
@@ -92,7 +96,7 @@ def playlist_qr(book_id: int, lang: str = Depends(get_lang)):
     return StreamingResponse(buf, media_type="image/png")
 
 
-@router.get("/callback")
+@callback_router.get("/callback")
 def spotify_callback(code: str, state: str = "", lang: str = "ru"):
     """Возврат из окна Spotify: сохраняем refresh_token (одноразовая авторизация),
     сразу создаём плейлист для книги из state и возвращаем на её страницу."""

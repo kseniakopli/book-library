@@ -28,9 +28,14 @@ router = APIRouter(tags=["books"])
 
 
 @router.get("/books", response_model=list[BookRead])
-def list_books():
+def list_books(limit: int | None = None, offset: int = 0):
+    """Задача 34: пагинация поддерживается (limit/offset); без параметров —
+    вся библиотека (текущий фронт так и ходит, включим при росте данных)."""
     with Session(database.engine) as session:
-        return session.exec(select(Book)).all()
+        query = select(Book).offset(offset)
+        if limit is not None:
+            query = query.limit(limit)
+        return session.exec(query).all()
 
 
 @router.get("/books/{book_id}", response_model=BookRead)
