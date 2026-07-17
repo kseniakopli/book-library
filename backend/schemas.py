@@ -9,6 +9,8 @@ class BookCreate(BaseModel):
     author: str
     cover_url: Optional[str] = None      # обложка выбранного кандидата из поиска
     external_id: Optional[str] = None    # id тома Google Books — для точного обогащения
+    status: str = "want"                 # задача 18: статус выбирается при добавлении
+    read_at: Optional[datetime] = None   # задача 18: дата прочтения (для status=read)
 
     # Security (задача 37): cover_url рендерится в <img src> — только https
     @field_validator("cover_url")

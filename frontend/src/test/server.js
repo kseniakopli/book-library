@@ -65,8 +65,9 @@ export const handlers = [
       id: 100 + db.books.length,
       title: body.title,
       author: body.author,
-      status: "want",
+      status: body.status ?? "want",
       rating: null,
+      read_at: body.read_at ?? null,
       cover_url: body.cover_url ?? null,
       description: null,
       enrich_status: "ready", // в тестах «фон» мгновенный — без поллинга

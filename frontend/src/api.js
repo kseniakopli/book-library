@@ -17,8 +17,18 @@ const json = (method, body) => ({
 
 export const getBooks = () => request("/books");
 export const getBook = (id) => request(`/books/${id}`);
-export const createBook = ({ title, author, cover_url, external_id }) =>
-  request("/books", json("POST", { title, author, cover_url, external_id }));
+export const createBook = ({
+  title,
+  author,
+  cover_url,
+  external_id,
+  status,
+  read_at,
+}) =>
+  request(
+    "/books",
+    json("POST", { title, author, cover_url, external_id, status, read_at }),
+  );
 export const patchBook = ({ id, ...body }) =>
   request(`/books/${id}`, json("PATCH", body));
 export const deleteBook = (id) => request(`/books/${id}`, { method: "DELETE" });

@@ -45,12 +45,21 @@ def add_book(
     background_tasks: BackgroundTasks,
     lang: str = Depends(get_lang),
 ):
+    # задача 18: статус задаётся при добавлении
+    if data.status not in ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail=msg("bad_status", lang))
+
     # книга сохраняется сразу, без похода в Google Books — ответ мгновенный;
     # метаданные доедут фоном (services/enrichment.py)
     book = Book(
         title=data.title,
         author=data.author,
         cover_url=data.cover_url,          # обложка кандидата из поиска видна сразу
+        status=data.status,
+        # дата прочтения: явная, иначе «сейчас» для прочитанной (как в PATCH)
+        read_at=(data.read_at or datetime.now())
+        if data.status == STATUS_READ
+        else None,
         enrich_status=ENRICH_PENDING,
     )
     with Session(database.engine) as session:

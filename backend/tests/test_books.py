@@ -161,6 +161,35 @@ def test_add_book_with_external_id(client, monkeypatch):
     assert r2.json()["description"] == "desc"   # доехало из fetch_volume_by_id
 
 
+def test_add_book_with_status_and_date(client, monkeypatch):
+    """Задача 18: статус и дата прочтения задаются при добавлении."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    r = client.post("/books", json={
+        "title": "Прочитанная", "author": "Автор",
+        "status": "read", "read_at": "2026-06-01T00:00:00",
+    })
+    assert r.status_code == 200
+    assert r.json()["status"] == "read"
+    assert r.json()["read_at"].startswith("2026-06-01")
+
+
+def test_add_book_read_without_date_gets_now(client, monkeypatch):
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    r = client.post("/books", json={
+        "title": "Недавняя", "author": "Автор", "status": "read",
+    })
+    assert r.json()["read_at"] is not None
+
+
+def test_add_book_bad_status_rejected(client):
+    r = client.post("/books", json={
+        "title": "X", "author": "Y", "status": "finished",
+    })
+    assert r.status_code == 400
+
+
 def test_add_book_rejects_non_https_cover(client):
     r = client.post("/books", json={
         "title": "T", "author": "A", "cover_url": "javascript:alert(1)",

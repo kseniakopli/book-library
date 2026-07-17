@@ -26,6 +26,14 @@ test("поиск во внешнем каталоге и добавление к
     screen.getByText("Гарри Поттер и философский камень"),
   );
 
+  // задача 18: шаг выбора статуса; по умолчанию «Хочу прочитать»
+  expect(
+    within(dialog).getByRole("button", { name: "Хочу прочитать" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Добавить" }),
+  );
+
   // модалка закрылась, книга появилась на полке «Хочу прочитать»
   await waitFor(() =>
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
@@ -33,6 +41,34 @@ test("поиск во внешнем каталоге и добавление к
   expect(
     await screen.findByText(/Гарри Поттер и философский камень/),
   ).toBeInTheDocument();
+});
+
+test("для «Прочитана» появляется дата, «Не помню» её гасит", async () => {
+  renderApp();
+  await screen.findByText("Волшебная гора");
+  await userEvent.click(
+    screen.getByRole("button", { name: "+ Добавить книгу" }),
+  );
+  const dialog = await screen.findByRole("dialog");
+  await userEvent.type(
+    within(dialog).getByPlaceholderText("Название или автор…"),
+    "гарри",
+  );
+  await userEvent.click(
+    await screen.findByText("Гарри Поттер и философский камень"),
+  );
+
+  // даты нет, пока статус не «Прочитана»
+  expect(screen.queryByLabelText("Дата прочтения:")).not.toBeInTheDocument();
+
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Прочитана" }),
+  );
+  const dateInput = screen.getByLabelText("Дата прочтения:");
+  expect(dateInput).toBeEnabled();
+
+  await userEvent.click(screen.getByLabelText("Не помню"));
+  expect(dateInput).toBeDisabled();
 });
 
 test("короткий запрос не ищет, показывает подсказку", async () => {

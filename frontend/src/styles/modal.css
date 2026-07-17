@@ -66,6 +66,41 @@
   margin-top: 20px;
 }
 
+/* Задача 18: шаг выбора статуса и даты при добавлении */
+.add-form .search-title {
+  font-size: 17px;
+}
+.add-status-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.add-date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  font-size: 14px;
+}
+.add-date-row input[type="date"] {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.add-date-unknown {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .field {
   display: block;
   margin-bottom: 14px;
