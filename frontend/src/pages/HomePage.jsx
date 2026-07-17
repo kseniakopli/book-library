@@ -7,6 +7,7 @@ import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
 import BookCard from "../components/BookCard";
+import Onboarding from "../components/Onboarding";
 import Shelf from "../components/Shelf";
 import SearchModal from "../components/SearchModal";
 
@@ -164,6 +165,9 @@ function HomePage() {
             Повторить
           </button>
         </p>
+      ) : books.length === 0 ? (
+        // задача 21: библиотека пуста — онбординг вместо пустых полок
+        <Onboarding onAddBook={() => setShowModal(true)} />
       ) : filtered ? (
         filtered.length === 0 ? (
           <p className="muted">Ничего не найдено в библиотеке.</p>

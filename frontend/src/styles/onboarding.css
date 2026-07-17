@@ -1,0 +1,62 @@
+/* ===== Онбординг пустой библиотеки (задача 21) ===== */
+
+.onboarding {
+  max-width: 640px;
+  margin: 48px auto;
+  text-align: center;
+}
+
+.onboarding-title {
+  font-family: var(--serif);
+  font-size: 30px;
+  margin: 0 0 6px;
+}
+
+.onboarding-steps {
+  text-align: left;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  display: grid;
+  gap: 14px;
+}
+.onboarding-steps li {
+  counter-increment: step;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px 16px 56px;
+  position: relative;
+  line-height: 1.55;
+  font-size: 15px;
+}
+.onboarding-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--sans);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.onboarding-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 28px;
+}
+
+.onboarding-note {
+  font-size: 13px;
+  margin-top: 16px;
+}
