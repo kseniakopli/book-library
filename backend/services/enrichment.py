@@ -26,6 +26,13 @@ def apply_enrichment(book: Book, info: dict) -> None:
     book.updated_at = datetime.now()   # задача 1: фиксируем изменение данных
 
 
+def backfill_in_background(book_ids: list[int], lang: str) -> None:
+    """Задача 12: фоновый дозаполнитель партии книг. Каждая книга проходит
+    обычный путь enrich_in_background — сбой одной не мешает остальным."""
+    for book_id in book_ids:
+        enrich_in_background(book_id, lang)
+
+
 def enrich_in_background(book_id: int, lang: str, external_id: str = None) -> None:
     """Фоновая задача: дозаполнить книгу. Ошибка ничего не роняет — статус failed.
     external_id (том Google Books, выбранный пользователем) даёт точное

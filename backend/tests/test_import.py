@@ -85,6 +85,35 @@ def test_import_saves_read_at(client):
     assert book["read_at"].startswith("2026-07-01")
 
 
+# --- фоновый дозаполнитель метаданных (задача 12) ---
+
+def test_backfill_metadata_runs_in_background(client, monkeypatch):
+    import services.enrichment as enrichment
+    from conftest import fake_book_info
+
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    # книга из фикстуры — без метаданных
+    r = client.post("/books/backfill-metadata")
+    assert r.status_code == 200
+    assert r.json() == {"scheduled": 1, "remaining": 0}
+
+    # TestClient уже выполнил фон — книга обогащена и снова ready
+    book = client.get("/books/1").json()
+    assert book["enrich_status"] == "ready"
+    assert book["page_count"] == 100
+
+
+def test_backfill_metadata_failure_marks_failed(client, monkeypatch):
+    import services.enrichment as enrichment
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(enrichment, "fetch_book_info", boom)
+    client.post("/books/backfill-metadata")
+    assert client.get("/books/1").json()["enrich_status"] == "failed"
+
+
 # --- лимиты (задача 38) ---
 
 def test_import_rejects_bad_encoding(client):

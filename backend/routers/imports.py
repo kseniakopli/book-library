@@ -2,18 +2,18 @@
 import csv
 import io
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session, col, select
 
 import database
-from constants import EVENT_IMPORT, STATUS_READ, STATUS_WANT
+from constants import ENRICH_PENDING, EVENT_BACKFILL, EVENT_IMPORT, STATUS_READ, STATUS_WANT
 from dates import parse_read_date
 from deps import get_lang
 from events import log_event
-from google_books import fetch_book_info, search_books
+from google_books import search_books
 from i18n import msg
 from models import Book
-from services.enrichment import apply_enrichment
+from services.enrichment import backfill_in_background
 
 router = APIRouter(tags=["import"])
 
@@ -107,22 +107,30 @@ def backfill_covers():
 
 
 @router.post("/books/backfill-metadata")
-def backfill_metadata(limit: int = 40, lang: str = Depends(get_lang)):
-    updated = 0
+def backfill_metadata(
+    background_tasks: BackgroundTasks,
+    limit: int = 40,
+    lang: str = Depends(get_lang),
+):
+    """Задача 12: дозаполнение старых книг метаданными — В ФОНЕ.
+    Ответ мгновенный; партия помечается pending, фронт поллит список,
+    и обложки/жанры «проявляются» по мере обогащения."""
     with Session(database.engine) as session:
-        # берём порцию книг, у которых ещё нет метаданных (raw_metadata пуст)
+        # порция книг без метаданных (raw_metadata пуст)
         books = session.exec(
             select(Book).where(col(Book.raw_metadata).is_(None)).limit(limit)
         ).all()
+        ids = [book.id for book in books]
         for book in books:
-            info = fetch_book_info(book.title, book.author, lang)
-            if not info["raw_metadata"]:
-                continue          # не нашли или сбой сети — попробуем в следующий заход
-            apply_enrichment(book, info)
+            book.enrich_status = ENRICH_PENDING
             session.add(book)
-            updated += 1
         session.commit()
-        remaining = len(session.exec(
+
+        total_without = len(session.exec(
             select(Book).where(col(Book.raw_metadata).is_(None))
         ).all())
-    return {"updated": updated, "remaining": remaining}
+
+    if ids:
+        background_tasks.add_task(backfill_in_background, ids, lang)
+        log_event(EVENT_BACKFILL, detail=f"scheduled={len(ids)}")
+    return {"scheduled": len(ids), "remaining": total_without - len(ids)}
