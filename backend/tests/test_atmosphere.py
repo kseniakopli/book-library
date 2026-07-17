@@ -69,7 +69,9 @@ def test_generate_and_get_design(client, monkeypatch):
     assert r.status_code == 200
     selection = r.json()["selections"][0]
     assert selection["source"] == "Claude"
-    assert selection["payload"]["palette"]["accent"] == "#e08b2d"
+    # задача 57: паспорт несёт обе палитры — тёмную и светлую
+    assert selection["payload"]["palette_dark"]["accent"] == "#e08b2d"
+    assert selection["payload"]["palette_light"]["bg"] == "#f6f1e7"
 
     r2 = client.get("/api/v1/books/1/atmosphere/design")
     assert r2.json() == r.json()   # POST и GET отдают один формат
@@ -114,10 +116,12 @@ def test_aiselection_unique_constraint(client):
 
 def test_design_palette_rejects_non_hex():
     """Задача 37: не-hex цвета из AI отбрасываются на границе."""
+    ok_palette = {"bg": "#ffffff", "surface": "#ffffff", "accent": "#ffffff",
+                  "text": "#ffffff", "muted": "#ffffff"}
     bad = {
         "base_mood": "мрак",
-        "palette": {"bg": "url(https://evil.example)", "surface": "#ffffff",
-                    "accent": "#ffffff", "text": "#ffffff", "muted": "#ffffff"},
+        "palette_dark": {**ok_palette, "bg": "url(https://evil.example)"},
+        "palette_light": ok_palette,
         "title_font": "PT Serif", "body_font": "PT Serif", "statement": "…",
     }
     with pytest.raises(pydantic.ValidationError):

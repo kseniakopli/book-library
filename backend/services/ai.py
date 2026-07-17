@@ -95,7 +95,11 @@ class Palette(BaseModel):
 
 class DesignResult(BaseModel):
     base_mood: str
-    palette: Palette
+    # Задача 57: две палитры — паспорт живёт в обеих темах интерфейса.
+    # Старые сохранённые паспорта имеют одно поле palette (тёмное) —
+    # фронт понимает оба формата, а при открытии книги тихо обновляет старый.
+    palette_dark: Palette
+    palette_light: Palette
     title_font: str
     body_font: str
     statement: str

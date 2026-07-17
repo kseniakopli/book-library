@@ -1,17 +1,19 @@
 // Карточка книги: паспорт оформления, статус/оценка, действия.
 // Секция «Атмосфера» вынесена в AtmosphereSection (R7).
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { STATUS_LABELS, STATUSES } from "../constants";
+import { useTheme } from "../hooks/useTheme";
 import { bestTextOn, hasReadableContrast, withAlpha } from "../lib/contrast";
 import { centeredSvgDataUri } from "../lib/svg";
 import AtmosphereSection from "./AtmosphereSection";
 
 function BookDetail({ book, onBack, onDeleted }) {
   const queryClient = useQueryClient();
+  const { theme } = useTheme();
 
   // Паспорт оформления: единый формат атмосферы, паспорт — payload единственного источника.
   // Без обработки ошибки: не загрузился — карточка в базовой теме.
@@ -28,9 +30,17 @@ function BookDetail({ book, onBack, onDeleted }) {
     [design?.symbol_svg],
   );
 
+  // Задача 57: палитра выбирается по теме интерфейса. Новый формат паспорта —
+  // palette_dark + palette_light; старый (одно поле palette) считаем тёмным.
+  const palette = design
+    ? theme === "dark"
+      ? (design.palette_dark ?? design.palette)
+      : design.palette_light
+    : null;
+
   // Задача 23: применяем AI-палитру, только если текст читаем на её фоне (WCAG AA).
   const appliedDesign =
-    design && hasReadableContrast(design.palette?.text, design.palette?.bg)
+    design && palette && hasReadableContrast(palette.text, palette.bg)
       ? design
       : null;
 
@@ -48,6 +58,19 @@ function BookDetail({ book, onBack, onDeleted }) {
     onSuccess: (fresh) =>
       queryClient.setQueryData(keys.atmosphere(book.id, "design"), fresh),
   });
+
+  // Задача 57: оформление без кнопки. Паспорта нет (книга из CSV/старая,
+  // или фон при добавлении не успел/упал) либо он старого формата без
+  // светлой палитры — тихо генерируем один раз при открытии.
+  const designAutoFired = useRef(false);
+  const designMutate = designMutation.mutate;
+  useEffect(() => {
+    if (!designData || designAutoFired.current) return;
+    if (!design || !design.palette_light) {
+      designAutoFired.current = true;
+      designMutate();
+    }
+  }, [designData, design, designMutate]);
 
   const enrichMutation = useMutation({
     mutationFn: () => api.enrichBook(book.id),
@@ -99,17 +122,17 @@ function BookDetail({ book, onBack, onDeleted }) {
   // Статические отступы — в классе .detail-themed (styles/detail.css)
   const themedStyle = appliedDesign
     ? {
-        "--surface": appliedDesign.palette.surface,
-        "--accent": appliedDesign.palette.accent,
+        "--surface": palette.surface,
+        "--accent": palette.accent,
         // задача 49: текст на accent — вычисляем по контрасту (тема сюда не дотягивается)
-        "--on-accent": bestTextOn(appliedDesign.palette.accent),
-        "--text": appliedDesign.palette.text,
-        "--muted": appliedDesign.palette.muted,
+        "--on-accent": bestTextOn(palette.accent),
+        "--text": palette.text,
+        "--muted": palette.muted,
         // задача 49: границы — полупрозрачный muted, чтобы не сливались с текстом
-        "--border": withAlpha(appliedDesign.palette.muted, "66"),
+        "--border": withAlpha(palette.muted, "66"),
         "--serif": `'${appliedDesign.title_font}', Georgia, serif`,
-        background: appliedDesign.palette.bg,
-        color: appliedDesign.palette.text,
+        background: palette.bg,
+        color: palette.text,
         fontFamily: `'${appliedDesign.body_font}', system-ui, sans-serif`,
       }
     : {};
@@ -130,17 +153,6 @@ function BookDetail({ book, onBack, onDeleted }) {
             disabled={enrichMutation.isPending}
           >
             {enrichMutation.isPending ? "Обновляю…" : "Обновить информацию"}
-          </button>
-          <button
-            className="btn-ghost"
-            onClick={() => designMutation.mutate()}
-            disabled={designMutation.isPending}
-          >
-            {designMutation.isPending
-              ? "Оформляю…"
-              : design
-                ? "Обновить оформление"
-                : "Оформить под книгу"}
           </button>
           <Link className="btn-ghost playlist-link" to={`/books/${book.id}/card`}>
             Печатная карточка
@@ -163,7 +175,7 @@ function BookDetail({ book, onBack, onDeleted }) {
           {patchMutation.isError &&
             `Не удалось сохранить: ${patchMutation.error.message}. `}
           {designMutation.isError &&
-            `Оформление не удалось: ${designMutation.error.message}. `}
+            `Оформление не подобралось: ${designMutation.error.message} — попробуйте перезагрузить страницу. `}
           {enrichMutation.isError &&
             `Обновление не удалось: ${enrichMutation.error.message}. `}
           {deleteMutation.isError &&
@@ -211,6 +223,9 @@ function BookDetail({ book, onBack, onDeleted }) {
               Не удалось получить данные о книге — нажмите «Обновить
               информацию».
             </p>
+          )}
+          {designMutation.isPending && (
+            <p className="muted">Подбираю оформление под книгу…</p>
           )}
           {design && <p className="detail-statement">{design.statement}</p>}
 

@@ -18,7 +18,7 @@ from constants import (
 from deps import get_book_or_404, get_lang
 from events import log_event
 from i18n import msg
-from models import AISelection
+from models import AISelection, Book
 
 router = APIRouter(tags=["atmosphere"])
 
@@ -117,6 +117,14 @@ async def generate_atmosphere(
     results = await cfg["generate"](title, author, lang)
 
     # 3) заменяем прежние подборки категории на свежие
+    response = _replace_selections(book_id, category, cfg, results)
+    log_event(cfg["event"], book_id)
+    return response
+
+
+def _replace_selections(book_id: int, category: str, cfg: dict, results: dict) -> dict:
+    """Сохранить результаты генерации, заменив прежние подборки категории.
+    Общий кусок POST-эндпоинта и фоновой генерации оформления (задача 57)."""
     with Session(database.engine) as session:
         old = session.exec(
             select(AISelection).where(
@@ -144,7 +152,33 @@ async def generate_atmosphere(
                 AISelection.category == category,
             )
         ).all()
-        response = _selections_response(book_id, category, rows)
+        return _selections_response(book_id, category, rows)
 
-    log_event(cfg["event"], book_id)
-    return response
+
+async def design_in_background(book_id: int, lang: str = "ru"):
+    """Задача 57: оформление создаётся фоном при добавлении книги —
+    кнопка не нужна, к первому открытию паспорт обычно уже готов.
+    Идемпотентно: если оформление уже есть (или книгу успели удалить) — выходим."""
+    cfg = CATEGORIES["design"]
+    with Session(database.engine) as session:
+        book = session.get(Book, book_id)
+        if book is None:
+            return
+        exists = session.exec(
+            select(AISelection).where(
+                AISelection.book_id == book_id,
+                AISelection.category == "design",
+            )
+        ).first()
+        if exists:
+            return
+        title, author = book.title, book.author
+
+    try:
+        results = await cfg["generate"](title, author, lang)
+    except Exception as e:
+        # фон не должен ронять процесс; при открытии книги фронт попробует снова
+        print(f"Фоновое оформление книги {book_id} не удалось:", e)
+        return
+    _replace_selections(book_id, "design", cfg, results)
+    log_event(cfg["event"], book_id, detail="auto")

@@ -76,6 +76,10 @@ def add_book(
         session.refresh(book)
     log_event(EVENT_BOOK_ADDED, book.id, detail="source=manual")
     background_tasks.add_task(enrich_in_background, book.id, lang, data.external_id)
+    # задача 57: оформление (палитры, шрифты, символ) — тоже фоном, сразу
+    # при добавлении; задачи выполняются по очереди после ответа
+    from routers.atmosphere import design_in_background
+    background_tasks.add_task(design_in_background, book.id, lang)
     return book
 
 

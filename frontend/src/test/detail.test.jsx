@@ -38,3 +38,16 @@ test("несуществующая книга — сообщение и возв
     screen.getByRole("button", { name: "← К библиотеке" }),
   ).toBeInTheDocument();
 });
+
+test("оформление подбирается автоматически, без кнопки (задача 57)", async () => {
+  renderApp("/books/2");
+  await screen.findByRole("heading", { name: "Дом огней" });
+  // GET оформления пуст → компонент сам делает POST; statement появляется
+  expect(
+    await screen.findByText("Символ выбран для теста"),
+  ).toBeInTheDocument();
+  // кнопки больше нет
+  expect(
+    screen.queryByRole("button", { name: /оформ/i }),
+  ).not.toBeInTheDocument();
+});

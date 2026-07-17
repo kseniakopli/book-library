@@ -120,6 +120,34 @@ export const handlers = [
     }),
   ),
   http.post("/api/v1/books/:id/atmosphere/:category", ({ params }) => {
+    // Паспорт оформления (задача 57): один источник, объект с двумя палитрами.
+    // symbol_svg намеренно нет — jsdom не умеет getBBox из centeredSvgDataUri.
+    if (params.category === "design") {
+      return HttpResponse.json({
+        book_id: Number(params.id),
+        category: "design",
+        selections: [
+          {
+            source: "Claude",
+            payload: {
+              base_mood: "тестовая ночь",
+              palette_dark: {
+                bg: "#161311", surface: "#221c17", accent: "#e08b2d",
+                text: "#e9e1d3", muted: "#a19585",
+              },
+              palette_light: {
+                bg: "#f6f1e7", surface: "#fffaf0", accent: "#b05e12",
+                text: "#2a241d", muted: "#6d655b",
+              },
+              title_font: "PT Serif",
+              body_font: "PT Serif",
+              statement: "Символ выбран для теста",
+            },
+            explanation: "Символ выбран для теста",
+          },
+        ],
+      });
+    }
     const fixtures = {
       music: [{ title: "Song A", artist: "Artist A" }],
       food: [{ title: "Глинтвейн", description: "Тёплый и пряный" }],

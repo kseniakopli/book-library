@@ -102,7 +102,9 @@ function CardPage() {
     genres = "";
   }
 
-  const p = design?.palette ?? DEFAULT_PALETTE;
+  // Печатная карточка всегда в тёмной («вечерней») палитре — это её характер;
+  // старый формат паспорта (palette) тоже понимаем
+  const p = design?.palette_dark ?? design?.palette ?? DEFAULT_PALETTE;
   const style = {
     "--c-bg": p.bg,
     "--c-surface": p.surface,

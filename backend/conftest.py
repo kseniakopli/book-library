@@ -57,9 +57,13 @@ async def fake_generate_design(title, author, lang="ru"):
     return {
         "Claude": DesignResult(
             base_mood="ночная тишина",
-            palette=Palette(
+            palette_dark=Palette(
                 bg="#161311", surface="#221c17", accent="#e08b2d",
                 text="#e9e1d3", muted="#a19585",
+            ),
+            palette_light=Palette(
+                bg="#f6f1e7", surface="#fffaf0", accent="#b05e12",
+                text="#2a241d", muted="#6d655b",
             ),
             title_font="PT Serif",
             body_font="PT Serif",
@@ -67,6 +71,17 @@ async def fake_generate_design(title, author, lang="ru"):
             symbol_svg='<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>',
         )
     }
+
+
+@pytest.fixture(autouse=True)
+def _fake_design_generation(monkeypatch):
+    """Задача 57: add_book фоном генерирует оформление, а TestClient выполняет
+    фоновые задачи синхронно — без этого фейка любой POST /books ушёл бы
+    в реальный Claude. Отдельные тесты могут переопределить своим monkeypatch."""
+    from routers import atmosphere
+    monkeypatch.setitem(
+        atmosphere.CATEGORIES["design"], "generate", fake_generate_design
+    )
 
 
 def fake_book_info(title, author, lang="ru", isbn=None):

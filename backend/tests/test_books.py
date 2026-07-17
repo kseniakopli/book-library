@@ -226,3 +226,34 @@ def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json() == {"status": "ok"}
+
+
+def test_add_book_generates_design_in_background(client, monkeypatch):
+    """Задача 57: оформление создаётся фоном сразу при добавлении книги."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+
+    r = client.post("/api/v1/books", json={"title": "Ночь", "author": "Автор"})
+    book_id = r.json()["id"]
+
+    design = client.get(f"/api/v1/books/{book_id}/atmosphere/design").json()
+    assert len(design["selections"]) == 1
+    payload = design["selections"][0]["payload"]
+    assert "palette_dark" in payload and "palette_light" in payload
+
+
+def test_background_design_is_idempotent(client, monkeypatch):
+    """Повторный вызов фона не перезаписывает уже готовое оформление."""
+    import asyncio
+    import services.enrichment as enrichment
+    from routers.atmosphere import design_in_background
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+
+    book_id = client.post(
+        "/api/v1/books", json={"title": "Ночь", "author": "Автор"}
+    ).json()["id"]
+    first = client.get(f"/api/v1/books/{book_id}/atmosphere/design").json()
+
+    asyncio.run(design_in_background(book_id))   # второй заход — должен выйти сразу
+    second = client.get(f"/api/v1/books/{book_id}/atmosphere/design").json()
+    assert first == second
