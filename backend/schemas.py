@@ -27,6 +27,7 @@ class BookCreate(BaseModel):
 class BookUpdate(BaseModel):
     status: Optional[str] = None
     rating: Optional[int] = None
+    read_at: Optional[datetime] = None   # задача 1: явная дата прочтения (ISO)
 
 
 class BookRead(BaseModel):
@@ -49,3 +50,5 @@ class BookRead(BaseModel):
     isbn: Optional[str] = None
     enrich_status: str
     spotify_playlist_url: Optional[str] = None
+    updated_at: Optional[datetime] = None
+    read_at: Optional[datetime] = None

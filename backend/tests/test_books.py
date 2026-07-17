@@ -40,6 +40,22 @@ def test_book_not_found(client):
     assert client.patch("/books/999", json={"status": "read"}).status_code == 404
 
 
+def test_read_at_set_and_cleared_with_status(client):
+    """Задача 1: стал read без даты — ставится «сейчас»; ушёл из read — чистится."""
+    r = client.patch("/books/1", json={"status": "read"})
+    assert r.json()["read_at"] is not None
+
+    r = client.patch("/books/1", json={"status": "want"})
+    assert r.json()["read_at"] is None
+
+
+def test_read_at_explicit_value_accepted(client):
+    r = client.patch(
+        "/books/1", json={"status": "read", "read_at": "2026-05-01T00:00:00"}
+    )
+    assert r.json()["read_at"].startswith("2026-05-01")
+
+
 def test_db_enforces_rating_only_for_read(client):
     """Задача 7: CHECK в БД отбивает оценку у непрочитанной книги,
     даже если какой-то будущий код забудет про инвариант."""

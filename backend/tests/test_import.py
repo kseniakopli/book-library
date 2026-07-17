@@ -1,4 +1,8 @@
-# Импорт CSV: создание книг, дедуп, кривые строки, лимиты (задача 38).
+# Импорт CSV: создание книг, дедуп, кривые строки, лимиты (задача 38),
+# разбор даты прочтения (задача 1).
+from datetime import datetime
+
+from dates import parse_read_date
 
 
 def _upload(client, csv_text):
@@ -55,6 +59,30 @@ def test_import_rating_and_status_edge_cases(client):
     assert b1["rating"] is None and b1["status"] == "read"
     b2 = next(b for b in books if b["title"] == "Кривая оценка")
     assert b2["rating"] is None and b2["status"] == "want"
+
+
+# --- дата прочтения (задача 1) ---
+
+def test_parse_read_date_formats():
+    assert parse_read_date("Июль 2026 г.") == datetime(2026, 7, 1)
+    assert parse_read_date("2026-07-14") == datetime(2026, 7, 14)
+    assert parse_read_date("14.07.2026") == datetime(2026, 7, 14)
+    assert parse_read_date("2024") == datetime(2024, 1, 1)
+    assert parse_read_date("март 2025") == datetime(2025, 3, 1)
+    assert parse_read_date("когда-то давно") is None
+    assert parse_read_date("") is None
+
+
+def test_import_saves_read_at(client):
+    csv_text = (
+        "Название,Автор,Дата прочтения,Моя оценка,ISBN\n"
+        "Датированная,Автор,Июль 2026 г.,7,555\n"
+    )
+    _upload(client, csv_text)
+    book = next(
+        b for b in client.get("/books").json() if b["title"] == "Датированная"
+    )
+    assert book["read_at"].startswith("2026-07-01")
 
 
 # --- лимиты (задача 38) ---

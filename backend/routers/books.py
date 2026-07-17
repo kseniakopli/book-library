@@ -1,4 +1,6 @@
 # CRUD книг: добавление, чтение, изменение статуса/оценки, удаление, ручной enrich.
+from datetime import datetime
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlmodel import Session, select
 
@@ -79,10 +81,19 @@ def update_book(book_id: int, data: BookUpdate, lang: str = Depends(get_lang)):
                 )
             book.rating = data.rating
 
-        # инвариант: оценка существует только у прочитанной книги
+        # задача 1: явная дата прочтения (ISO из запроса)
+        if data.read_at is not None:
+            book.read_at = data.read_at
+        # книга стала прочитанной, дата не указана — ставим «сейчас»
+        if book.status == STATUS_READ and book.read_at is None:
+            book.read_at = datetime.now()
+
+        # инварианты: оценка и дата прочтения живут только у read
         if book.status != STATUS_READ:
             book.rating = None
+            book.read_at = None
 
+        book.updated_at = datetime.now()
         session.add(book)
         session.commit()
         session.refresh(book)

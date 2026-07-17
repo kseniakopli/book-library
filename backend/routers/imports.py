@@ -7,6 +7,7 @@ from sqlmodel import Session, col, select
 
 import database
 from constants import EVENT_IMPORT, STATUS_READ, STATUS_WANT
+from dates import parse_read_date
 from deps import get_lang
 from events import log_event
 from google_books import fetch_book_info, search_books
@@ -68,8 +69,14 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
 
             read_date = (row.get("Дата прочтения") or "").strip()
             status = STATUS_READ if (rating is not None or read_date) else STATUS_WANT
+            # задача 1: гибкий разбор даты («Июль 2026 г.», ISO, дд.мм.гггг);
+            # не разобрали — книга прочитана, но без даты
+            read_at = parse_read_date(read_date) if status == STATUS_READ else None
 
-            session.add(Book(title=title, author=author, rating=rating, status=status, isbn=isbn))
+            session.add(Book(
+                title=title, author=author, rating=rating,
+                status=status, isbn=isbn, read_at=read_at,
+            ))
             imported += 1
             if clean_isbn:
                 seen_isbn.add(clean_isbn)
