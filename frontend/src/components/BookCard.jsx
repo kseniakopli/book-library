@@ -20,7 +20,9 @@ function BookCard({ book, onSelect }) {
     >
       <div className="cover">
         {book.cover_url ? (
-          <img src={book.cover_url} alt="" />
+          // задача 56: lazy — браузер грузит обложку при приближении к экрану,
+          // а не все сразу при открытии полки
+          <img src={book.cover_url} alt="" loading="lazy" />
         ) : (
           <div className="cover-empty">Нет обложки</div>
         )}

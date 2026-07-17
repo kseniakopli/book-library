@@ -2,6 +2,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import defer
 from sqlmodel import Session, select
 
 import database
@@ -30,9 +31,11 @@ router = APIRouter(tags=["books"])
 @router.get("/books", response_model=list[BookRead])
 def list_books(limit: int | None = None, offset: int = 0):
     """Задача 34: пагинация поддерживается (limit/offset); без параметров —
-    вся библиотека (текущий фронт так и ходит, включим при росте данных)."""
+    вся библиотека (текущий фронт так и ходит, включим при росте данных).
+    Задача 52: raw_metadata (5–30 КБ JSON на книгу) в список не грузим —
+    defer() исключает колонку из SELECT, наружу её всё равно не отдаём."""
     with Session(database.engine) as session:
-        query = select(Book).offset(offset)
+        query = select(Book).options(defer(Book.raw_metadata)).offset(offset)
         if limit is not None:
             query = query.limit(limit)
         return session.exec(query).all()

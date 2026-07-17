@@ -1,5 +1,7 @@
 from fastapi import FastAPI
+from sqlalchemy import text
 
+import database
 from routers import atmosphere, books, imports, search, spotify
 
 app = FastAPI(
@@ -20,3 +22,12 @@ app.include_router(spotify.callback_router)
 
 # Схему базы ведёт Alembic (папка alembic/, команда: alembic upgrade head).
 # create_all остался только в тестах — там база одноразовая, in-memory.
+
+
+# Задача 55: инфраструктурный эндпоинт (вне /api/v1) — «жив ли сервис и БД».
+# Пригодится супервизору/докеру при публикации; 500 = БД недоступна.
+@app.get("/health", tags=["infra"])
+def health():
+    with database.engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return {"status": "ok"}

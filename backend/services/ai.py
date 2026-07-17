@@ -29,8 +29,10 @@ def _with_style(prompt: str) -> str:
     return f"{prompt.rstrip()}\n\nОбщие правила стиля (обязательны):\n{rules}"
 
 load_dotenv()                       # читаем ключи из .env
-claude_client = anthropic.AsyncAnthropic()
-openai_client = AsyncOpenAI()
+# Задача 54: таймаут 90с — зависший провайдер даёт заглушку через safe_ask,
+# а не подвисший на минуты запрос фронта (дефолт SDK — до 10 минут)
+claude_client = anthropic.AsyncAnthropic(timeout=90)
+openai_client = AsyncOpenAI(timeout=90)
 
 
 # --- Схемы ответов AI (structured outputs строит по ним JSON-схему) ---

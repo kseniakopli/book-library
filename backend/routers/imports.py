@@ -3,7 +3,8 @@ import csv
 import io
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from sqlmodel import Session, col, select
+from sqlalchemy.orm import defer
+from sqlmodel import Session, col, func, select
 
 import database
 from constants import ENRICH_PENDING, EVENT_BACKFILL, EVENT_IMPORT, STATUS_READ, STATUS_WANT
@@ -43,10 +44,11 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
     skipped = 0
     duplicates = 0
     with Session(database.engine) as session:
-        # ключи уже существующих книг — чтобы не задваивать при повторном импорте
-        existing = session.exec(select(Book)).all()
-        seen_isbn = {_norm_isbn(b.isbn) for b in existing if b.isbn}
-        seen_key = {(b.title.strip().lower(), b.author.strip().lower()) for b in existing}
+        # ключи уже существующих книг — чтобы не задваивать при повторном импорте.
+        # Задача 52: берём только три колонки, а не книги целиком с raw_metadata
+        existing = session.exec(select(Book.title, Book.author, Book.isbn)).all()
+        seen_isbn = {_norm_isbn(isbn) for _, _, isbn in existing if isbn}
+        seen_key = {(t.strip().lower(), a.strip().lower()) for t, a, _ in existing}
 
         for row in reader:
             title = (row.get("Название") or "").strip()
@@ -92,7 +94,10 @@ def backfill_covers():
     updated = 0
     with Session(database.engine) as session:
         books = session.exec(
-            select(Book).where(col(Book.cover_url).is_(None))
+            # задача 52: raw_metadata здесь не нужен — не грузим
+            select(Book)
+            .options(defer(Book.raw_metadata))
+            .where(col(Book.cover_url).is_(None))
         ).all()
         for book in books:
             # свободный поиск лучше находит многословные русские названия
@@ -126,9 +131,12 @@ def backfill_metadata(
             session.add(book)
         session.commit()
 
-        total_without = len(session.exec(
-            select(Book).where(col(Book.raw_metadata).is_(None))
-        ).all())
+        # задача 53: SQL COUNT вместо загрузки всех строк ради числа
+        total_without = session.exec(
+            select(func.count())
+            .select_from(Book)
+            .where(col(Book.raw_metadata).is_(None))
+        ).one()
 
     if ids:
         background_tasks.add_task(backfill_in_background, ids, lang)

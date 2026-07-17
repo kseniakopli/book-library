@@ -219,3 +219,10 @@ def test_raw_metadata_not_exposed(client, monkeypatch):
     body = client.get(f"/api/v1/books/{book_id}").json()
     assert "raw_metadata" not in body
     assert all("raw_metadata" not in b for b in client.get("/api/v1/books").json())
+
+
+def test_health(client):
+    """Задача 55: инфраструктурный эндпоинт жив и видит БД."""
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}
