@@ -23,6 +23,14 @@ function BookDetail({ book, onBack, onDeleted }) {
   });
   const design = designData?.selections?.[0]?.payload ?? null;
 
+  // Кнопка Spotify доступна, только когда музыка уже подобрана — плейлист
+  // собирается из неё. Ключ кэша общий с AtmosphereSection, запрос не дублируется.
+  const { data: musicData } = useQuery({
+    queryKey: keys.atmosphere(book.id, "music"),
+    queryFn: () => api.getAtmosphere(book.id, "music"),
+  });
+  const hasMusic = (musicData?.selections?.length ?? 0) > 0;
+
   // Символ: перецентровка viewBox по реальным границам рисунка (мемо —
   // внутри есть работа с DOM, незачем повторять на каждый рендер)
   const symbolUri = useMemo(
@@ -295,7 +303,12 @@ function BookDetail({ book, onBack, onDeleted }) {
               <button
                 className="btn-ghost"
                 onClick={() => playlistMutation.mutate()}
-                disabled={playlistMutation.isPending}
+                disabled={playlistMutation.isPending || !hasMusic}
+                title={
+                  hasMusic
+                    ? undefined
+                    : "Сначала нажмите «Подобрать атмосферу» — плейлист собирается из музыкальной подборки"
+                }
               >
                 {playlistMutation.isPending
                   ? "Создаю плейлист…"
