@@ -25,3 +25,7 @@ docs/
 
 # Уникальные промпты сервиса — приватно, только локально
 prompt_config.py
+
+# Личные выгрузки чтения (LiveLib и т.п.) — не в репозиторий
+livelib-*.csv
+backend/livelib-read.csv
