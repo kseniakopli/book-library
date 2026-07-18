@@ -22,6 +22,8 @@ const json = (method, body) => ({
 
 export const getBooks = () => request("/books");
 export const getBook = (id) => request(`/books/${id}`);
+// Символьный режим полки (задача 66): символ+палитры паспорта для всех книг разом
+export const getDesignSummary = () => request("/books/design-summary");
 export const createBook = ({
   title,
   author,

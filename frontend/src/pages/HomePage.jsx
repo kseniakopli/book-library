@@ -1,11 +1,12 @@
 // Главная: шапка с темой и импортом, поиск по библиотеке, полки.
 // Выделена из App.jsx (R6).
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
+import { useDisplayMode } from "../hooks/useDisplayMode";
 import BookCard from "../components/BookCard";
 import Onboarding from "../components/Onboarding";
 import Shelf from "../components/Shelf";
@@ -15,6 +16,8 @@ function HomePage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const { mode, toggleMode } = useDisplayMode();
+  const symbolMode = mode === "symbols";
 
   const [filter, setFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
@@ -64,6 +67,19 @@ function HomePage() {
       q.state.data?.some((b) => b.enrich_status === "pending") ? 2000 : false,
   });
 
+  // Символьный режим (задача 66): символы+палитры тянем один раз и только когда
+  // режим включён; строим карту book_id → паспорт для карточек
+  const { data: designData } = useQuery({
+    queryKey: keys.designSummary,
+    queryFn: api.getDesignSummary,
+    enabled: symbolMode,
+  });
+  const designs = useMemo(() => {
+    const map = {};
+    for (const d of designData?.designs ?? []) map[d.book_id] = d;
+    return map;
+  }, [designData]);
+
   const importMutation = useMutation({
     mutationFn: api.importCsv,
     onSuccess: (data) => {
@@ -107,6 +123,16 @@ function HomePage() {
           <p className="subtitle">Атмосферные литературные вечера</p>
         </div>
         <div className="header-actions">
+          {/* задача 66: вид полки — обложки или символы. На этапе 9 переедет
+              в личный кабинет вместе с импортом и языком */}
+          <button
+            className="btn-ghost"
+            onClick={toggleMode}
+            title="Как показывать полку"
+            aria-label={`Вид полки: ${symbolMode ? "символы" : "обложки"}. Переключить`}
+          >
+            {symbolMode ? "◈ Символы" : "▦ Обложки"}
+          </button>
           <button
             className="btn-ghost theme-toggle"
             onClick={toggleTheme}
@@ -177,7 +203,14 @@ function HomePage() {
         ) : (
           <div className="grid">
             {filtered.map((book) => (
-              <BookCard key={book.id} book={book} onSelect={openBook} />
+              <BookCard
+                key={book.id}
+                book={book}
+                onSelect={openBook}
+                symbolMode={symbolMode}
+                design={designs[book.id]}
+                theme={theme}
+              />
             ))}
           </div>
         )
@@ -187,12 +220,18 @@ function HomePage() {
             title="Прочитано"
             books={readBooks}
             onSelect={openBook}
+            symbolMode={symbolMode}
+            designs={designs}
+            theme={theme}
             {...shelfProps("Прочитано")}
           />
           <Shelf
             title="Хочу прочитать"
             books={wantBooks}
             onSelect={openBook}
+            symbolMode={symbolMode}
+            designs={designs}
+            theme={theme}
             {...shelfProps("Хочу прочитать")}
           />
           <Shelf

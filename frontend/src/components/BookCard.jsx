@@ -1,6 +1,29 @@
+import { useMemo } from "react";
 import { STATUS_LABELS } from "../constants";
+import { centeredSvgDataUri } from "../lib/svg";
 
-function BookCard({ book, onSelect }) {
+// symbolMode + design + theme (задача 66): в символьном режиме карточка рисует
+// экслибрис на палитре паспорта вместо обложки. Нет паспорта — обычный вид.
+function BookCard({
+  book,
+  onSelect,
+  symbolMode = false,
+  design = null,
+  theme = "light",
+}) {
+  // палитра по теме интерфейса; старый паспорт — только palette_dark
+  const palette = design
+    ? theme === "dark"
+      ? design.palette_dark
+      : (design.palette_light ?? design.palette_dark)
+    : null;
+
+  const symbolUri = useMemo(
+    () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
+    [design?.symbol_svg],
+  );
+  const showSymbol = symbolMode && palette && symbolUri;
+
   // Карточка кликабельна и с клавиатуры (задача 23): Enter или пробел
   function onKeyDown(e) {
     if (e.key === "Enter" || e.key === " ") {
@@ -18,10 +41,36 @@ function BookCard({ book, onSelect }) {
       onKeyDown={onKeyDown}
       aria-label={`${book.title} — ${book.author}`}
     >
-      <div className="cover">
-        {book.cover_url ? (
-          // задача 56: lazy — браузер грузит обложку при приближении к экрану,
-          // а не все сразу при открытии полки
+      <div
+        className="cover"
+        style={showSymbol ? { background: palette.bg } : undefined}
+      >
+        {symbolMode ? (
+          showSymbol ? (
+            // паспорт есть — экслибрис на палитре
+            <div className="cover-symbol">
+              <img src={symbolUri} alt="" aria-hidden="true" />
+            </div>
+          ) : (
+            // паспорта ещё нет — логотип-полумесяц вместо обложки (полка единая)
+            <div className="cover-moon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <mask id={`moon-${book.id}`}>
+                  <rect width="24" height="24" fill="#000" />
+                  <circle cx="11" cy="12" r="9" fill="#fff" />
+                  <circle cx="16" cy="12" r="8" fill="#000" />
+                </mask>
+                <rect
+                  width="24"
+                  height="24"
+                  fill="currentColor"
+                  mask={`url(#moon-${book.id})`}
+                />
+              </svg>
+            </div>
+          )
+        ) : book.cover_url ? (
+          // задача 56: lazy — браузер грузит обложку при приближении к экрану
           <img src={book.cover_url} alt="" loading="lazy" />
         ) : (
           <div className="cover-empty">Нет обложки</div>

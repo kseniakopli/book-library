@@ -1,5 +1,6 @@
 # CRUD книг: добавление на полку, чтение, изменение статуса/оценки, правка, удаление, enrich.
 # После рефакторинга User/Book/UserBook: Book — общий каталог, UserBook — личная полка.
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -29,7 +30,7 @@ from deps import (
 from events import log_event
 from google_books import fetch_book_info
 from i18n import msg
-from models import Book, UserBook
+from models import AISelection, Book, UserBook
 from schemas import BookCreate, BookRead, BookUpdate
 from services.enrichment import apply_enrichment, enrich_in_background
 
@@ -97,6 +98,34 @@ def list_books(limit: int | None = None, offset: int = 0):
         if limit is not None:
             query = query.limit(limit)
         return [_to_book_read(book, ub) for book, ub in session.exec(query).all()]
+
+
+@router.get("/books/design-summary")
+def design_summary():
+    """Символьный режим полки (задача 66): для книг пользователя — экслибрис и
+    палитры из паспорта оформления, чтобы полка рисовала символы, не догружая
+    паспорт по каждой книге отдельно. Маршрут ВЫШЕ /books/{book_id}, иначе
+    'design-summary' поймается как book_id."""
+    with Session(database.engine) as session:
+        rows = session.exec(
+            select(AISelection)
+            .join(UserBook, UserBook.book_id == AISelection.book_id)
+            .where(
+                UserBook.user_id == CURRENT_USER_ID,
+                AISelection.category == "design",
+            )
+        ).all()
+    designs = []
+    for row in rows:
+        payload = json.loads(row.payload)
+        designs.append({
+            "book_id": row.book_id,
+            "symbol_svg": payload.get("symbol_svg"),
+            # старый формат паспорта — одно поле palette (тёмное)
+            "palette_dark": payload.get("palette_dark") or payload.get("palette"),
+            "palette_light": payload.get("palette_light"),
+        })
+    return {"designs": designs}
 
 
 @router.get("/books/{book_id}", response_model=BookRead)

@@ -128,6 +128,26 @@ export const handlers = [
     HttpResponse.json({ imported: 2, duplicates: 1, skipped: 0 }),
   ),
 
+  // Символьный режим полки (задача 66): символ+палитры паспорта по книгам
+  http.get("/api/v1/books/design-summary", () =>
+    HttpResponse.json({
+      designs: [
+        {
+          book_id: 1,
+          symbol_svg: '<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40"/></svg>',
+          palette_dark: {
+            bg: "#161311", surface: "#221c17", accent: "#e08b2d",
+            text: "#e9e1d3", muted: "#a19585",
+          },
+          palette_light: {
+            bg: "#f6f1e7", surface: "#fffaf0", accent: "#b05e12",
+            text: "#2a241d", muted: "#6d655b",
+          },
+        },
+      ],
+    }),
+  ),
+
   // Атмосфера: единый формат для всех категорий (music, design, ...)
   http.get("/api/v1/books/:id/atmosphere/:category", ({ params }) =>
     HttpResponse.json({

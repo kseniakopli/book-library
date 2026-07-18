@@ -20,7 +20,17 @@ function usePageSize() {
 
 // Полка управляемая: позиция листания (start) хранится у родителя (HomePage),
 // поэтому не сбрасывается при возврате из карточки книги.
-function Shelf({ title, books = [], onSelect, placeholder, start = 0, onStart }) {
+function Shelf({
+  title,
+  books = [],
+  onSelect,
+  placeholder,
+  start = 0,
+  onStart,
+  symbolMode = false,
+  designs = {},
+  theme = "light",
+}) {
   const pageSize = usePageSize();
 
   if (placeholder) {
@@ -83,7 +93,14 @@ function Shelf({ title, books = [], onSelect, placeholder, start = 0, onStart })
           style={{ gridTemplateColumns: `repeat(${pageSize}, minmax(0, 1fr))` }}
         >
           {visible.map((book) => (
-            <BookCard key={book.id} book={book} onSelect={onSelect} />
+            <BookCard
+              key={book.id}
+              book={book}
+              onSelect={onSelect}
+              symbolMode={symbolMode}
+              design={designs[book.id]}
+              theme={theme}
+            />
           ))}
         </div>
         <button

@@ -323,6 +323,20 @@ def test_book_field_edit_requires_admin(client):
     assert client.patch("/api/v1/books/1", json={"status": "reading"}).status_code == 200
 
 
+def test_design_summary_returns_symbols(client, monkeypatch):
+    """Задача 66: символьный режим полки берёт символ+палитры из паспорта."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    r = client.post("/api/v1/books", json={"title": "С символом", "author": "Автор"})
+    book_id = r.json()["id"]
+
+    designs = client.get("/api/v1/books/design-summary").json()["designs"]
+    entry = next((d for d in designs if d["book_id"] == book_id), None)
+    assert entry is not None
+    assert entry["symbol_svg"] is not None
+    assert entry["palette_dark"] and entry["palette_light"]
+
+
 def test_health(client):
     """Задача 55: инфраструктурный эндпоинт жив и видит БД."""
     r = client.get("/health")

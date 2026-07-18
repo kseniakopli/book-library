@@ -56,6 +56,41 @@
   inset: 0;
 }
 
+/* Символьный режим (задача 66): экслибрис по центру на фоне палитры паспорта */
+.cover .cover-symbol {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cover .cover-symbol img {
+  /* сбрасываем общее правило .cover img (position:absolute; inset:0), иначе
+     символ прилипает к верх-левому углу и flex-центрирование не действует */
+  position: static;
+  width: 60%;
+  height: 60%;
+  object-fit: contain;
+  object-position: center;
+  opacity: 0.92;
+}
+
+/* Книга без паспорта: логотип-полумесяц вместо обложки (единый вид полки) */
+.cover .cover-moon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* тот же тон, что у плейсхолдера обложек — отделяет зону обложки от карточки */
+  background: var(--cover-placeholder);
+}
+.cover .cover-moon svg {
+  width: 42%;
+  height: 42%;
+  color: var(--accent);
+}
+
 .book-title {
   font-family: var(--serif);
   font-size: 18px;

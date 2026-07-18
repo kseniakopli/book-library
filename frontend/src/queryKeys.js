@@ -6,4 +6,5 @@ export const keys = {
   book: (id) => ["books", Number(id)],
   search: (term) => ["search", term],
   atmosphere: (id, category) => ["atmosphere", Number(id), category],
+  designSummary: ["design-summary"],   // символы+палитры для символьного режима полки
 };
