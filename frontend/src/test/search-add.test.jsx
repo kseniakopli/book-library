@@ -71,6 +71,42 @@ test("для «Прочитана» появляется дата, «Не пом
   expect(dateInput).toBeDisabled();
 });
 
+test("каталог книгу не знает — добавление вручную", async () => {
+  renderApp();
+  await screen.findByText("Волшебная гора");
+  await userEvent.click(
+    screen.getByRole("button", { name: "+ Добавить книгу" }),
+  );
+  const dialog = await screen.findByRole("dialog");
+
+  // MSW отвечает пустой выдачей на всё, кроме «гарри»
+  await userEvent.type(
+    within(dialog).getByPlaceholderText("Название или автор…"),
+    "Лихо. Медь и мед",
+  );
+  await screen.findByText(/Ничего не найдено/);
+  await userEvent.click(
+    within(dialog).getByRole("button", { name: "Добавить вручную" }),
+  );
+
+  // название предзаполнено запросом; без автора «Добавить» неактивна
+  expect(within(dialog).getByLabelText("Название")).toHaveValue(
+    "Лихо. Медь и мед",
+  );
+  const addButton = within(dialog).getByRole("button", { name: "Добавить" });
+  expect(addButton).toBeDisabled();
+
+  await userEvent.type(within(dialog).getByLabelText("Автор"), "Яна Лехчина");
+  expect(addButton).toBeEnabled();
+  await userEvent.click(addButton);
+
+  // модалка закрылась, книга на полке
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+  expect(await screen.findByText(/Лихо. Медь и мед/)).toBeInTheDocument();
+});
+
 test("короткий запрос не ищет, показывает подсказку", async () => {
   renderApp();
   await screen.findByText("Волшебная гора");

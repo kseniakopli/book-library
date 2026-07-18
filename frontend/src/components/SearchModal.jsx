@@ -56,9 +56,23 @@ function SearchModal({ onClose }) {
     setDateUnknown(false);
   }
 
+  // Ручное добавление — каталог книгу не знает (частый случай для русских
+  // изданий). Тот же шаг 2, но название и автор редактируются; название
+  // предзаполняем из строки поиска.
+  function pickManual() {
+    pickCandidate({ manual: true, title: query.trim(), author: "" });
+  }
+
+  const manualIncomplete =
+    candidate?.manual &&
+    (!candidate.title.trim() || !candidate.author.trim());
+
   function submit() {
+    const { manual, ...book } = candidate;
     addBookMutation.mutate({
-      ...candidate,
+      ...book,
+      title: book.title.trim(),
+      author: book.author.trim(),
       status,
       read_at:
         status === "read" && !dateUnknown && readAt ? readAt : null,
@@ -88,8 +102,34 @@ function SearchModal({ onClose }) {
 
         {candidate ? (
           <div className="add-form">
-            <p className="search-title">{candidate.title}</p>
-            <p className="search-author">{candidate.author}</p>
+            {candidate.manual ? (
+              <>
+                <label className="field">
+                  <span>Название</span>
+                  <input
+                    value={candidate.title}
+                    onChange={(e) =>
+                      setCandidate({ ...candidate, title: e.target.value })
+                    }
+                    autoFocus
+                  />
+                </label>
+                <label className="field">
+                  <span>Автор</span>
+                  <input
+                    value={candidate.author}
+                    onChange={(e) =>
+                      setCandidate({ ...candidate, author: e.target.value })
+                    }
+                  />
+                </label>
+              </>
+            ) : (
+              <>
+                <p className="search-title">{candidate.title}</p>
+                <p className="search-author">{candidate.author}</p>
+              </>
+            )}
 
             <div
               className="status-row add-status-row"
@@ -141,9 +181,13 @@ function SearchModal({ onClose }) {
                 onClick={() => setCandidate(null)}
                 disabled={saving}
               >
-                ← К результатам
+                {candidate.manual ? "← К поиску" : "← К результатам"}
               </button>
-              <button className="add-btn" onClick={submit} disabled={saving}>
+              <button
+                className="add-btn"
+                onClick={submit}
+                disabled={saving || manualIncomplete}
+              >
                 {saving ? "Добавляю…" : "Добавить"}
               </button>
             </div>
@@ -166,7 +210,12 @@ function SearchModal({ onClose }) {
               !searching &&
               term.length >= 3 &&
               searchResults.length === 0 && (
-                <p className="muted search-hint">Ничего не найдено</p>
+                <p className="muted search-hint">
+                  Ничего не найдено.{" "}
+                  <button className="btn-ghost" onClick={pickManual}>
+                    Добавить вручную
+                  </button>
+                </p>
               )}
             {searchError && (
               <p className="error search-hint">
