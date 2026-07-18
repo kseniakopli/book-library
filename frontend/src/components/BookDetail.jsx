@@ -40,6 +40,10 @@ function BookDetail({ book, onBack, onDeleted }) {
     () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
     [design?.symbol_svg],
   );
+  // символ мог сгенерироваться битым (обрезанный/невалидный SVG) — тогда <img>
+  // не отрисуется; ловим onError и прячем символ (значок у заголовка и в обложке)
+  const [symbolBroken, setSymbolBroken] = useState(false);
+  const symbolOk = symbolUri && !symbolBroken;
 
   // Задача 57: палитра выбирается по теме интерфейса. Новый формат паспорта —
   // palette_dark + palette_light; старый (одно поле palette) считаем тёмным.
@@ -204,10 +208,15 @@ function BookDetail({ book, onBack, onDeleted }) {
             <div className="detail-cover">
           {book.cover_url ? (
             <img src={book.cover_url} alt={`Обложка книги «${book.title}»`} />
-          ) : symbolUri ? (
+          ) : symbolOk ? (
             // задача 50: вместо «Нет обложки» — символ-экслибрис книги
             <div className="cover-empty cover-symbol">
-              <img src={symbolUri} alt="" aria-hidden="true" />
+              <img
+                src={symbolUri}
+                alt=""
+                aria-hidden="true"
+                onError={() => setSymbolBroken(true)}
+              />
             </div>
           ) : (
             <div className="cover-empty">Нет обложки</div>
@@ -216,12 +225,13 @@ function BookDetail({ book, onBack, onDeleted }) {
 
         <div className="detail-info">
           <div className="detail-title-row">
-            {symbolUri && (
+            {symbolOk && (
               <img
                 className="book-symbol"
                 src={symbolUri}
                 alt=""
                 aria-hidden="true"
+                onError={() => setSymbolBroken(true)}
               />
             )}
             <div className="detail-title-text">
