@@ -26,6 +26,34 @@ def test_search_results_include_external_id(client, monkeypatch):
     assert master["external_id"] == "ext1"
 
 
+def test_search_library_is_case_insensitive_cyrillic(client, monkeypatch):
+    """SQLite lower() не понижает кириллицу — «карризи» должен находить
+    «Карризи». Поиск по каталогу фильтруется по-питоновски."""
+    from sqlmodel import Session
+    import database
+    from models import Book
+
+    monkeypatch.setattr(search_routes, "search_books", lambda q, max_results=8: [])
+    with Session(database.engine) as session:
+        session.add(Book(title="Дом огней", author="Донато Карризи"))
+        session.commit()
+
+    r = client.get("/api/v1/search?q=карризи")   # нижний регистр
+    titles = [x["title"] for x in r.json()["results"]]
+    assert "Дом огней" in titles
+
+
+def test_search_returns_library_books_first(client, monkeypatch):
+    """Порядок поиска (18.07): книги из локального каталога Book — первыми,
+    с book_id (добавление переиспользует книгу) и пометкой on_shelf."""
+    monkeypatch.setattr(search_routes, "search_books", lambda q, max_results=8: [])
+    r = client.get("/api/v1/search?q=Test")     # фикстурная книга «Test»/«Author»
+    results = r.json()["results"]
+    assert results[0]["source"] == "library"
+    assert results[0]["book_id"] == 1
+    assert results[0]["on_shelf"] is True
+
+
 def test_search_deletes_stale_catalog_rows(client, monkeypatch):
     """Протухшие записи каталога (старше TTL) удаляются при поиске."""
     from datetime import datetime, timedelta

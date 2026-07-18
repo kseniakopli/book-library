@@ -101,9 +101,15 @@ def test_read_at_explicit_value_accepted(client):
 
 def test_db_enforces_rating_only_for_read(client):
     """Задача 7: CHECK в БД отбивает оценку у непрочитанной книги,
-    даже если какой-то будущий код забудет про инвариант."""
+    даже если какой-то будущий код забудет про инвариант.
+    После рефакторинга инвариант живёт на userbook (личная полка)."""
+    from models import UserBook
     with Session(database.engine) as session:
-        session.add(Book(title="X", author="Y", status="want", rating=7))
+        book = Book(title="X", author="Y")
+        session.add(book)
+        session.commit()
+        session.refresh(book)
+        session.add(UserBook(user_id=1, book_id=book.id, status="want", rating=7))
         with pytest.raises(IntegrityError):
             session.commit()
 
@@ -262,6 +268,59 @@ def test_raw_metadata_not_exposed(client, monkeypatch):
     body = client.get(f"/api/v1/books/{book_id}").json()
     assert "raw_metadata" not in body
     assert all("raw_metadata" not in b for b in client.get("/api/v1/books").json())
+
+
+# --- рефакторинг User/Book/UserBook (18.07) ---
+
+def test_add_duplicate_on_shelf_returns_409(client, monkeypatch):
+    """Одна книга на полке пользователя — один раз (UNIQUE user+book)."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    client.post("/api/v1/books", json={"title": "Дубль", "author": "Автор"})
+    r = client.post("/api/v1/books", json={"title": "Дубль", "author": "Автор"})
+    assert r.status_code == 409
+
+
+def test_add_existing_catalog_book_is_reused(client):
+    """Книга уже в каталоге (но не на полке) → переиспользуется, дубля нет
+    и оформление заново не генерится (design-фейк не понадобится)."""
+    from sqlmodel import func, select
+    from models import UserBook
+    with Session(database.engine) as session:
+        b = Book(title="Каталожная", author="Автор", enrich_status="ready")
+        session.add(b)
+        session.commit()
+        session.refresh(b)
+        cat_id = b.id
+
+    r = client.post(
+        "/api/v1/books",
+        json={"title": "Каталожная", "author": "Автор", "book_id": cat_id},
+    )
+    assert r.status_code == 200
+    assert r.json()["id"] == cat_id                 # та же книга, не новый дубль
+    with Session(database.engine) as session:
+        total_books = session.exec(select(func.count()).select_from(Book)).one()
+        on_shelf = session.exec(
+            select(UserBook).where(UserBook.book_id == cat_id)
+        ).first()
+    assert total_books == 2                          # Test + Каталожная, третьей не создано
+    assert on_shelf is not None                      # книга легла на полку
+
+
+def test_book_field_edit_requires_admin(client):
+    """Правка общих полей книги — только admin; личные поля доступны всем."""
+    from models import User
+    with Session(database.engine) as session:
+        user = session.get(User, 1)
+        user.is_admin = False
+        session.add(user)
+        session.commit()
+
+    # общее поле книги (название) — 403 для не-админа
+    assert client.patch("/api/v1/books/1", json={"title": "Новое"}).status_code == 403
+    # личное поле полки (статус) — по-прежнему можно
+    assert client.patch("/api/v1/books/1", json={"status": "reading"}).status_code == 200
 
 
 def test_health(client):

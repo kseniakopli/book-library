@@ -229,12 +229,24 @@ function SearchModal({ onClose }) {
                   <button
                     className="search-item"
                     onClick={() => pickCandidate(r)}
+                    disabled={r.on_shelf}
                   >
                     <span className="search-cover">
                       {r.cover_url && <img src={r.cover_url} alt="" />}
                     </span>
                     <span className="search-text">
-                      <span className="search-title">{r.title}</span>
+                      <span className="search-title">
+                        {r.title}
+                        {/* книга уже в системе — атмосфера готова, добавление
+                            переиспользует её; на полке — добавить нельзя */}
+                        {r.on_shelf ? (
+                          <span className="search-badge">уже у вас</span>
+                        ) : (
+                          r.source === "library" && (
+                            <span className="search-badge">в каталоге</span>
+                          )
+                        )}
+                      </span>
                       <span className="search-author">{r.author}</span>
                     </span>
                   </button>

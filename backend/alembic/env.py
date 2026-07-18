@@ -35,6 +35,17 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Обычный режим: применяем миграции к базе из database.py."""
     with database.engine.connect() as connection:
+        # SQLite: FK-энфорсмент включён глобально (database.py: PRAGMA
+        # foreign_keys=ON). На время миграции его нужно ВЫКЛЮЧИТЬ: batch-режим
+        # пересоздаёт таблицу через DROP TABLE, а он при включённых FK каскадом
+        # удаляет дочерние строки (aiselection, userbook). PRAGMA игнорируется
+        # внутри транзакции, поэтому выполняем её в режиме AUTOCOMMIT до начала
+        # миграционной транзакции. (Ревизия 0005 дополнительно проверяет это и
+        # откажется выполняться, если FK всё-таки включён.)
+        if connection.dialect.name == "sqlite":
+            connection.execution_options(isolation_level="AUTOCOMMIT")
+            connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+
         context.configure(
             connection=connection,
             target_metadata=target_metadata,

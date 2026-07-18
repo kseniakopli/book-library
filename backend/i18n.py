@@ -26,6 +26,10 @@ MESSAGES = {
                              "en": "Create the Spotify playlist first — the QR encodes its link"},
     "empty_title_author":   {"ru": "Название и автор не могут быть пустыми",
                              "en": "Title and author cannot be empty"},
+    "already_on_shelf":     {"ru": "Эта книга уже в вашей библиотеке",
+                             "en": "This book is already in your library"},
+    "admin_only":           {"ru": "Правка книги и перегенерация доступны только администратору",
+                             "en": "Editing a book and regeneration are available to admins only"},
 }
 
 

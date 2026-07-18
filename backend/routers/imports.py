@@ -9,11 +9,11 @@ from sqlmodel import Session, col, func, select
 import database
 from constants import ENRICH_PENDING, EVENT_BACKFILL, EVENT_IMPORT, STATUS_READ, STATUS_WANT
 from dates import parse_read_date
-from deps import get_lang
+from deps import CURRENT_USER_ID, get_lang
 from events import log_event
 from google_books import search_books
 from i18n import msg
-from models import Book
+from models import Book, UserBook
 from services.enrichment import backfill_in_background
 
 router = APIRouter(tags=["import"])
@@ -44,11 +44,15 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
     skipped = 0
     duplicates = 0
     with Session(database.engine) as session:
-        # ключи уже существующих книг — чтобы не задваивать при повторном импорте.
-        # Задача 52: берём только три колонки, а не книги целиком с raw_metadata
-        existing = session.exec(select(Book.title, Book.author, Book.isbn)).all()
-        seen_isbn = {_norm_isbn(isbn) for _, _, isbn in existing if isbn}
-        seen_key = {(t.strip().lower(), a.strip().lower()) for t, a, _ in existing}
+        # каталог книг: (нормализованный ключ) → book_id, чтобы переиспользовать книгу
+        # (и её атмосферу), а не заводить дубль. Задача 52: без raw_metadata.
+        existing = session.exec(select(Book.id, Book.title, Book.author, Book.isbn)).all()
+        book_by_isbn = {_norm_isbn(isbn): bid for bid, _, _, isbn in existing if isbn}
+        book_by_key = {(t.strip().lower(), a.strip().lower()): bid for bid, t, a, _ in existing}
+        # книги, уже лежащие на полке пользователя — их пропускаем как дубли
+        shelf_ids = set(session.exec(
+            select(UserBook.book_id).where(UserBook.user_id == CURRENT_USER_ID)
+        ).all())
 
         for row in reader:
             title = (row.get("Название") or "").strip()
@@ -60,8 +64,11 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
             isbn = (row.get("ISBN") or "").strip() or None
             clean_isbn = _norm_isbn(isbn)
             key = (title.lower(), author.lower())
-            if (clean_isbn and clean_isbn in seen_isbn) or key in seen_key:
-                duplicates += 1               # такая книга уже есть — пропускаем
+
+            # книга уже известна системе?
+            book_id = (clean_isbn and book_by_isbn.get(clean_isbn)) or book_by_key.get(key)
+            if book_id and book_id in shelf_ids:
+                duplicates += 1               # уже на полке пользователя — пропускаем
                 continue
 
             rating = None
@@ -75,14 +82,22 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
             # не разобрали — книга прочитана, но без даты
             read_at = parse_read_date(read_date) if status == STATUS_READ else None
 
-            session.add(Book(
-                title=title, author=author, rating=rating,
-                status=status, isbn=isbn, read_at=read_at,
+            if not book_id:                   # новой книги ещё нет — заводим в каталоге
+                book = Book(title=title, author=author, isbn=isbn)
+                session.add(book)
+                session.flush()               # нужен book.id до создания UserBook
+                book_id = book.id
+                book_by_key[key] = book_id
+                if clean_isbn:
+                    book_by_isbn[clean_isbn] = book_id
+
+            # кладём на полку пользователя с личными полями из CSV
+            session.add(UserBook(
+                user_id=CURRENT_USER_ID, book_id=book_id,
+                status=status, rating=rating, read_at=read_at,
             ))
             imported += 1
-            if clean_isbn:
-                seen_isbn.add(clean_isbn)
-            seen_key.add(key)
+            shelf_ids.add(book_id)
         session.commit()
 
     log_event(EVENT_IMPORT, detail=f"imported={imported}; duplicates={duplicates}; skipped={skipped}")

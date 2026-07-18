@@ -1,10 +1,14 @@
 # Общие зависимости и helpers для роутеров (рефакторинг R3):
 # убирают дублирование «проверь lang» и «возьми книгу или 404».
 from fastapi import HTTPException
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from i18n import ALLOWED_LANGS, msg
-from models import Book
+from models import Book, User, UserBook
+
+# Пока пользователь один (id=1, admin). Появится авторизация (этап 9) — заменится
+# зависимостью, достающей текущего пользователя из сессии/JWT.
+CURRENT_USER_ID = 1
 
 
 def get_lang(lang: str = "ru") -> str:
@@ -16,8 +20,31 @@ def get_lang(lang: str = "ru") -> str:
 
 
 def get_book_or_404(session: Session, book_id: int, lang: str) -> Book:
-    """Книга по id или HTTP 404 с локализованным сообщением."""
+    """Книга (общий каталог) по id или HTTP 404."""
     book = session.get(Book, book_id)
     if book is None:
         raise HTTPException(status_code=404, detail=msg("book_not_found", lang))
     return book
+
+
+def get_userbook_or_404(
+    session: Session, book_id: int, lang: str, user_id: int = CURRENT_USER_ID
+) -> UserBook:
+    """Запись полки (книга у пользователя) или 404, если книги нет на полке."""
+    ub = session.exec(
+        select(UserBook).where(
+            UserBook.user_id == user_id, UserBook.book_id == book_id
+        )
+    ).first()
+    if ub is None:
+        raise HTTPException(status_code=404, detail=msg("book_not_found", lang))
+    return ub
+
+
+def require_admin(session: Session, lang: str, user_id: int = CURRENT_USER_ID) -> User:
+    """Проверка прав: правка общих данных книги и перегенерация — только admin.
+    Возвращает пользователя или бросает 403."""
+    user = session.get(User, user_id)
+    if user is None or not user.is_admin:
+        raise HTTPException(status_code=403, detail=msg("admin_only", lang))
+    return user

@@ -94,16 +94,33 @@ export const handlers = [
 
   http.get("/api/v1/search", ({ request }) => {
     const q = (new URL(request.url).searchParams.get("q") || "").toLowerCase();
-    const results = q.includes("гарри")
-      ? [
-          {
-            title: "Гарри Поттер и философский камень",
-            author: "Дж. К. Роулинг",
-            cover_url: null,
-            external_id: "hp1",
-          },
-        ]
-      : [];
+    let results = [];
+    if (q.includes("гарри")) {
+      results = [
+        {
+          title: "Гарри Поттер и философский камень",
+          author: "Дж. К. Роулинг",
+          cover_url: null,
+          external_id: "hp1",
+          book_id: null,
+          source: "google",
+          on_shelf: false,
+        },
+      ];
+    } else if (q.includes("манн")) {
+      // локальный каталог: книга уже в системе и на полке пользователя
+      results = [
+        {
+          title: "Волшебная гора",
+          author: "Томас Манн",
+          cover_url: null,
+          external_id: null,
+          book_id: 1,
+          source: "library",
+          on_shelf: true,
+        },
+      ];
+    }
     return HttpResponse.json({ results });
   }),
 

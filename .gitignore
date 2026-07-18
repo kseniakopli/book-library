@@ -3,6 +3,11 @@ __pycache__/
 *.db
 *.db-wal
 *.db-shm
+
+# Локальные бэкапы БД (backup_db.py) — страховочные копии, только на машине
+backend/backups/
+# Висячие обёртки от удаления открытых файлов (FUSE-артефакты)
+.fuse_hidden*
 .env
 *.pyc
 node_modules/

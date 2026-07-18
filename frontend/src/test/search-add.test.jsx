@@ -71,6 +71,27 @@ test("для «Прочитана» появляется дата, «Не пом
   expect(dateInput).toBeDisabled();
 });
 
+test("книга из локального каталога помечена и недоступна, если уже на полке", async () => {
+  renderApp();
+  await screen.findByText("Волшебная гора");
+  await userEvent.click(
+    screen.getByRole("button", { name: "+ Добавить книгу" }),
+  );
+  const dialog = await screen.findByRole("dialog");
+
+  await userEvent.type(
+    within(dialog).getByPlaceholderText("Название или автор…"),
+    "Манн",
+  );
+  // результат из локального каталога с пометкой «уже у вас»
+  expect(await within(dialog).findByText("уже у вас")).toBeInTheDocument();
+  // кнопка результата отключена — книга уже на полке
+  const item = within(dialog)
+    .getByText("уже у вас")
+    .closest("button");
+  expect(item).toBeDisabled();
+});
+
 test("каталог книгу не знает — добавление вручную", async () => {
   renderApp();
   await screen.findByText("Волшебная гора");

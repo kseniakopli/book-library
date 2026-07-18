@@ -10,13 +10,21 @@ and enriches books with covers and metadata from Google Books.
 
 ## Features
 
+- **Shared catalog + personal shelves** — a book's intrinsic data (title, author, cover,
+  metadata, AI atmosphere, Spotify playlist) lives once in a shared `book` catalog; each
+  user keeps a personal `userbook` shelf entry (status, rating, read date). Adding a book
+  that already exists reuses its catalog entry and atmosphere — no regeneration. See
+  [documentation/data-model.md](documentation/data-model.md).
 - **Reading tracker** — statuses `want` / `reading` / `read`, ratings 1–10 (enforced rule:
   only `read` books can be rated).
-- **Add via search** — find a book in Google Books (with a local search cache, TTL 30 days),
-  add it in one click; the cover shows instantly, metadata arrives in the background
-  (`pending → ready / failed`).
-- **CSV import** — idempotent (deduplication by ISBN and by title+author), row limits,
-  per-file report (imported / duplicates / skipped).
+- **Add via search** — search the local catalog first, then Google Books (with a search
+  cache, TTL 30 days), then add manually if nothing matches. One click to add; the cover
+  shows instantly, metadata arrives in the background (`pending → ready / failed`).
+  A duplicate on your shelf is rejected (409).
+- **Manual add & edit** — books missing from every catalog can be entered by hand; a book's
+  shared fields can be edited (admin only, since the catalog is shared).
+- **CSV import** — idempotent (reuses existing catalog books, dedup by ISBN and title+author),
+  row limits, per-file report (imported / duplicates / skipped).
 - **AI atmosphere** — unified API for AI-generated categories:
   - *music*: two playlists (Claude & ChatGPT) with explanations;
   - *design passport*: palette + fonts that restyle the book card (applied only if the
@@ -34,7 +42,8 @@ and enriches books with covers and metadata from Google Books.
 ## Tech stack
 
 - **Backend:** Python, FastAPI, SQLModel, SQLite (WAL; `DATABASE_URL` env var ready for
-  Postgres), Alembic migrations.
+  Postgres), Alembic migrations. Data model: `User` / `Book` (shared catalog) / `UserBook`
+  (personal shelf) — see [documentation/data-model.md](documentation/data-model.md).
 - **Frontend:** React + Vite, React Query, React Router. Tests: Vitest + Testing Library + MSW.
 - **External services:** Google Books API; Anthropic Claude & OpenAI (structured outputs).
 

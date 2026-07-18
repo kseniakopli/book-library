@@ -5,7 +5,7 @@ from sqlmodel import SQLModel, Session, create_engine
 from fastapi.testclient import TestClient
 
 import database
-from models import Book
+from models import Book, User, UserBook
 from main import app
 from services.ai import (
     AromaResult,
@@ -30,7 +30,11 @@ def client_fixture():
     database.engine = test_engine            # подменяем движок, которым пользуются эндпоинты
 
     with Session(test_engine) as session:
-        session.add(Book(title="Test", author="Author", status="want"))
+        # пользователь-админ (id=1) + книга (id=1) на его полке — как после миграции
+        session.add(User(id=1, display_name="Test", is_admin=True))
+        session.add(Book(id=1, title="Test", author="Author"))
+        session.commit()
+        session.add(UserBook(user_id=1, book_id=1, status="want"))
         session.commit()
 
     yield TestClient(app)

@@ -1,8 +1,6 @@
 # Сервис обогащения книги данными Google Books (рефакторинг R1).
 # Фоновая версия — для добавления книги (BackgroundTasks);
 # применение результата вынесено отдельно, его же использует ручной enrich.
-from datetime import datetime
-
 from sqlmodel import Session
 
 import database
@@ -23,7 +21,8 @@ def apply_enrichment(book: Book, info: dict) -> None:
     book.language = info["language"]
     book.external_rating = info["external_rating"]
     book.raw_metadata = info["raw_metadata"]
-    book.updated_at = datetime.now()   # задача 1: фиксируем изменение данных
+    # updated_at (когда книгу трогали) переехал в userbook — это личное поле;
+    # обогащение меняет общие данные книги и полку пользователя не двигает
 
 
 def backfill_in_background(book_ids: list[int], lang: str) -> None:

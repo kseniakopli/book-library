@@ -4,28 +4,24 @@ from sqlalchemy import CheckConstraint
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
 
-# --- Таблица «книги». Одна такая строка = одна книга в БД ---
-class Book(SQLModel, table=True):
-    __table_args__ = (
-        # Задача 7: инвариант «оценка только у прочитанной» — на уровне БД,
-        # страховка для любых будущих путей записи
-        CheckConstraint(
-            "rating IS NULL OR status = 'read'",
-            name="ck_book_rating_only_read",
-        ),
-    )
+# --- Пользователь. Пока один (id=1, admin); задел под авторизацию (этап 9) ---
+class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: int = 1                       # пока один пользователь; связь под будущий вход
+    display_name: str = "Ксения"
+    is_admin: bool = False          # перегенерация атмосферы и правка книги — только admin
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+# --- Книга (общий каталог). Одна строка = одна реальная книга, общая для всех,
+# кто добавил её на полку. Только книго-внутренние поля; личное — в UserBook ---
+class Book(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
     title: str
     author: str
     cover_url: Optional[str] = None        # обложка (из Google Books)
     description: Optional[str] = None       # описание (из Google Books)
-    status: str = "want"                   # want / reading / read
-    rating: Optional[int] = None           # 1..10, только для прочитанных
     created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)  # задача 1
-    read_at: Optional[datetime] = None     # дата прочтения (фундамент статистики)
-    # --- поля под статистику (из Google Books) ---
+    # --- метаданные (из Google Books) ---
     page_count: Optional[int] = None
     categories: Optional[str] = None         # JSON-строка со списком жанров
     published_year: Optional[int] = None
@@ -34,7 +30,33 @@ class Book(SQLModel, table=True):
     raw_metadata: Optional[str] = None        # полный volumeInfo как JSON (страховка)
     isbn: Optional[str] = None
     enrich_status: str = "ready"                 # pending / ready / failed
+    # Атмосфера/оформление (AISelection) и плейлист генерируются один раз на книгу
+    # и переиспользуются всеми, кто её добавил (решение 18.07)
     spotify_playlist_url: Optional[str] = None   # постоянная ссылка на плейлист (этап 10.2)
+
+
+# --- Полка пользователя: одна строка = одна книга у одного пользователя.
+# Личные данные (статус, оценка, дата прочтения) живут здесь, не в Book ---
+class UserBook(SQLModel, table=True):
+    __table_args__ = (
+        # одна книга на полке пользователя один раз (заодно дедуп добавления)
+        UniqueConstraint("user_id", "book_id", name="uq_userbook_user_book"),
+        # Задача 7: инвариант «оценка только у прочитанной» переехал сюда вместе
+        # со статусом и оценкой
+        CheckConstraint(
+            "rating IS NULL OR status = 'read'",
+            name="ck_userbook_rating_only_read",
+        ),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    book_id: int = Field(foreign_key="book.id", index=True, ondelete="CASCADE")
+    status: str = "want"                   # want / reading / read
+    rating: Optional[int] = None           # 1..10, только для прочитанных
+    read_at: Optional[datetime] = None     # дата прочтения (фундамент статистики)
+    created_at: datetime = Field(default_factory=datetime.now)  # когда добавлена на полку
+    updated_at: datetime = Field(default_factory=datetime.now)  # задача 1
+
 
 # --- AI-подборка «Атмосфера»: одна строка = один вариант (источник) для книги ---
 class AISelection(SQLModel, table=True):

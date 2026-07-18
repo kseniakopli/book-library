@@ -27,12 +27,21 @@ export const createBook = ({
   author,
   cover_url,
   external_id,
+  book_id, // выбор книги из локального каталога — переиспользуем её (без регенерации)
   status,
   read_at,
 }) =>
   request(
     "/books",
-    json("POST", { title, author, cover_url, external_id, status, read_at }),
+    json("POST", {
+      title,
+      author,
+      cover_url,
+      external_id,
+      book_id,
+      status,
+      read_at,
+    }),
   );
 export const patchBook = ({ id, ...body }) =>
   request(`/books/${id}`, json("PATCH", body));

@@ -15,7 +15,7 @@ from constants import (
     EVENT_AI_MUSIC,
     SOURCE_CLAUDE,
 )
-from deps import get_book_or_404, get_lang
+from deps import get_book_or_404, get_lang, require_admin
 from events import log_event
 from i18n import msg
 from models import AISelection, Book
@@ -108,9 +108,12 @@ async def generate_atmosphere(
 ):
     cfg = _get_category(category, lang)
 
-    # 1) книга (короткая сессия — не держим её открытой во время AI-вызова)
+    # 1) книга (короткая сессия — не держим её открытой во время AI-вызова).
+    # Атмосфера общая для книги и генерится один раз при добавлении; ручная
+    # (пере)генерация меняет её для всех — поэтому только admin (решение 18.07).
     with Session(database.engine) as session:
         book = get_book_or_404(session, book_id, lang)
+        require_admin(session, lang)
         title, author = book.title, book.author
 
     # 2) реальные AI-вызовы (токены тратятся здесь)
