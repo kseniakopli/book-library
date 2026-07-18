@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { STATUS_LABELS } from "../constants";
 import { centeredSvgDataUri } from "../lib/svg";
 
@@ -22,7 +22,29 @@ function BookCard({
     () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
     [design?.symbol_svg],
   );
-  const showSymbol = symbolMode && palette && symbolUri;
+  // символ мог сгенерироваться битым (обрезанный/невалидный SVG) — тогда
+  // <img> не отрисуется; ловим onError и откатываемся на полумесяц
+  const [symbolBroken, setSymbolBroken] = useState(false);
+  const showSymbol = symbolMode && palette && symbolUri && !symbolBroken;
+
+  // логотип-полумесяц: и для книг без паспорта, и как фолбэк для битого символа
+  const moon = (
+    <div className="cover-moon" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <mask id={`moon-${book.id}`}>
+          <rect width="24" height="24" fill="#000" />
+          <circle cx="11" cy="12" r="9" fill="#fff" />
+          <circle cx="16" cy="12" r="8" fill="#000" />
+        </mask>
+        <rect
+          width="24"
+          height="24"
+          fill="currentColor"
+          mask={`url(#moon-${book.id})`}
+        />
+      </svg>
+    </div>
+  );
 
   // Карточка кликабельна и с клавиатуры (задача 23): Enter или пробел
   function onKeyDown(e) {
@@ -49,25 +71,16 @@ function BookCard({
           showSymbol ? (
             // паспорт есть — экслибрис на палитре
             <div className="cover-symbol">
-              <img src={symbolUri} alt="" aria-hidden="true" />
+              <img
+                src={symbolUri}
+                alt=""
+                aria-hidden="true"
+                onError={() => setSymbolBroken(true)}
+              />
             </div>
           ) : (
-            // паспорта ещё нет — логотип-полумесяц вместо обложки (полка единая)
-            <div className="cover-moon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <mask id={`moon-${book.id}`}>
-                  <rect width="24" height="24" fill="#000" />
-                  <circle cx="11" cy="12" r="9" fill="#fff" />
-                  <circle cx="16" cy="12" r="8" fill="#000" />
-                </mask>
-                <rect
-                  width="24"
-                  height="24"
-                  fill="currentColor"
-                  mask={`url(#moon-${book.id})`}
-                />
-              </svg>
-            </div>
+            // нет паспорта или битый символ — логотип-полумесяц (полка единая)
+            moon
           )
         ) : book.cover_url ? (
           // задача 56: lazy — браузер грузит обложку при приближении к экрану

@@ -1,0 +1,173 @@
+/* ===== «Вечер с книгой» (задача 65) — полноэкранная атмосферная сцена =====
+   fixed inset:0 поверх всего приложения; фон и шрифты — из паспорта книги
+   (переменные --ev-* задаются инлайном в EveningPage; фолбэк — тема). */
+
+.evening {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow-y: auto;
+  background: var(--ev-bg, var(--bg));
+  color: var(--ev-text, var(--text));
+  font-family: var(--ev-sans, var(--sans));
+}
+
+.evening-bar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  background: color-mix(in srgb, var(--ev-bg, var(--bg)) 82%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.evening-close {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ev-text, var(--text));
+  background: none;
+  border: 1px solid var(--ev-border, var(--border));
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.evening-sources {
+  display: flex;
+  gap: 8px;
+}
+.evening-pill {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--ev-muted, var(--muted));
+  background: none;
+  border: 1px solid var(--ev-border, var(--border));
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.evening-pill.active {
+  color: var(--ev-on-accent, #fff);
+  background: var(--ev-accent, var(--accent));
+  border-color: var(--ev-accent, var(--accent));
+}
+
+.evening-scene {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 24px 96px;
+}
+
+/* --- герой --- */
+.evening-hero {
+  text-align: center;
+  padding: 40px 0 48px;
+}
+.evening-symbol {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  opacity: 0.92;
+  margin-bottom: 20px;
+}
+.evening-title {
+  font-family: var(--ev-serif, var(--serif));
+  font-size: 40px;
+  line-height: 1.1;
+  margin: 0;
+}
+.evening-author {
+  color: var(--ev-muted, var(--muted));
+  font-size: 18px;
+  margin: 8px 0 0;
+}
+.evening-statement {
+  font-family: var(--ev-serif, var(--serif));
+  font-style: italic;
+  font-size: 19px;
+  line-height: 1.5;
+  color: var(--ev-accent, var(--accent));
+  margin: 20px auto 0;
+  max-width: 46ch;
+}
+
+/* --- секции --- */
+.evening-sections {
+  display: grid;
+  gap: 40px;
+}
+.evening-block h2 {
+  font-family: var(--ev-serif, var(--serif));
+  font-size: 22px;
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ev-border, var(--border));
+}
+
+.evening-tracks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.evening-tracks li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px dotted var(--ev-border, var(--border));
+}
+.evening-track-artist {
+  color: var(--ev-muted, var(--muted));
+  text-align: right;
+}
+.evening-play {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--ev-on-accent, #fff);
+  background: var(--ev-accent, var(--accent));
+  border-radius: 8px;
+  padding: 10px 16px;
+  text-decoration: none;
+}
+
+.evening-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.evening-items li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.evening-item-title {
+  font-weight: 500;
+}
+.evening-item-desc {
+  color: var(--ev-muted, var(--muted));
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.evening-hint {
+  text-align: center;
+  color: var(--ev-muted, var(--muted));
+  max-width: 46ch;
+  margin: 64px auto;
+  line-height: 1.6;
+}
+
+@media (max-width: 560px) {
+  .evening-title {
+    font-size: 30px;
+  }
+  .evening-scene {
+    padding: 16px 16px 80px;
+  }
+}

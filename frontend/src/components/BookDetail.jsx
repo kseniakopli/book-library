@@ -172,6 +172,9 @@ function BookDetail({ book, onBack, onDeleted }) {
           <button className="btn-ghost" onClick={() => setShowEdit(true)}>
             Редактировать
           </button>
+          <Link className="btn-ghost playlist-link" to={`/books/${book.id}/evening`}>
+            ☾ Начать вечер
+          </Link>
           <Link className="btn-ghost playlist-link" to={`/books/${book.id}/card`}>
             Печатная карточка
           </Link>
