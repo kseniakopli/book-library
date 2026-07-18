@@ -44,7 +44,7 @@ def _create_and_save(session: Session, book, lang: str) -> dict:
     if not songs:
         raise HTTPException(status_code=400, detail=msg("no_music_for_playlist", lang))
     result = spotify_service.create_playlist_from_songs(
-        f"Nocturne · {book.title}", songs
+        f"nocturne · {book.title}", songs
     )
     book.spotify_playlist_url = result["url"]
     session.add(book)

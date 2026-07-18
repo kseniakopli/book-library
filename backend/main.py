@@ -5,7 +5,7 @@ import database
 from routers import atmosphere, books, imports, search, spotify
 
 app = FastAPI(
-    title="Nocturne API",
+    title="nocturne API",
     description="Персональная библиотека для атмосферных литературных вечеров. "
     "Интерактивная документация: /docs (Swagger) и /redoc.",
 )

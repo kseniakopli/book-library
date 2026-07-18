@@ -34,7 +34,7 @@ function Onboarding({ onAddBook }) {
 
   return (
     <section className="onboarding">
-      <h2 className="onboarding-title">Добро пожаловать в Nocturne</h2>
+      <h2 className="onboarding-title">Добро пожаловать в nocturne</h2>
       <p className="muted">Три шага до первого атмосферного вечера:</p>
 
       <ol className="onboarding-steps">

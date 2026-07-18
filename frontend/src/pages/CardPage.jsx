@@ -256,7 +256,7 @@ function CardPage() {
         <div className="pc-footer">
           {symbolUri && <img src={symbolUri} alt="" />}
           <span contentEditable suppressContentEditableWarning>
-            <b>Nocturne</b> — атмосферные литературные вечера.
+            <b>nocturne</b> — атмосферные литературные вечера.
             <br />
             Собрано AI под эту книгу · связь: kseniakopli@gmail.com
           </span>

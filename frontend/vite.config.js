@@ -15,5 +15,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.js',
     globals: true,
+    // Только юнит-тесты из src/. Иначе vitest подхватывает e2e/*.spec.js
+    // (Playwright) и падает — у него свой раннер (npm run e2e)
+    include: ['src/**/*.{test,spec}.{js,jsx}'],
   },
 })

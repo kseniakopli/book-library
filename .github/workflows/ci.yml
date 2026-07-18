@@ -1,0 +1,56 @@
+# CI (задача 62): бэкенд-тесты + фронтенд линт/тесты на каждый push и PR.
+# E2E (Playwright) сюда НЕ включён: ему нужен поднятый бэкенд и живые AI-ключи
+# (добавление книги фоном дёргает генерацию оформления) — гоняем локально.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Provide prompt config
+        # prompt_config.py в .gitignore (приватные промпты) — берём шаблон
+        run: cp prompt_config.example.py prompt_config.py
+      - name: Run tests
+        env:
+          # ключи-заглушки: клиенты создаются при импорте, реальных вызовов в тестах нет
+          ANTHROPIC_API_KEY: test-dummy
+          OPENAI_API_KEY: test-dummy
+          GOOGLE_BOOKS_API_KEY: test-dummy
+        run: pytest -q
+
+  frontend:
+    name: Frontend (lint + vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint (oxlint)
+        run: npm run lint
+      - name: Unit tests (vitest)
+        run: npm test

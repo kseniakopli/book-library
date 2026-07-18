@@ -10,7 +10,7 @@ test("пустая библиотека показывает онбординг,
   renderApp();
 
   expect(
-    await screen.findByText("Добро пожаловать в Nocturne"),
+    await screen.findByText("Добро пожаловать в nocturne"),
   ).toBeInTheDocument();
   // полок нет
   expect(screen.queryByText("Здесь пока пусто")).not.toBeInTheDocument();
@@ -22,14 +22,14 @@ test("пустая библиотека показывает онбординг,
   // примеры добавились, полки появились, онбординг исчез
   expect(await screen.findByText("Мастер и Маргарита")).toBeInTheDocument();
   expect(
-    screen.queryByText("Добро пожаловать в Nocturne"),
+    screen.queryByText("Добро пожаловать в nocturne"),
   ).not.toBeInTheDocument();
 });
 
 test("кнопка онбординга открывает модалку поиска", async () => {
   db.books = [];
   renderApp();
-  await screen.findByText("Добро пожаловать в Nocturne");
+  await screen.findByText("Добро пожаловать в nocturne");
 
   await userEvent.click(
     screen.getByRole("button", { name: "+ Добавить первую книгу" }),
