@@ -68,7 +68,9 @@ function SearchModal({ onClose }) {
     (!candidate.title.trim() || !candidate.author.trim());
 
   function submit() {
-    const { manual, ...book } = candidate;
+    // manual выкидываем из payload (в BookCreate его нет); префикс _ — сигнал
+    // линтеру, что переменная намеренно не используется
+    const { manual: _manual, ...book } = candidate;
     addBookMutation.mutate({
       ...book,
       title: book.title.trim(),

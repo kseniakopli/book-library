@@ -11,6 +11,7 @@ import { bestTextOn, hasReadableContrast, withAlpha } from "../lib/contrast";
 import { centeredSvgDataUri } from "../lib/svg";
 import AtmosphereSection from "./AtmosphereSection";
 import EditBookModal from "./EditBookModal";
+import { SkeletonText } from "./Skeleton";
 
 function BookDetail({ book, onBack, onDeleted }) {
   const queryClient = useQueryClient();
@@ -238,7 +239,9 @@ function BookDetail({ book, onBack, onDeleted }) {
             </p>
           )}
           {designMutation.isPending && (
-            <p className="muted">Подбираю оформление под книгу…</p>
+            <div className="detail-statement">
+              <SkeletonText lines={2} />
+            </div>
           )}
           {design && <p className="detail-statement">{design.statement}</p>}
 

@@ -1,0 +1,58 @@
+/* ===== Скелетоны загрузки (задача 67) =====
+   Янтарный shimmer в тон бренду вместо текстовых «Подбираю…».
+   Форма повторяет будущий контент — глаз не «прыгает» при подмене. */
+
+.skeleton {
+  display: block;
+  border-radius: 6px;
+  /* бегущий блик: поверхность → тёплый акцентный проблеск → поверхность */
+  background: linear-gradient(
+    90deg,
+    var(--surface) 0%,
+    var(--cover-placeholder) 40%,
+    color-mix(in srgb, var(--accent) 22%, var(--surface)) 50%,
+    var(--cover-placeholder) 60%,
+    var(--surface) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Уважаем настройку «меньше движения» — оставляем тихую пульсацию */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: skeleton-pulse 1.6s ease-in-out infinite;
+    background: var(--cover-placeholder);
+  }
+  @keyframes skeleton-pulse {
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+.skeleton-line {
+  height: 0.9em;
+  margin: 6px 0;
+}
+
+/* Ряд «строки атмосферы»: заголовок слева, значение справа — как настоящий трек */
+.skeleton-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.skeleton-row .skeleton-line {
+  margin: 0;
+}

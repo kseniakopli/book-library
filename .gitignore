@@ -12,6 +12,11 @@ backend/backups/
 *.pyc
 node_modules/
 
+# Playwright E2E (задача 68): отчёты и артефакты прогонов
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
+
 # Токен Spotify (refresh_token) — приватный, живёт рядом с .env
 spotify_token.json
 

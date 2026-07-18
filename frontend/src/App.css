@@ -4,6 +4,7 @@
 
 @import "./styles/tokens.css";
 @import "./styles/base.css";
+@import "./styles/skeleton.css";
 @import "./styles/header.css";
 @import "./styles/shelf.css";
 @import "./styles/book-card.css";

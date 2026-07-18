@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
+import { SkeletonRows } from "./Skeleton";
 
 const CATEGORIES = [
   { id: "music", label: "Музыка" },
@@ -121,7 +122,10 @@ function AtmosphereSection({ bookId }) {
       </div>
 
       {generateAll.isPending && (
-        <p className="muted">Claude и ChatGPT собирают атмосферу вечера…</p>
+        <>
+          <p className="muted">Claude и ChatGPT собирают атмосферу вечера…</p>
+          <SkeletonRows rows={5} />
+        </>
       )}
       {generateAll.isError && (
         <p className="error">
@@ -129,7 +133,7 @@ function AtmosphereSection({ bookId }) {
         </p>
       )}
 
-      {current.isLoading && <p className="muted">Загружаю подборку…</p>}
+      {current.isLoading && !generateAll.isPending && <SkeletonRows rows={4} />}
       {current.isError && (
         <p className="error">
           Не удалось загрузить подборку.{" "}
