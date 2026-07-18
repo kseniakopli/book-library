@@ -26,6 +26,32 @@ def test_search_results_include_external_id(client, monkeypatch):
     assert master["external_id"] == "ext1"
 
 
+def test_search_deletes_stale_catalog_rows(client, monkeypatch):
+    """Протухшие записи каталога (старше TTL) удаляются при поиске."""
+    from datetime import datetime, timedelta
+
+    from sqlmodel import Session, select
+
+    import database
+    from models import Catalog
+
+    stale_date = datetime.now() - timedelta(days=search_routes.CATALOG_TTL_DAYS + 1)
+    with Session(database.engine) as session:
+        session.add(Catalog(title="Протухшая книга", author="Автор",
+                            cover_url=None, source="google",
+                            external_id="stale1", created_at=stale_date))
+        session.commit()
+
+    monkeypatch.setattr(search_routes, "search_books", lambda q, max_results=8: [])
+    r = client.get("/api/v1/search?q=Протухшая")
+    assert r.status_code == 200
+    assert r.json()["results"] == []          # протухшее не выдаём
+
+    with Session(database.engine) as session:  # и физически удалили
+        assert session.exec(select(Catalog).where(
+            Catalog.external_id == "stale1")).first() is None
+
+
 def test_search_caches_to_catalog(client, monkeypatch):
     monkeypatch.setattr(search_routes, "search_books", fake_search_books)
     client.get("/api/v1/search?q=Булгаков")          # 1-й раз: внешний вызов + запись в каталог

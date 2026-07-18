@@ -2,7 +2,7 @@
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter
-from sqlmodel import Session, col, or_, select
+from sqlmodel import Session, col, delete, or_, select
 
 import database
 from constants import EVENT_SEARCH
@@ -23,6 +23,11 @@ def search(q: str):
 
     cutoff = datetime.now() - timedelta(days=CATALOG_TTL_DAYS)
     with Session(database.engine) as session:
+        # гигиена: протухшие записи не просто игнорируем, а удаляем —
+        # иначе кэш растёт бесконечно (мусор от промежуточных debounce-запросов)
+        session.exec(delete(Catalog).where(col(Catalog.created_at) < cutoff))
+        session.commit()
+
         pattern = f"%{q}%"
         # берём только свежие записи каталога (TTL) — протухшие игнорируем
         local = session.exec(
