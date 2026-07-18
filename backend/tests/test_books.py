@@ -40,6 +40,49 @@ def test_book_not_found(client):
     assert client.patch("/api/v1/books/999", json={"status": "read"}).status_code == 404
 
 
+# --- задача 3: ручная правка полей ---
+
+def test_edit_book_fields(client):
+    r = client.patch("/api/v1/books/1", json={
+        "title": "  Новое название  ",
+        "author": "Новый автор",
+        "isbn": "978-5-00-000000-0",
+        "cover_url": "https://example.com/cover.jpg",
+        "description": "Новое описание",
+    })
+    assert r.status_code == 200
+    body = r.json()
+    assert body["title"] == "Новое название"          # пробелы обрезаны
+    assert body["author"] == "Новый автор"
+    assert body["isbn"] == "978-5-00-000000-0"
+    assert body["cover_url"] == "https://example.com/cover.jpg"
+    assert body["description"] == "Новое описание"
+
+
+def test_edit_empty_title_rejected(client):
+    assert client.patch("/api/v1/books/1", json={"title": "   "}).status_code == 400
+    assert client.patch("/api/v1/books/1", json={"author": ""}).status_code == 400
+
+
+def test_edit_cover_requires_https(client):
+    r = client.patch("/api/v1/books/1", json={"cover_url": "http://insecure.com/x.jpg"})
+    assert r.status_code == 422    # валидатор схемы (та же политика, что в POST)
+
+
+def test_edit_empty_strings_clear_optional_fields(client):
+    client.patch("/api/v1/books/1", json={
+        "isbn": "978-5-00-000000-0",
+        "cover_url": "https://example.com/cover.jpg",
+        "description": "Описание",
+    })
+    r = client.patch("/api/v1/books/1", json={"isbn": "", "cover_url": "", "description": ""})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["isbn"] is None
+    assert body["cover_url"] is None
+    assert body["description"] is None
+
+
 def test_read_at_set_and_cleared_with_status(client):
     """Задача 1: стал read без даты — ставится «сейчас»; ушёл из read — чистится."""
     r = client.patch("/api/v1/books/1", json={"status": "read"})

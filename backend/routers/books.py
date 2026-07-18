@@ -12,6 +12,7 @@ from constants import (
     ENRICH_READY,
     EVENT_BOOK_ADDED,
     EVENT_BOOK_DELETED,
+    EVENT_BOOK_EDITED,
     EVENT_ENRICHED,
     EVENT_RATED,
     EVENT_STATUS_CHANGED,
@@ -88,6 +89,30 @@ def update_book(book_id: int, data: BookUpdate, lang: str = Depends(get_lang)):
     with Session(database.engine) as session:
         book = get_book_or_404(session, book_id, lang)
 
+        # Задача 3: ручная правка полей (промахи обогащения исправляются руками).
+        # Название и автор пустыми быть не могут; isbn/cover_url/description
+        # пустая строка очищает поле.
+        edited = []
+        if data.title is not None:
+            if not data.title.strip():
+                raise HTTPException(status_code=400, detail=msg("empty_title_author", lang))
+            book.title = data.title.strip()
+            edited.append("title")
+        if data.author is not None:
+            if not data.author.strip():
+                raise HTTPException(status_code=400, detail=msg("empty_title_author", lang))
+            book.author = data.author.strip()
+            edited.append("author")
+        if data.isbn is not None:
+            book.isbn = data.isbn.strip() or None
+            edited.append("isbn")
+        if data.cover_url is not None:
+            book.cover_url = data.cover_url or None   # "" из валидатора → очистка
+            edited.append("cover_url")
+        if data.description is not None:
+            book.description = data.description.strip() or None
+            edited.append("description")
+
         if data.status is not None:
             if data.status not in ALLOWED_STATUSES:
                 raise HTTPException(status_code=400, detail=msg("bad_status", lang))
@@ -123,6 +148,8 @@ def update_book(book_id: int, data: BookUpdate, lang: str = Depends(get_lang)):
         log_event(EVENT_STATUS_CHANGED, book_id, detail=book.status)
     if data.rating is not None and book.rating is not None:
         log_event(EVENT_RATED, book_id, detail=str(book.rating))
+    if edited:
+        log_event(EVENT_BOOK_EDITED, book_id, detail=",".join(edited))
     return book
 
 

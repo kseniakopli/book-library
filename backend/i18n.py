@@ -24,6 +24,8 @@ MESSAGES = {
                               "en": "Generate music first — the playlist is built from it"},
     "no_playlist_for_qr":   {"ru": "Сначала создайте Spotify-плейлист — QR кодирует его ссылку",
                              "en": "Create the Spotify playlist first — the QR encodes its link"},
+    "empty_title_author":   {"ru": "Название и автор не могут быть пустыми",
+                             "en": "Title and author cannot be empty"},
 }
 
 

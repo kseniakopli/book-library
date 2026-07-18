@@ -1,6 +1,6 @@
 // Страница книги: смена статуса, появление оценки, несуществующая книга.
 import { test, expect } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderApp } from "./utils";
 
@@ -36,6 +36,35 @@ test("несуществующая книга — сообщение и возв
   expect(await screen.findByText("Книга не найдена.")).toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "← К библиотеке" }),
+  ).toBeInTheDocument();
+});
+
+test("ручная правка книги: смена названия сохраняется (задача 3)", async () => {
+  renderApp("/books/2");
+  await screen.findByRole("heading", { name: "Дом огней" });
+
+  await userEvent.click(screen.getByRole("button", { name: "Редактировать" }));
+  const dialog = await screen.findByRole("dialog", { name: "Правка книги" });
+
+  const titleInput = within(dialog).getByLabelText("Название");
+  expect(titleInput).toHaveValue("Дом огней");
+
+  await userEvent.clear(titleInput);
+  const saveBtn = within(dialog).getByRole("button", { name: "Сохранить" });
+  expect(saveBtn).toBeDisabled(); // пустое название сохранить нельзя
+
+  await userEvent.type(titleInput, "Дом огней (перевод 2021)");
+  expect(saveBtn).toBeEnabled();
+  await userEvent.click(saveBtn);
+
+  // модалка закрылась, заголовок страницы обновился
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Правка книги" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Дом огней (перевод 2021)" }),
   ).toBeInTheDocument();
 });
 

@@ -1,6 +1,6 @@
 // Карточка книги: паспорт оформления, статус/оценка, действия.
 // Секция «Атмосфера» вынесена в AtmosphereSection (R7).
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
@@ -10,10 +10,12 @@ import { useTheme } from "../hooks/useTheme";
 import { bestTextOn, hasReadableContrast, withAlpha } from "../lib/contrast";
 import { centeredSvgDataUri } from "../lib/svg";
 import AtmosphereSection from "./AtmosphereSection";
+import EditBookModal from "./EditBookModal";
 
 function BookDetail({ book, onBack, onDeleted }) {
   const queryClient = useQueryClient();
   const { theme } = useTheme();
+  const [showEdit, setShowEdit] = useState(false); // задача 3: ручная правка
 
   // Паспорт оформления: единый формат атмосферы, паспорт — payload единственного источника.
   // Без обработки ошибки: не загрузился — карточка в базовой теме.
@@ -161,6 +163,9 @@ function BookDetail({ book, onBack, onDeleted }) {
             disabled={enrichMutation.isPending}
           >
             {enrichMutation.isPending ? "Обновляю…" : "Обновить информацию"}
+          </button>
+          <button className="btn-ghost" onClick={() => setShowEdit(true)}>
+            Редактировать
           </button>
           <Link className="btn-ghost playlist-link" to={`/books/${book.id}/card`}>
             Печатная карточка
@@ -343,6 +348,10 @@ function BookDetail({ book, onBack, onDeleted }) {
 
         <AtmosphereSection bookId={book.id} />
       </div>
+
+      {showEdit && (
+        <EditBookModal book={book} onClose={() => setShowEdit(false)} />
+      )}
     </div>
   );
 }

@@ -30,6 +30,27 @@ class BookUpdate(BaseModel):
     status: Optional[str] = None
     rating: Optional[int] = None
     read_at: Optional[datetime] = None   # задача 1: явная дата прочтения (ISO)
+    # Задача 3 (ручная правка): промахи обогащения исправляются руками.
+    # None означает «не менять»; пустая строка в isbn/cover_url/description —
+    # «очистить поле» (в title/author пустота запрещена — см. роутер).
+    title: Optional[str] = None
+    author: Optional[str] = None
+    isbn: Optional[str] = None
+    cover_url: Optional[str] = None
+    description: Optional[str] = None
+
+    # та же политика безопасности, что при создании: в <img src> — только https
+    @field_validator("cover_url")
+    @classmethod
+    def _https_only(cls, v):
+        if v is None:
+            return v
+        v = v.strip()
+        if not v:
+            return ""          # пустая строка = «убрать обложку» (не None: None = «не менять»)
+        if not v.startswith("https://"):
+            raise ValueError("cover_url должен начинаться с https://")
+        return v
 
 
 class BookRead(BaseModel):

@@ -20,6 +20,7 @@ SOURCE_CHATGPT = "ChatGPT"
 # --- имена событий (события — append-only, имена менять нельзя) ---
 EVENT_BOOK_ADDED = "book_added"
 EVENT_BOOK_DELETED = "book_deleted"
+EVENT_BOOK_EDITED = "book_edited"      # задача 3: ручная правка полей
 EVENT_STATUS_CHANGED = "status_changed"
 EVENT_RATED = "rated"
 EVENT_ENRICHED = "enriched"

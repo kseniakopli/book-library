@@ -116,7 +116,8 @@
   font-size: 13px;
   margin-bottom: 6px;
 }
-.field input {
+.field input,
+.field textarea {
   width: 100%;
   font-family: inherit;
   font-size: 15px;
@@ -125,6 +126,9 @@
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+.field textarea {
+  resize: vertical; /* правка описания (задача 3): тянуть можно только вниз */
 }
 
 .search-input {
