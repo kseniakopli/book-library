@@ -85,6 +85,28 @@ body {
   cursor: default;
 }
 
+/* Мобильные правки (аудит 18.07): шрифт полей ≥16px — иначе iOS Safari
+   приближает страницу при фокусе и не возвращает обратно */
+@media (max-width: 640px) {
+  input,
+  select {
+    /* !important: классовые правила (.search-input, .lib-search, .field input)
+       специфичнее голого input — а переопределить надо все поля разом */
+    font-size: 16px !important;
+  }
+}
+
+/* Тач-таргеты ≥44px на устройствах с пальцем вместо курсора */
+@media (pointer: coarse) {
+  .pill,
+  .shelf-arrow,
+  .modal-close,
+  .category-tab {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* Пилюли (статусы, вкладки источников) */
 .pill {
   font-family: inherit;

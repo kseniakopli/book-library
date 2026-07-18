@@ -28,6 +28,11 @@
   background: var(--surface);
   border-radius: 14px;
   padding: 24px;
+  /* аудит 18.07: на телефоне контент выше экрана — прокрутка внутри модалки;
+     dvh учитывает панели мобильного браузера (vh — фолбэк) */
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
 }
 
 .modal-title {

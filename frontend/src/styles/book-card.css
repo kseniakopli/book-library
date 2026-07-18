@@ -93,4 +93,5 @@
 .rating {
   color: var(--text);
   font-size: 13px;
+  white-space: nowrap; /* «★ 5/10» не разваливается на две строки в узкой карточке */
 }

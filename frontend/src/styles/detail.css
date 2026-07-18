@@ -37,6 +37,23 @@
   }
 }
 
+/* Мобильные правки (аудит 18.07): меньше отступы и заголовок, обложка по
+   центру, «Удалить» без искусственного отступа при переносе строк */
+@media (max-width: 640px) {
+  .detail-themed {
+    padding: 16px;
+  }
+  .detail-title {
+    font-size: 26px;
+  }
+  .detail-cover {
+    margin: 0 auto;
+  }
+  .detail-bar-actions .btn-danger {
+    margin-left: 0;
+  }
+}
+
 /* Применяется вместе с паспортом оформления (themedStyle в BookDetail.jsx) —
    статические отступы вынесены сюда из инлайна */
 .detail-themed {

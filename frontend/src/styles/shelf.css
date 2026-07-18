@@ -2,7 +2,7 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 24px;
 }
 
@@ -66,4 +66,31 @@
 .shelf-placeholder,
 .shelf-empty {
   color: var(--muted);
+}
+
+/* Аудит 18.07 (P2): на телефоне стрелки не отнимают ширину у карточек,
+   а лежат поверх краёв ряда (обычный карусельный паттерн) */
+@media (max-width: 560px) {
+  .shelf-body {
+    position: relative;
+    gap: 0;
+  }
+  .shelf-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 2;
+    background: var(--bg);
+    opacity: 0.85;
+  }
+  .shelf-arrow:first-child {
+    left: -8px;
+  }
+  .shelf-arrow:last-child {
+    right: -8px;
+  }
+  .shelf-arrow:disabled {
+    opacity: 0; /* нелистаемый край — стрелку прячем целиком */
+    pointer-events: none;
+  }
 }

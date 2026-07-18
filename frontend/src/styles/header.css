@@ -53,6 +53,29 @@
   padding: 9px 12px;
 }
 
+/* Мобильная шапка (аудит 18.07, P1): в одну строку не помещается —
+   складываем в колонку; компактная после прокрутки — только заголовок */
+@media (max-width: 640px) {
+  .header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .title {
+    font-size: 28px;
+  }
+  .header-actions {
+    flex-wrap: wrap;
+  }
+  .header-compact {
+    flex-direction: row;
+    align-items: center;
+  }
+  .header-compact .header-actions {
+    display: none; /* кнопки доступны наверху страницы */
+  }
+}
+
 .lib-search {
   width: 100%;
   font-family: inherit;
