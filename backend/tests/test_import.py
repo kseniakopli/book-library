@@ -37,6 +37,25 @@ def test_import_sets_read_status_and_rating(client):
     assert book["rating"] == 8
 
 
+def test_import_detects_semicolon_delimiter(client):
+    """LiveLib отдаёт CSV с разделителем ';' — импорт должен его распознать
+    и подтянуть дату/оценку (иначе колонки не читаются)."""
+    csv_text = (
+        "Название;Автор;Дата прочтения;Моя оценка;ISBN\n"
+        "Дом без воспоминаний;Донато Карризи;Июль 2026 г.;5;978-5-389-23795-7\n"
+    )
+    r = _upload(client, csv_text)
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    book = next(
+        b for b in client.get("/api/v1/books").json()
+        if b["title"] == "Дом без воспоминаний"
+    )
+    assert book["status"] == "read"
+    assert book["rating"] == 5
+    assert book["read_at"].startswith("2026-07-01")
+
+
 def test_import_skips_invalid_rows(client):
     csv_text = (
         "Название,Автор,Дата прочтения,Моя оценка,ISBN\n"

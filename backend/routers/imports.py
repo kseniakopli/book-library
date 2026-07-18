@@ -38,7 +38,11 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
         raise HTTPException(status_code=400, detail=msg("import_bad_encoding", lang))
     if text.count("\n") > MAX_IMPORT_ROWS:
         raise HTTPException(status_code=400, detail=msg("import_too_many_rows", lang))
-    reader = csv.DictReader(io.StringIO(text))
+    # Разделитель: LiveLib отдаёт CSV с ';', обычные выгрузки — с ','. Определяем
+    # по заголовку — какого символа больше, тот и разделитель.
+    header = text.splitlines()[0] if text else ""
+    delimiter = ";" if header.count(";") > header.count(",") else ","
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
     imported = 0
     skipped = 0
