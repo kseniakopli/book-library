@@ -51,6 +51,44 @@ def test_regenerate_does_not_duplicate(client, monkeypatch):
     assert len(r.json()["selections"]) == 2  # всё ещё 2 варианта, а не 4
 
 
+def test_failed_regeneration_keeps_old(client, monkeypatch):
+    """Защита от потери (инцидент 18.07): неудачная перегенерация (AI вернул
+    пустой фолбэк) НЕ должна затирать уже сохранённую атмосферу."""
+    from services.ai import MusicResult, Song
+
+    _mock_music(monkeypatch)
+    client.post("/api/v1/books/1/atmosphere/music")   # успешно: Song A / Song B
+
+    async def all_empty(title, author, lang="ru"):
+        return {
+            "Claude": MusicResult(songs=[], explanation="(не удалось)"),
+            "ChatGPT": MusicResult(songs=[], explanation="(не удалось)"),
+        }
+    monkeypatch.setitem(atmosphere_routes.CATEGORIES["music"], "generate", all_empty)
+    client.post("/api/v1/books/1/atmosphere/music")   # провал — не должен стереть
+
+    r = client.get("/api/v1/books/1/atmosphere/music").json()
+    assert len(r["selections"]) == 2                  # старые на месте
+    claude = next(s for s in r["selections"] if s["source"] == "Claude")
+    assert claude["payload"][0]["title"] == "Song A"
+
+
+def test_first_generation_all_empty_writes_nothing(client, monkeypatch):
+    """Первая генерация, если AI не ответил ни одним источником, не плодит
+    пустые строки — остаётся «пусто», а не два пустых варианта."""
+    from services.ai import MusicResult
+
+    async def all_empty(title, author, lang="ru"):
+        return {
+            "Claude": MusicResult(songs=[], explanation="(не удалось)"),
+            "ChatGPT": MusicResult(songs=[], explanation="(не удалось)"),
+        }
+    monkeypatch.setitem(atmosphere_routes.CATEGORIES["music"], "generate", all_empty)
+    client.post("/api/v1/books/1/atmosphere/music")
+    r = client.get("/api/v1/books/1/atmosphere/music").json()
+    assert r["selections"] == []
+
+
 def test_generate_music_book_not_found(client, monkeypatch):
     _mock_music(monkeypatch)
     assert client.post("/api/v1/books/999/atmosphere/music").status_code == 404

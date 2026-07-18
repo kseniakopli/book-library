@@ -125,26 +125,50 @@ async def generate_atmosphere(
     return response
 
 
+def _payload_empty(payload_json: str) -> bool:
+    """Пустой результат (AI не ответил → safe_ask вернул фолбэк с пустым списком):
+    payload — это `[]`. Для дизайна payload — объект, он пустым не считается."""
+    try:
+        data = json.loads(payload_json)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(data, list) and len(data) == 0
+
+
 def _replace_selections(book_id: int, category: str, cfg: dict, results: dict) -> dict:
-    """Сохранить результаты генерации, заменив прежние подборки категории.
-    Общий кусок POST-эндпоинта и фоновой генерации оформления (задача 57)."""
+    """Сохранить результаты генерации, заменив прежние подборки категории —
+    ПОИСТОЧНИКОВО. Защита: если новый результат источника пуст (AI не ответил),
+    старую подборку НЕ трогаем (иначе неудачная перегенерация стирала бы
+    готовую атмосферу — так и потерялись данные при миграции)."""
     with Session(database.engine) as session:
-        old = session.exec(
-            select(AISelection).where(
-                AISelection.book_id == book_id,
-                AISelection.category == category,
-            )
-        ).all()
-        for row in old:
-            session.delete(row)
-        session.flush()   # DELETE до INSERT — иначе упрёмся в unique constraint
+        existing = {
+            row.source: row
+            for row in session.exec(
+                select(AISelection).where(
+                    AISelection.book_id == book_id,
+                    AISelection.category == category,
+                )
+            ).all()
+        }
 
         for source, result in results.items():
+            payload = cfg["payload"](result)
+            # пустой ответ + уже есть сохранённое → сохраняем старое, не затираем
+            if _payload_empty(payload) and source in existing:
+                continue
+            # пустой ответ и сохранённого нет → не плодим пустую строку
+            if _payload_empty(payload):
+                continue
+
+            old = existing.get(source)
+            if old is not None:
+                session.delete(old)
+                session.flush()   # DELETE до INSERT — иначе unique constraint
             session.add(AISelection(
                 book_id=book_id,
                 category=category,
                 source=source,
-                payload=cfg["payload"](result),
+                payload=payload,
                 explanation=cfg["explanation"](result),
             ))
         session.commit()
