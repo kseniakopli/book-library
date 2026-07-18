@@ -36,10 +36,9 @@ function EditBookModal({ book, onClose }) {
     form.cover_url.trim() !== "" && !form.cover_url.trim().startsWith("https://");
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal"
-        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Правка книги"

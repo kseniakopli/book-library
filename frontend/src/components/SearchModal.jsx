@@ -84,10 +84,9 @@ function SearchModal({ onClose }) {
   const term = query.trim();
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal"
-        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label="Поиск и добавление книги"
