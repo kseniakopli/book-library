@@ -68,29 +68,18 @@
   color: var(--muted);
 }
 
-/* Аудит 18.07 (P2): на телефоне стрелки не отнимают ширину у карточек,
-   а лежат поверх краёв ряда (обычный карусельный паттерн) */
-@media (max-width: 560px) {
-  .shelf-body {
-    position: relative;
-    gap: 0;
-  }
-  .shelf-arrow {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    z-index: 2;
-    background: var(--bg);
-    opacity: 0.85;
-  }
-  .shelf-arrow:first-child {
-    left: -8px;
-  }
-  .shelf-arrow:last-child {
-    right: -8px;
-  }
-  .shelf-arrow:disabled {
-    opacity: 0; /* нелистаемый край — стрелку прячем целиком */
-    pointer-events: none;
-  }
+/* Задача 51: на телефоне полка — свайп со scroll-snap (без стрелок).
+   Карточки ~44% ширины → видно две с «peek» третьей, подсказывающим прокрутку. */
+.shelf-swipe {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;   /* инерционная прокрутка на iOS */
+  padding-bottom: 6px;                 /* место под тонкий скроллбар */
+  scrollbar-width: thin;
+}
+.shelf-swipe-item {
+  flex: 0 0 44%;
+  scroll-snap-align: start;
 }

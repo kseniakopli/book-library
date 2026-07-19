@@ -167,6 +167,24 @@ def test_list_books_pagination(client, monkeypatch):
     assert page[0]["title"] == "Вторая"
 
 
+def test_list_books_filter_by_status(client, monkeypatch):
+    """Задача 70: GET /books?status=... отдаёт только книги этого статуса
+    (основа под пополковую ленивую загрузку) + работает с limit/offset."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    # фикстурная книга 1 — want; добавим одну read
+    client.post("/api/v1/books", json={
+        "title": "Прочитанная", "author": "Автор", "status": "read",
+    })
+    read = client.get("/api/v1/books?status=read").json()
+    assert all(b["status"] == "read" for b in read)
+    assert any(b["title"] == "Прочитанная" for b in read)
+    want = client.get("/api/v1/books?status=want").json()
+    assert all(b["status"] == "want" for b in want)
+    # limit/offset применяются вместе с фильтром
+    assert len(client.get("/api/v1/books?status=want&limit=1").json()) <= 1
+
+
 def test_get_book_not_found(client):
     assert client.get("/api/v1/books/999").status_code == 404
 

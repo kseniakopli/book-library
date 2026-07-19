@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
 import BookCard from "./BookCard";
 
-// Сколько карточек в ряду — зависит от ширины экрана (адаптивность)
-function usePageSize() {
+// Раскладка полки по ширине экрана: сколько карточек в ряду (десктоп — стрелки)
+// и мобильный ли режим (тогда — свайп scroll-snap вместо стрелок, задача 51)
+function useShelfLayout() {
   const compute = () => {
     const w = window.innerWidth;
-    if (w < 560) return 2;
-    if (w < 900) return 3;
-    return 5;
+    if (w < 560) return { pageSize: 2, isMobile: true };
+    if (w < 900) return { pageSize: 3, isMobile: false };
+    return { pageSize: 5, isMobile: false };
   };
-  const [size, setSize] = useState(compute);
+  const [layout, setLayout] = useState(compute);
   useEffect(() => {
-    const onResize = () => setSize(compute());
+    const onResize = () => setLayout(compute());
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
-  return size;
+  return layout;
 }
 
 // Полка управляемая: позиция листания (start) хранится у родителя (HomePage),
@@ -31,7 +32,7 @@ function Shelf({
   designs = {},
   theme = "light",
 }) {
-  const pageSize = usePageSize();
+  const { pageSize, isMobile } = useShelfLayout();
 
   if (placeholder) {
     return (
@@ -51,6 +52,33 @@ function Shelf({
           <h2 className="shelf-title">{title}</h2>
         </div>
         <p className="shelf-empty">Здесь пока пусто</p>
+      </section>
+    );
+  }
+
+  // Задача 51: на телефоне — свайп (нативная горизонтальная прокрутка со
+  // scroll-snap) вместо стрелок; показываем все книги полки одним рядом.
+  if (isMobile) {
+    return (
+      <section className="shelf">
+        <div className="shelf-head">
+          <h2 className="shelf-title">
+            {title} <span className="shelf-count">{books.length}</span>
+          </h2>
+        </div>
+        <div className="shelf-swipe">
+          {books.map((book) => (
+            <div className="shelf-swipe-item" key={book.id}>
+              <BookCard
+                book={book}
+                onSelect={onSelect}
+                symbolMode={symbolMode}
+                design={designs[book.id]}
+                theme={theme}
+              />
+            </div>
+          ))}
+        </div>
       </section>
     );
   }

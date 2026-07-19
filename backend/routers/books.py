@@ -83,17 +83,24 @@ def _find_existing_book(session: Session, data: BookCreate) -> Book | None:
 
 
 @router.get("/books", response_model=list[BookRead])
-def list_books(limit: int | None = None, offset: int = 0):
+def list_books(
+    status: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
+):
     """Полка текущего пользователя: JOIN userbook → book.
-    Задача 52: raw_metadata (тяжёлый JSON) в список не грузим."""
+    Задача 70: фильтр по статусу + limit/offset — под пополковую (ленивую)
+    загрузку на фронте. Задача 52: raw_metadata (тяжёлый JSON) в список не грузим."""
     with Session(database.engine) as session:
         query = (
             select(Book, UserBook)
             .join(UserBook, UserBook.book_id == Book.id)
             .where(UserBook.user_id == CURRENT_USER_ID)
-            .options(defer(Book.raw_metadata))
-            .order_by(Book.id)
-            .offset(offset)
+        )
+        if status is not None:
+            query = query.where(UserBook.status == status)
+        query = (
+            query.options(defer(Book.raw_metadata)).order_by(Book.id).offset(offset)
         )
         if limit is not None:
             query = query.limit(limit)
