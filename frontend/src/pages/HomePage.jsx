@@ -1,63 +1,37 @@
-// Главная: шапка с темой и импортом, поиск по библиотеке, полки.
-// Выделена из App.jsx (R6).
-import { useEffect, useMemo, useRef, useState } from "react";
+// Главная: шапка, поиск по библиотеке, полки. Логика вынесена в хуки
+// (useShelves / useCsvImport / useStickyHeader / useShelfPositions),
+// шапка — в LibraryHeader (ревью 19.07). Здесь остались состав и состояния экрана.
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
 import { useDisplayMode } from "../hooks/useDisplayMode";
+import { useStickyHeader } from "../hooks/useStickyHeader";
+import { useShelves } from "../hooks/useShelves";
+import { useCsvImport } from "../hooks/useCsvImport";
+import { useShelfPositions } from "../hooks/useShelfPositions";
 import BookCard from "../components/BookCard";
+import LibraryHeader from "../components/LibraryHeader";
 import Onboarding from "../components/Onboarding";
-import Shelf from "../components/Shelf";
-import SearchModal from "../components/SearchModal";
 import RecommendationShelf from "../components/RecommendationShelf";
-
-// Сортировка по дате (ISO-строка) по убыванию; пустая дата — в конец списка
-const byDateDesc = (field) => (a, b) =>
-  (b[field] ?? "").localeCompare(a[field] ?? "");
+import SearchModal from "../components/SearchModal";
+import Shelf from "../components/Shelf";
 
 function HomePage() {
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { mode, toggleMode } = useDisplayMode();
   const symbolMode = mode === "symbols";
 
+  const compactHeader = useStickyHeader();
+  const csv = useCsvImport();
+  const shelfProps = useShelfPositions();
+
   const [filter, setFilter] = useState("");
   const [showModal, setShowModal] = useState(false);
-  const [importMsg, setImportMsg] = useState("");
-  const fileInputRef = useRef(null);
   const addButtonRef = useRef(null);
-  // Позиция полок: HomePage размонтируется при уходе на карточку книги,
-  // поэтому state не выживает — храним в sessionStorage (переживает возврат и F5,
-  // чистится при закрытии вкладки)
-  const [shelfStart, setShelfStart] = useState(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem("shelfStart")) || {};
-    } catch {
-      return {};
-    }
-  });
-  useEffect(() => {
-    sessionStorage.setItem("shelfStart", JSON.stringify(shelfStart));
-  }, [shelfStart]);
-
-  const shelfProps = (title) => ({
-    start: shelfStart[title] || 0,
-    onStart: (v) => setShelfStart((prev) => ({ ...prev, [title]: v })),
-  });
-
-  // Задача 50: компактная липкая шапка после прокрутки.
-  // Пороги разные (гистерезис): сжатие укорачивает страницу на ~60px,
-  // и с одним порогом состояние зацикливалось бы на границе
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    const onScroll = () =>
-      setScrolled((prev) => (prev ? window.scrollY > 8 : window.scrollY > 90));
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   // Список книг: кэш keys.books; пока есть pending — поллинг каждые 2 секунды
   const {
@@ -85,29 +59,17 @@ function HomePage() {
     return map;
   }, [designData]);
 
-  const importMutation = useMutation({
-    mutationFn: api.importCsv,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: keys.books });
-      setImportMsg(
-        `Импортировано: ${data.imported}, дубликаты: ${data.duplicates ?? 0}, пропущено: ${data.skipped}`,
-      );
-    },
-  });
+  const shelves = useShelves(books);
 
-  function importCsv(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    importMutation.mutate(file);
-    e.target.value = "";
-  }
+  // общие пропсы полок — чтобы не повторять их у каждой
+  const shelfCards = { symbolMode, designs, theme };
+
+  const openBook = (b) => navigate(`/books/${b.id}`);
 
   function closeModal() {
     setShowModal(false);
-    addButtonRef.current?.focus(); // вернуть фокус туда, откуда открывали
+    addButtonRef.current?.focus();   // вернуть фокус туда, откуда открывали
   }
-
-  const openBook = (b) => navigate(`/books/${b.id}`);
 
   const trimmed = filter.trim().toLowerCase();
   const filtered = trimmed
@@ -117,82 +79,19 @@ function HomePage() {
           b.author.toLowerCase().includes(trimmed),
       )
     : null;
-  // Сортировка полок: «Прочитано» — недавно прочитанные сверху (read_at ↓),
-  // «Хочу прочитать» — недавно добавленные сверху (created_at = когда книга
-  // легла на полку). Даты приходят ISO-строками, сравнение строк корректно;
-  // книги без даты уходят в конец. filter() даёт новый массив — кэш не мутируем.
-  // «Читаю» — самая верхняя полка, но только если такие книги есть.
-  // Сортировка по updated_at: статус менялся недавно — значит начали недавно
-  // (отдельного started_at пока нет, он в задаче 27).
-  const readingBooks = useMemo(
-    () =>
-      books.filter((b) => b.status === "reading").sort(byDateDesc("updated_at")),
-    [books],
-  );
-  const readBooks = useMemo(
-    () => books.filter((b) => b.status === "read").sort(byDateDesc("read_at")),
-    [books],
-  );
-  const wantBooks = useMemo(
-    () => books.filter((b) => b.status === "want").sort(byDateDesc("created_at")),
-    [books],
-  );
 
   return (
     <>
-      <header className={"header" + (scrolled ? " header-compact" : "")}>
-        <div>
-          <h1 className="title">Библиотека</h1>
-          <p className="subtitle">Атмосферные литературные вечера</p>
-        </div>
-        <div className="header-actions">
-          {/* задача 66: вид полки — обложки или символы. На этапе 9 переедет
-              в личный кабинет вместе с импортом и языком */}
-          <button
-            className="btn-ghost"
-            onClick={toggleMode}
-            title="Как показывать полку"
-            aria-label={`Вид полки: ${symbolMode ? "символы" : "обложки"}. Переключить`}
-          >
-            {symbolMode ? "◈ Символы" : "▦ Обложки"}
-          </button>
-          <button
-            className="btn-ghost theme-toggle"
-            onClick={toggleTheme}
-            aria-pressed={theme === "dark"}
-            aria-label={
-              theme === "dark"
-                ? "Включить светлую тему"
-                : "Включить вечернюю тему"
-            }
-            title={theme === "dark" ? "Светлая тема" : "Вечерняя тема"}
-          >
-            {theme === "dark" ? "☀" : "☾"}
-          </button>
-          <input
-            type="file"
-            accept=".csv"
-            ref={fileInputRef}
-            onChange={importCsv}
-            className="file-input-hidden"
-            aria-label="Файл CSV для импорта"
-          />
-          <button
-            className="btn-ghost"
-            onClick={() => fileInputRef.current.click()}
-            disabled={importMutation.isPending}
-          >
-            {importMutation.isPending ? "Импортирую…" : "Импорт CSV"}
-          </button>
-          <button
-            className="add-btn"
-            onClick={() => setShowModal(true)}
-            ref={addButtonRef}
-          >
-            + Добавить книгу
-          </button>
-        </div>
-      </header>
+      <LibraryHeader
+        compact={compactHeader}
+        symbolMode={symbolMode}
+        onToggleMode={toggleMode}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        csv={csv}
+        onAddBook={() => setShowModal(true)}
+        addButtonRef={addButtonRef}
+      />
 
       <input
         className="lib-search"
@@ -201,12 +100,8 @@ function HomePage() {
         onChange={(e) => setFilter(e.target.value)}
       />
 
-      {importMsg && <p className="muted">{importMsg}</p>}
-      {importMutation.isError && (
-        <p className="error">
-          Импорт не удался: {importMutation.error.message}
-        </p>
-      )}
+      {csv.message && <p className="muted">{csv.message}</p>}
+      {csv.error && <p className="error">Импорт не удался: {csv.error.message}</p>}
 
       {loading ? (
         <p className="muted">Загрузка…</p>
@@ -239,33 +134,28 @@ function HomePage() {
         )
       ) : (
         <>
-          {readingBooks.length > 0 && (
+          {/* «Читаю» — только если такие книги есть */}
+          {shelves.reading.length > 0 && (
             <Shelf
               title="Читаю"
-              books={readingBooks}
+              books={shelves.reading}
               onSelect={openBook}
-              symbolMode={symbolMode}
-              designs={designs}
-              theme={theme}
+              {...shelfCards}
               {...shelfProps("Читаю")}
             />
           )}
           <Shelf
             title="Прочитано"
-            books={readBooks}
+            books={shelves.read}
             onSelect={openBook}
-            symbolMode={symbolMode}
-            designs={designs}
-            theme={theme}
+            {...shelfCards}
             {...shelfProps("Прочитано")}
           />
           <Shelf
             title="Хочу прочитать"
-            books={wantBooks}
+            books={shelves.want}
             onSelect={openBook}
-            symbolMode={symbolMode}
-            designs={designs}
-            theme={theme}
+            {...shelfCards}
             {...shelfProps("Хочу прочитать")}
           />
           <RecommendationShelf />
