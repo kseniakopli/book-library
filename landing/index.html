@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>nocturne — атмосферные литературные вечера</title>
+    <meta
+      name="description"
+      content="Личная библиотека, которая подбирает к каждой книге музыку, угощения, ароматы и собственное оформление. Чтобы вечер с книгой стал ритуалом."
+    />
+    <!-- OG: превью при отправке ссылки в мессенджеры -->
+    <meta property="og:title" content="nocturne — атмосферные литературные вечера" />
+    <meta
+      property="og:description"
+      content="Не трекер книг. Библиотека, которая превращает чтение в ритуал: палитра книги, плейлист вечера, угощения и ароматы."
+    />
+    <meta property="og:type" content="website" />
+    <!-- ЗАМЕНИТЬ на реальный адрес после деплоя: -->
+    <meta property="og:image" content="screens/1.png" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #161311;
+        --surface: #221c17;
+        --accent: #e08b2d;
+        --on-accent: #1a1410;
+        --text: #e9e1d3;
+        --muted: #a19585;
+        --border: #3a322a;
+        --serif: "PT Serif", Georgia, serif;
+        --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+        line-height: 1.6;
+      }
+
+      .wrap {
+        max-width: 940px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      /* --- герой --- */
+      .hero {
+        text-align: center;
+        padding: 88px 0 72px;
+        /* мягкое свечение, как от лампы в тёмной комнате */
+        background:
+          radial-gradient(60% 50% at 50% 0%, rgba(224, 139, 45, 0.14), transparent 70%);
+      }
+      .moon { width: 64px; height: 64px; color: var(--accent); }
+      .brand {
+        font-family: var(--serif);
+        font-size: 56px;
+        letter-spacing: 0.5px;
+        margin: 16px 0 6px;
+      }
+      .tagline {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 22px;
+        color: var(--accent);
+        margin: 0 0 22px;
+      }
+      .lead {
+        max-width: 34em;
+        margin: 0 auto 32px;
+        color: var(--muted);
+        font-size: 17px;
+      }
+
+      /* --- форма листа ожидания --- */
+      .waitlist {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 0 auto;
+        max-width: 460px;
+      }
+      .waitlist input {
+        flex: 1 1 240px;
+        min-width: 0;
+        font: inherit;
+        font-size: 16px; /* <16px вызывает автозум на iOS */
+        color: var(--text);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 13px 14px;
+      }
+      .waitlist input::placeholder { color: #7d7266; }
+      .waitlist button {
+        font: inherit;
+        font-size: 16px;
+        color: var(--on-accent);
+        background: var(--accent);
+        border: none;
+        border-radius: 10px;
+        padding: 13px 22px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .waitlist button:hover { filter: brightness(1.06); }
+      .note {
+        color: var(--muted);
+        font-size: 14px;
+        margin-top: 12px;
+      }
+      .note a { color: var(--accent); }
+
+      /* --- секции --- */
+      section { padding: 56px 0; }
+      h2 {
+        font-family: var(--serif);
+        font-size: 30px;
+        margin: 0 0 8px;
+        text-align: center;
+      }
+      .section-lead {
+        text-align: center;
+        color: var(--muted);
+        margin: 0 auto 36px;
+        max-width: 32em;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 18px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 22px;
+      }
+      .card h3 {
+        font-family: var(--serif);
+        font-size: 20px;
+        margin: 0 0 8px;
+      }
+      .card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+      /* --- скриншоты --- */
+      .shots {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 18px;
+      }
+      figure { margin: 0; }
+      figure img {
+        width: 100%;
+        display: block;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+      figcaption {
+        color: var(--muted);
+        font-size: 14px;
+        margin-top: 8px;
+        text-align: center;
+      }
+
+      video {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        display: block;
+      }
+
+      footer {
+        border-top: 1px solid var(--border);
+        padding: 28px 0 40px;
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      footer a { color: var(--accent); }
+
+      @media (max-width: 560px) {
+        .brand { font-size: 42px; }
+        .hero { padding: 64px 0 52px; }
+        h2 { font-size: 25px; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="hero">
+      <div class="wrap">
+        <!-- полумесяц бренда: тело-круг слева, вырез справа -->
+        <svg class="moon" viewBox="0 0 24 24" aria-hidden="true">
+          <mask id="moon">
+            <rect width="24" height="24" fill="#000" />
+            <circle cx="11" cy="12" r="9" fill="#fff" />
+            <circle cx="16" cy="12" r="8" fill="#000" />
+          </mask>
+          <rect width="24" height="24" fill="currentColor" mask="url(#moon)" />
+        </svg>
+
+        <h1 class="brand">nocturne</h1>
+        <p class="tagline">Атмосферные литературные вечера</p>
+        <p class="lead">
+          Не трекер книг. Личная библиотека, которая подбирает к каждой книге
+          музыку, угощения, ароматы и собственное оформление — чтобы вечер с
+          книгой стал ритуалом, а не строкой в списке.
+        </p>
+
+        <!-- ЛИСТ ОЖИДАНИЯ.
+             Вставь в action ссылку своей формы (Formspree, Tally, Getform):
+             например action="https://formspree.io/f/xxxxxxx" -->
+        <form class="waitlist" action="ВСТАВЬТЕ_ССЫЛКУ_ФОРМЫ" method="POST">
+          <label for="email" hidden>Ваша почта</label>
+          <input
+            id="email"
+            type="email"
+            name="email"
+            required
+            placeholder="ваша@почта.ru"
+            autocomplete="email"
+          />
+          <button type="submit">Хочу попробовать</button>
+        </form>
+        <p class="note">
+          Напишу, когда открою доступ. Без рассылок и спама — только одно письмо.
+        </p>
+      </div>
+    </header>
+
+    <section>
+      <div class="wrap">
+        <h2>Что делает nocturne</h2>
+        <p class="section-lead">
+          Каждой книге — своё настроение. Сервис собирает его целиком, а не по кусочкам.
+        </p>
+
+        <div class="cards">
+          <article class="card">
+            <h3>Паспорт книги</h3>
+            <p>
+              ИИ подбирает палитру и шрифты и рисует символ-экслибрис. Страница
+              книги перекрашивается под её настроение — «Ночной дозор» и
+              «Джейн Эйр» выглядят по-разному.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Музыка вечера</h3>
+            <p>
+              Плейлист под конкретную книгу: два ИИ предлагают свои варианты с
+              пояснениями, треки собираются в плейлист Spotify одной кнопкой.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Угощения и ароматы</h3>
+            <p>
+              Что заварить и чем наполнить комнату, чтобы совпало с текстом:
+              от глинтвейна под скандинавский нуар до сандала под японскую прозу.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Вечер с книгой</h3>
+            <p>
+              Полноэкранная сцена: палитра книги, музыка, угощения и ароматы —
+              всё в одном, чтобы просто начать вечер и не отвлекаться.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Печатная карточка</h3>
+            <p>
+              A6 с экслибрисом, треками и QR на плейлист — вложить в книгу,
+              которую даришь или отдаёшь почитать.
+            </p>
+          </article>
+
+          <article class="card">
+            <h3>Ваша библиотека</h3>
+            <p>
+              Статусы и оценки, импорт из CSV (LiveLib и другие), обложки и
+              метаданные подтягиваются сами.
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Как это выглядит</h2>
+        <p class="section-lead">
+          Положите скриншоты в папку <code>screens/</code> рядом с этой страницей.
+        </p>
+
+        <div class="shots">
+          <figure>
+            <img src="screens/1.png" alt="Полка библиотеки с обложками и символами книг" />
+            <figcaption>Полка: обложки или фирменные экслибрисы</figcaption>
+          </figure>
+          <figure>
+            <img src="screens/2.png" alt="Страница книги в палитре её паспорта оформления" />
+            <figcaption>Книга в собственной палитре</figcaption>
+          </figure>
+          <figure>
+            <img src="screens/3.png" alt="Печатная карточка книги формата A6 с QR-кодом" />
+            <figcaption>Печатная карточка A6</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>Вечер за минуту</h2>
+        <p class="section-lead">
+          Короткий скринкаст: от полки до полноэкранной сцены вечера.
+          Положите файл как <code>screencast.mp4</code>.
+        </p>
+        <video controls preload="none" poster="screens/1.png">
+          <source src="screencast.mp4" type="video/mp4" />
+          Ваш браузер не умеет проигрывать видео — скачайте
+          <a href="screencast.mp4">файл</a>.
+        </video>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap" style="text-align: center">
+        <h2>Хотите попробовать?</h2>
+        <p class="section-lead">
+          Сервис в разработке. Оставьте почту — напишу, когда открою доступ.
+        </p>
+        <form class="waitlist" action="ВСТАВЬТЕ_ССЫЛКУ_ФОРМЫ" method="POST">
+          <label for="email2" hidden>Ваша почта</label>
+          <input
+            id="email2"
+            type="email"
+            name="email"
+            required
+            placeholder="ваша@почта.ru"
+            autocomplete="email"
+          />
+          <button type="submit">Записаться</button>
+        </form>
+        <p class="note">
+          Или просто напишите:
+          <a href="mailto:ВАША_ПОЧТА@example.com">ВАША_ПОЧТА@example.com</a>
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        nocturne — личный проект о том, что чтение заслуживает атмосферы.
+      </div>
+    </footer>
+  </body>
+</html>
