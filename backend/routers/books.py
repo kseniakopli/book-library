@@ -63,22 +63,37 @@ def _to_book_read(book: Book, ub: UserBook) -> dict:
     }
 
 
+def _norm_isbn(value: str | None) -> str | None:
+    """Первый ISBN из списка, без дефисов и пробелов (как в импорте CSV)."""
+    if not value:
+        return None
+    return value.split(",")[0].replace("-", "").replace(" ", "").strip() or None
+
+
 def _find_existing_book(session: Session, data: BookCreate) -> Book | None:
-    """Ищем книгу в общем каталоге, чтобы переиспользовать (и её атмосферу).
-    Приоритет: явный book_id (выбор из локального поиска) → ISBN → нормализованная
-    пара «название+автор». Сравнение по-питоновски: SQLite lower() не знает кириллицы."""
+    """Ищем книгу в общем каталоге, чтобы переиспользовать её (вместе с готовой
+    атмосферой и плейлистом). Приоритет: явный book_id (выбор из локального
+    поиска) → ISBN, если он передан → нормализованная пара «название+автор».
+
+    Сравнение по-питоновски: SQLite lower() не понижает кириллицу.
+    Выбираем ТОЛЬКО ключевые колонки — иначе на каждое добавление поднимался бы
+    весь каталог вместе с raw_metadata (5–30 КБ на книгу)."""
     if data.book_id is not None:
         return session.get(Book, data.book_id)
 
     key_title = data.title.strip().lower()
     key_author = data.author.strip().lower()
-    # небольшая персональная база — допустимо сравнить в Python (как в импорте CSV)
-    for book in session.exec(select(Book)).all():
+    key_isbn = _norm_isbn(data.isbn)
+
+    rows = session.exec(select(Book.id, Book.title, Book.author, Book.isbn)).all()
+    for book_id, title, author, isbn in rows:
+        if key_isbn and _norm_isbn(isbn) == key_isbn:
+            return session.get(Book, book_id)
         if (
-            book.title.strip().lower() == key_title
-            and book.author.strip().lower() == key_author
+            title.strip().lower() == key_title
+            and author.strip().lower() == key_author
         ):
-            return book
+            return session.get(Book, book_id)
     return None
 
 
@@ -162,6 +177,7 @@ def add_book(
                 title=data.title,
                 author=data.author,
                 cover_url=data.cover_url,   # обложка кандидата из поиска видна сразу
+                isbn=data.isbn,             # если передан — сохраняем, дедуп по нему
                 enrich_status=ENRICH_PENDING,
             )
             session.add(book)

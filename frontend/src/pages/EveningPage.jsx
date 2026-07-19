@@ -11,6 +11,7 @@ import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
 import { centeredSvgDataUri } from "../lib/svg";
 import { bestTextOn, withAlpha } from "../lib/contrast";
+import { pickPalette } from "../lib/palette";
 
 const SOURCES = ["Claude", "ChatGPT"];
 
@@ -48,11 +49,7 @@ function EveningPage() {
   });
 
   const passport = design.data?.selections?.[0]?.payload ?? null;
-  const palette = passport
-    ? theme === "dark"
-      ? (passport.palette_dark ?? passport.palette)
-      : (passport.palette_light ?? passport.palette_dark ?? passport.palette)
-    : null;
+  const palette = pickPalette(passport, theme);   // единое правило — lib/palette
 
   const symbolUri = useMemo(
     () => (passport?.symbol_svg ? centeredSvgDataUri(passport.symbol_svg) : null),

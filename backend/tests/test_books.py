@@ -299,6 +299,25 @@ def test_add_duplicate_on_shelf_returns_409(client, monkeypatch):
     assert r.status_code == 409
 
 
+def test_add_book_dedupes_by_isbn(client, monkeypatch):
+    """Дедуп при добавлении идёт и по ISBN (ревью 19.07): другое написание
+    названия с тем же ISBN — та же книга каталога, значит уже на полке → 409.
+    Заодно проверяем нормализацию (дефисы не мешают)."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+
+    first = client.post("/api/v1/books", json={
+        "title": "Дюна", "author": "Фрэнк Герберт", "isbn": "978-5-00-000000-0",
+    })
+    assert first.status_code == 200
+
+    same = client.post("/api/v1/books", json={
+        "title": "Дюна (новый перевод)", "author": "Ф. Герберт",
+        "isbn": "9785000000000",          # тот же ISBN, записан иначе
+    })
+    assert same.status_code == 409
+
+
 def test_add_existing_catalog_book_is_reused(client):
     """Книга уже в каталоге (но не на полке) → переиспользуется, дубля нет
     и оформление заново не генерится (design-фейк не понадобится)."""

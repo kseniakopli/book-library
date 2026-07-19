@@ -8,6 +8,7 @@ import { keys } from "../queryKeys";
 import { STATUS_LABELS, STATUSES } from "../constants";
 import { useTheme } from "../hooks/useTheme";
 import { bestTextOn, hasReadableContrast, withAlpha } from "../lib/contrast";
+import { pickPalette } from "../lib/palette";
 import { centeredSvgDataUri } from "../lib/svg";
 import AtmosphereSection from "./AtmosphereSection";
 import EditBookModal from "./EditBookModal";
@@ -48,13 +49,8 @@ function BookDetail({ book, onBack, onDeleted }) {
   const [coverBroken, setCoverBroken] = useState(false);
   const coverOk = book.cover_url && !coverBroken;
 
-  // Задача 57: палитра выбирается по теме интерфейса. Новый формат паспорта —
-  // palette_dark + palette_light; старый (одно поле palette) считаем тёмным.
-  const palette = design
-    ? theme === "dark"
-      ? (design.palette_dark ?? design.palette)
-      : design.palette_light
-    : null;
+  // Задача 57: палитра выбирается по теме интерфейса (единое правило — lib/palette)
+  const palette = pickPalette(design, theme);
 
   // Задача 23: применяем AI-палитру, только если текст читаем на её фоне (WCAG AA).
   const appliedDesign =

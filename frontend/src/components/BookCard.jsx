@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { STATUS_LABELS } from "../constants";
 import { centeredSvgDataUri } from "../lib/svg";
+import { pickPalette } from "../lib/palette";
 
 // symbolMode + design + theme (задача 66): в символьном режиме карточка рисует
 // экслибрис на палитре паспорта вместо обложки. Нет паспорта — обычный вид.
@@ -11,12 +12,8 @@ function BookCard({
   design = null,
   theme = "light",
 }) {
-  // палитра по теме интерфейса; старый паспорт — только palette_dark
-  const palette = design
-    ? theme === "dark"
-      ? design.palette_dark
-      : (design.palette_light ?? design.palette_dark)
-    : null;
+  // палитра по теме интерфейса (единое правило — lib/palette)
+  const palette = pickPalette(design, theme);
 
   const symbolUri = useMemo(
     () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
