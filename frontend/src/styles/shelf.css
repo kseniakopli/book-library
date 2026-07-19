@@ -68,6 +68,73 @@
   color: var(--muted);
 }
 
+/* ===== Полка «Рекомендации» (этап 8): карточка с причиной совета ===== */
+.rec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.rec-card {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  grid-template-areas: "cover text" "cover add";
+  gap: 4px 14px;
+  align-items: start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+.rec-cover {
+  grid-area: cover;
+  width: 56px;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--cover-placeholder);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rec-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.rec-cover-empty {
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+  padding: 0 4px;
+}
+.rec-text { grid-area: text; min-width: 0; }
+.rec-title {
+  font-family: var(--serif);
+  font-size: 17px;
+  margin: 0 0 2px;
+}
+.rec-author {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.rec-reason {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+.rec-add {
+  grid-area: add;
+  justify-self: start;
+  margin-top: 10px;
+  font-size: 13px;
+  padding: 7px 12px;
+}
+
 /* Задача 51: на телефоне полка — свайп со scroll-snap (без стрелок).
    Карточки ~44% ширины → видно две с «peek» третьей, подсказывающим прокрутку. */
 .shelf-swipe {

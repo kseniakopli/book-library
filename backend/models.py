@@ -74,6 +74,21 @@ class AISelection(SQLModel, table=True):
     explanation: str = ""             # пояснение от AI
     created_at: datetime = Field(default_factory=datetime.now)
 
+# --- Рекомендации (этап 8): книги, которых у пользователя ещё НЕТ.
+# Генерируются по кнопке (LLM по высоко оценённым книгам) и хранятся до
+# следующей генерации — набор целиком заменяется. Ссылки на book.id нет:
+# рекомендованной книги в каталоге может не быть вовсе ---
+class Recommendation(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    title: str
+    author: str
+    reason: str                            # почему именно эта книга
+    cover_url: Optional[str] = None        # подтягиваем из Google Books
+    external_id: Optional[str] = None      # том Google Books — точное добавление
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # --- Каталог для поиска: наполняется из внешних источников, кэш для автоподсказки ---
 class Catalog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -44,10 +44,11 @@ function initialBooks() {
   ];
 }
 
-export const db = { books: initialBooks() };
+export const db = { books: initialBooks(), recommendations: [] };
 
 export function resetDb() {
   db.books = initialBooks();
+  db.recommendations = [];
 }
 
 function findBook(params) {
@@ -134,6 +135,23 @@ export const handlers = [
   http.post("/api/v1/import", () =>
     HttpResponse.json({ imported: 2, duplicates: 1, skipped: 0 }),
   ),
+
+  // Рекомендации (этап 8): пусто до генерации, POST наполняет набор
+  http.get("/api/v1/recommendations", () =>
+    HttpResponse.json({ recommendations: db.recommendations }),
+  ),
+  http.post("/api/v1/recommendations", () => {
+    db.recommendations = [
+      {
+        title: "Тень ветра",
+        author: "Карлос Руис Сафон",
+        reason: "Готическая тайна в духе «Волшебной горы», которую вы оценили высоко",
+        cover_url: null,
+        external_id: null,
+      },
+    ];
+    return HttpResponse.json({ recommendations: db.recommendations });
+  }),
 
   // Символьный режим полки (задача 66): символ+палитры паспорта по книгам
   http.get("/api/v1/books/design-summary", () =>

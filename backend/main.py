@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 import database
-from routers import atmosphere, books, imports, search, spotify
+from routers import atmosphere, books, imports, recommendations, search, spotify
 
 app = FastAPI(
     title="nocturne API",
@@ -16,6 +16,7 @@ app.include_router(books.router, prefix=API_V1)       # CRUD книг + ручн
 app.include_router(atmosphere.router, prefix=API_V1)  # AI-атмосфера
 app.include_router(search.router, prefix=API_V1)      # поиск: каталог + Google Books
 app.include_router(imports.router, prefix=API_V1)     # импорт CSV и backfill
+app.include_router(recommendations.router, prefix=API_V1)  # этап 8: советы книг
 app.include_router(spotify.router, prefix=API_V1)     # плейлисты и QR
 # /callback — без префикса: адрес зарегистрирован в кабинете Spotify
 app.include_router(spotify.callback_router)

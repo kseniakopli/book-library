@@ -1,0 +1,127 @@
+# Рекомендации новых книг (этап 8).
+# Генерируются ПО КНОПКЕ (решение 19.07): LLM смотрит на высоко оценённые книги
+# и предлагает те, которых в библиотеке нет. Набор хранится в БД и заменяется
+# целиком при следующей генерации — на главной он просто читается.
+from datetime import datetime
+
+from fastapi import APIRouter, Depends
+from sqlmodel import Session, select
+
+import database
+from constants import EVENT_AI_RECOMMENDATIONS, STATUS_READ
+from deps import CURRENT_USER_ID, get_lang, require_admin
+from events import log_event
+from google_books import search_books
+from models import Book, Recommendation, UserBook
+from services.ai import generate_recommendations
+
+router = APIRouter(tags=["recommendations"])
+
+MIN_RATING = 7        # что считаем «понравилось»
+MAX_FAVORITES = 20    # столько любимых книг отдаём модели (промпт не резиновый)
+COUNT = 8             # столько советов просим
+
+
+def _norm(title: str, author: str) -> tuple[str, str]:
+    return title.strip().lower(), author.strip().lower()
+
+
+@router.get("/recommendations")
+def list_recommendations():
+    """Сохранённые рекомендации пользователя (пусто — фронт зовёт подобрать)."""
+    with Session(database.engine) as session:
+        rows = session.exec(
+            select(Recommendation)
+            .where(Recommendation.user_id == CURRENT_USER_ID)
+            .order_by(Recommendation.id)
+        ).all()
+        return {
+            "recommendations": [
+                {
+                    "title": r.title,
+                    "author": r.author,
+                    "reason": r.reason,
+                    "cover_url": r.cover_url,
+                    "external_id": r.external_id,
+                }
+                for r in rows
+            ]
+        }
+
+
+@router.post("/recommendations")
+async def generate(lang: str = Depends(get_lang)):
+    """Подобрать рекомендации заново. Тратит токены → только admin."""
+    with Session(database.engine) as session:
+        require_admin(session, lang)
+
+        # 1) сигналы: что понравилось (оценка ≥ MIN_RATING), свежее — важнее
+        liked = session.exec(
+            select(Book, UserBook)
+            .join(UserBook, UserBook.book_id == Book.id)
+            .where(
+                UserBook.user_id == CURRENT_USER_ID,
+                UserBook.status == STATUS_READ,
+                UserBook.rating.is_not(None),
+                UserBook.rating >= MIN_RATING,
+            )
+            .order_by(UserBook.rating.desc(), UserBook.read_at.desc())
+            .limit(MAX_FAVORITES)
+        ).all()
+        favorites = [f"{b.title} — {b.author} ({ub.rating}/10)" for b, ub in liked]
+
+        # 2) что уже есть на полке — не предлагать повторно
+        shelf = session.exec(
+            select(Book.title, Book.author)
+            .join(UserBook, UserBook.book_id == Book.id)
+            .where(UserBook.user_id == CURRENT_USER_ID)
+        ).all()
+        exclude = [f"{t} — {a}" for t, a in shelf]
+        known = {_norm(t, a) for t, a in shelf}
+
+    if not favorites:
+        # нечего анализировать — честно говорим, токены не тратим
+        return {"recommendations": [], "detail": "no_favorites"}
+
+    result = await generate_recommendations(favorites, exclude, COUNT, lang)
+
+    # 3) дедуп на своей стороне: модель могла не заметить книгу из списка
+    fresh = []
+    seen = set()
+    for item in result.items:
+        key = _norm(item.title, item.author)
+        if key in known or key in seen:
+            continue
+        seen.add(key)
+        fresh.append(item)
+
+    # 4) обложки: один поиск в Google Books на книгу (мягко — без обложки тоже ок)
+    covers = {}
+    for item in fresh:
+        candidates = search_books(f"{item.title} {item.author}", max_results=3)
+        match = next((c for c in candidates if c.get("cover_url")), None)
+        if match:
+            covers[_norm(item.title, item.author)] = match
+
+    # 5) заменяем набор целиком
+    with Session(database.engine) as session:
+        for old in session.exec(
+            select(Recommendation).where(Recommendation.user_id == CURRENT_USER_ID)
+        ).all():
+            session.delete(old)
+        session.flush()
+        for item in fresh:
+            found = covers.get(_norm(item.title, item.author)) or {}
+            session.add(Recommendation(
+                user_id=CURRENT_USER_ID,
+                title=item.title,
+                author=item.author,
+                reason=item.reason,
+                cover_url=found.get("cover_url"),
+                external_id=found.get("external_id"),
+                created_at=datetime.now(),
+            ))
+        session.commit()
+
+    log_event(EVENT_AI_RECOMMENDATIONS, detail=f"count={len(fresh)}")
+    return list_recommendations()

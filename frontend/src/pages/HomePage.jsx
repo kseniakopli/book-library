@@ -11,6 +11,7 @@ import BookCard from "../components/BookCard";
 import Onboarding from "../components/Onboarding";
 import Shelf from "../components/Shelf";
 import SearchModal from "../components/SearchModal";
+import RecommendationShelf from "../components/RecommendationShelf";
 
 // Сортировка по дате (ISO-строка) по убыванию; пустая дата — в конец списка
 const byDateDesc = (field) => (a, b) =>
@@ -267,10 +268,7 @@ function HomePage() {
             theme={theme}
             {...shelfProps("Хочу прочитать")}
           />
-          <Shelf
-            title="Рекомендации"
-            placeholder="Скоро — на основе прочитанного"
-          />
+          <RecommendationShelf />
         </>
       )}
 

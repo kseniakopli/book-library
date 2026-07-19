@@ -16,6 +16,7 @@ from prompt_config import (
     build_design_prompt,
     build_food_prompt,
     build_music_prompt,
+    build_recommendations_prompt,
 )
 
 
@@ -194,6 +195,29 @@ generate_aroma = make_two_source_generator(
     build_aroma_prompt, AromaResult,
     lambda: AromaResult(items=[], explanation=FAILED_TEXT),
 )
+
+
+class RecommendationItem(BaseModel):
+    """Совет прочитать книгу, которой у пользователя ещё нет."""
+    title: str
+    author: str
+    reason: str      # почему именно эта — со ссылкой на вкусы читателя
+
+
+class RecommendationsResult(BaseModel):
+    items: list[RecommendationItem]
+
+
+async def generate_recommendations(
+    favorites: list[str], exclude: list[str], count: int = 8, lang: str = "ru"
+) -> RecommendationsResult:
+    """Этап 8: рекомендации новых книг по высоко оценённым.
+    `favorites` — «Название — Автор (оценка)», `exclude` — что уже в библиотеке
+    (модель просят не повторять; на всякий случай дедуп ещё и в роутере)."""
+    return await ask_claude(
+        _with_style(build_recommendations_prompt(favorites, exclude, count, lang)),
+        RecommendationsResult,
+    )
 
 
 async def generate_design(title: str, author: str, lang: str = "ru") -> DesignResult:

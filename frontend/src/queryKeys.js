@@ -7,4 +7,5 @@ export const keys = {
   search: (term) => ["search", term],
   atmosphere: (id, category) => ["atmosphere", Number(id), category],
   designSummary: ["design-summary"],   // символы+палитры для символьного режима полки
+  recommendations: ["recommendations"], // этап 8: советы новых книг
 };

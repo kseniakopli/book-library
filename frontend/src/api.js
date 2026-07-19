@@ -59,6 +59,11 @@ export const enrichBook = (id) =>
 export const createPlaylist = (id) =>
   request(`/books/${id}/playlist`, { method: "POST" });
 
+// Рекомендации (этап 8): читаются всегда, генерируются по кнопке (тратит токены)
+export const getRecommendations = () => request("/recommendations");
+export const generateRecommendations = () =>
+  request("/recommendations", { method: "POST" });
+
 // Атмосфера: единые эндпоинты для всех категорий (music, design, food, aroma).
 // GET и POST возвращают одинаковый формат: { book_id, category, selections: [...] }
 export const getAtmosphere = (id, category) =>
