@@ -58,7 +58,11 @@ class BookUpdate(BaseModel):
 
 class BookRead(BaseModel):
     """Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —
-    полный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний)."""
+    полный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний).
+
+    После разделения таблиц ответ склеивается из двух источников: общие поля
+    книги (Book) + личные поля полки (UserBook). Сборка — в `from_pair`,
+    рядом с самим контрактом (ревью 19.07: раньше жила в роутере)."""
     id: int
     user_id: int
     title: str
@@ -78,3 +82,29 @@ class BookRead(BaseModel):
     spotify_playlist_url: Optional[str] = None
     updated_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
+
+    @classmethod
+    def from_pair(cls, book, user_book) -> "BookRead":
+        """Склейка ответа: общие поля книги + личные поля полки.
+        Контракт остаётся плоским — фронт читает как до разделения таблиц."""
+        return cls(
+            id=book.id,
+            user_id=user_book.user_id,
+            title=book.title,
+            author=book.author,
+            cover_url=book.cover_url,
+            description=book.description,
+            status=user_book.status,
+            rating=user_book.rating,
+            created_at=user_book.created_at,      # когда книга легла на полку
+            page_count=book.page_count,
+            categories=book.categories,
+            published_year=book.published_year,
+            language=book.language,
+            external_rating=book.external_rating,
+            isbn=book.isbn,
+            enrich_status=book.enrich_status,
+            spotify_playlist_url=book.spotify_playlist_url,
+            updated_at=user_book.updated_at,
+            read_at=user_book.read_at,
+        )
