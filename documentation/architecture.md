@@ -79,6 +79,16 @@ sequenceDiagram
 Adding a category (stage 7: food, aroma) = a generator in `services/ai.py` + one entry in
 `CATEGORIES` (backend) + one entry in `COPY`/`renderPayload` in `AtmosphereSection.jsx`.
 
+## Runtime states and failure behaviour
+
+Book states (shelf status, enrichment, passport, atmosphere, playlist) are independent
+dimensions, and every external dependency is optional. Both are documented separately:
+see [states-and-degradation.md](states-and-degradation.md).
+
+The API contract is snapshotted in [openapi.json](openapi.json) — regenerate with
+`python backend/dump_openapi.py` after changing endpoints, so breaking changes show up
+as a plain diff.
+
 ## Decisions worth knowing (short ADR log)
 
 | Decision | Why | Revisit when |
