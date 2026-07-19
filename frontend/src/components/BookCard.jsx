@@ -25,6 +25,8 @@ function BookCard({
   // символ мог сгенерироваться битым (обрезанный/невалидный SVG) — тогда
   // <img> не отрисуется; ловим onError и откатываемся на полумесяц
   const [symbolBroken, setSymbolBroken] = useState(false);
+  // обложка может не загрузиться (битая/пропавшая ссылка) — тогда честная заглушка
+  const [coverBroken, setCoverBroken] = useState(false);
   const showSymbol = symbolMode && palette && symbolUri && !symbolBroken;
 
   // логотип-полумесяц: и для книг без паспорта, и как фолбэк для битого символа
@@ -82,9 +84,14 @@ function BookCard({
             // нет паспорта или битый символ — логотип-полумесяц (полка единая)
             moon
           )
-        ) : book.cover_url ? (
+        ) : book.cover_url && !coverBroken ? (
           // задача 56: lazy — браузер грузит обложку при приближении к экрану
-          <img src={book.cover_url} alt="" loading="lazy" />
+          <img
+            src={book.cover_url}
+            alt=""
+            loading="lazy"
+            onError={() => setCoverBroken(true)}
+          />
         ) : (
           <div className="cover-empty">Нет обложки</div>
         )}

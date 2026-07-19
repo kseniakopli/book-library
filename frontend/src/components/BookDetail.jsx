@@ -44,6 +44,9 @@ function BookDetail({ book, onBack, onDeleted }) {
   // не отрисуется; ловим onError и прячем символ (значок у заголовка и в обложке)
   const [symbolBroken, setSymbolBroken] = useState(false);
   const symbolOk = symbolUri && !symbolBroken;
+  // обложка может не загрузиться (битая ссылка) — откатываемся на символ/заглушку
+  const [coverBroken, setCoverBroken] = useState(false);
+  const coverOk = book.cover_url && !coverBroken;
 
   // Задача 57: палитра выбирается по теме интерфейса. Новый формат паспорта —
   // palette_dark + palette_light; старый (одно поле palette) считаем тёмным.
@@ -209,8 +212,12 @@ function BookDetail({ book, onBack, onDeleted }) {
         <div className="detail-main">
           <div className="detail-top">
             <div className="detail-cover">
-          {book.cover_url ? (
-            <img src={book.cover_url} alt={`Обложка книги «${book.title}»`} />
+          {coverOk ? (
+            <img
+              src={book.cover_url}
+              alt={`Обложка книги «${book.title}»`}
+              onError={() => setCoverBroken(true)}
+            />
           ) : symbolOk ? (
             // задача 50: вместо «Нет обложки» — символ-экслибрис книги
             <div className="cover-empty cover-symbol">
