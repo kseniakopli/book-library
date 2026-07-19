@@ -14,6 +14,8 @@ function initialBooks() {
       cover_url: null,
       description: "Роман о санатории в Альпах.",
       enrich_status: "ready",
+      created_at: "2026-07-01T10:00:00",
+      read_at: "2026-07-10T10:00:00",
     },
     {
       id: 2,
@@ -24,6 +26,8 @@ function initialBooks() {
       cover_url: null,
       description: null,
       enrich_status: "ready",
+      created_at: "2026-07-02T10:00:00",   // добавлена раньше «Замка Броуди»
+      read_at: null,
     },
     {
       id: 3,
@@ -34,6 +38,8 @@ function initialBooks() {
       cover_url: null,
       description: null,
       enrich_status: "ready",
+      created_at: "2026-07-05T10:00:00",   // добавлена позже → выше на полке
+      read_at: null,
     },
   ];
 }
@@ -68,6 +74,7 @@ export const handlers = [
       status: body.status ?? "want",
       rating: null,
       read_at: body.read_at ?? null,
+      created_at: new Date().toISOString(),   // только что добавлена → выше всех
       cover_url: body.cover_url ?? null,
       description: null,
       enrich_status: "ready", // в тестах «фон» мгновенный — без поллинга

@@ -12,6 +12,10 @@ import Onboarding from "../components/Onboarding";
 import Shelf from "../components/Shelf";
 import SearchModal from "../components/SearchModal";
 
+// Сортировка по дате (ISO-строка) по убыванию; пустая дата — в конец списка
+const byDateDesc = (field) => (a, b) =>
+  (b[field] ?? "").localeCompare(a[field] ?? "");
+
 function HomePage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -112,8 +116,18 @@ function HomePage() {
           b.author.toLowerCase().includes(trimmed),
       )
     : null;
-  const readBooks = books.filter((b) => b.status === "read");
-  const wantBooks = books.filter((b) => b.status === "want");
+  // Сортировка полок: «Прочитано» — недавно прочитанные сверху (read_at ↓),
+  // «Хочу прочитать» — недавно добавленные сверху (created_at = когда книга
+  // легла на полку). Даты приходят ISO-строками, сравнение строк корректно;
+  // книги без даты уходят в конец. filter() даёт новый массив — кэш не мутируем.
+  const readBooks = useMemo(
+    () => books.filter((b) => b.status === "read").sort(byDateDesc("read_at")),
+    [books],
+  );
+  const wantBooks = useMemo(
+    () => books.filter((b) => b.status === "want").sort(byDateDesc("created_at")),
+    [books],
+  );
 
   return (
     <>
