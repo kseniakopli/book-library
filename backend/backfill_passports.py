@@ -24,7 +24,7 @@ import database
 from constants import SOURCE_CLAUDE
 from models import AISelection, Book
 from prompt_config import build_design_prompt
-from routers.atmosphere import CATEGORIES, _replace_selections
+from services.atmosphere import CATEGORIES, replace_selections
 from services.ai import DesignResult, _with_style
 
 load_dotenv()
@@ -115,7 +115,7 @@ def main():
             failed += 1
             continue
         # сохраняем через общий путь (с защитой из задачи 74)
-        _replace_selections(book_id, "design", CATEGORIES["design"], {SOURCE_CLAUDE: design})
+        replace_selections(book_id, "design", CATEGORIES["design"], {SOURCE_CLAUDE: design})
         ok += 1
         print(f"  ✓ book {book_id}")
 

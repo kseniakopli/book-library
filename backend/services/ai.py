@@ -1,6 +1,6 @@
 # AI-генераторы атмосферы.
 # Контракт генераторов: async (title, author, lang) -> {источник: Pydantic-модель}
-# (для дизайна словарь собирает обёртка в routers/atmosphere.py).
+# (для дизайна словарь собирает обёртка в services/atmosphere.py).
 import asyncio
 import re
 

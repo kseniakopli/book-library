@@ -399,7 +399,7 @@ def test_background_design_is_idempotent(client, monkeypatch):
     """Повторный вызов фона не перезаписывает уже готовое оформление."""
     import asyncio
     import services.enrichment as enrichment
-    from routers.atmosphere import design_in_background
+    from services.atmosphere import generate_design_in_background
     monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
 
     book_id = client.post(
@@ -407,6 +407,6 @@ def test_background_design_is_idempotent(client, monkeypatch):
     ).json()["id"]
     first = client.get(f"/api/v1/books/{book_id}/atmosphere/design").json()
 
-    asyncio.run(design_in_background(book_id))   # второй заход — должен выйти сразу
+    asyncio.run(generate_design_in_background(book_id))   # второй заход — выйдет сразу
     second = client.get(f"/api/v1/books/{book_id}/atmosphere/design").json()
     assert first == second

@@ -16,7 +16,7 @@ from sqlmodel import Session, select
 import database
 from events import Event
 from models import AISelection, Book
-from routers.atmosphere import CATEGORIES, _replace_selections
+from services.atmosphere import CATEGORIES, replace_selections
 
 CATS = ["music", "food", "aroma"]
 
@@ -66,7 +66,7 @@ async def main():
         for cat in sorted(cats):
             cfg = CATEGORIES[cat]
             results = await cfg["generate"](title, author, "ru")
-            _replace_selections(bid, cat, cfg, results)   # с защитой: пустое не пишет
+            replace_selections(bid, cat, cfg, results)   # с защитой: пустое не пишет
             print(f"  ✓ book {bid} · {cat}")
     print("Готово.")
 

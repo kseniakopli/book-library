@@ -1,8 +1,6 @@
 # HTTP-слой для книг: разобрать запрос → вызвать сервис → вернуть схему.
-# Доменная логика полки — в services/shelf.py, склейка ответа — BookRead.from_pair
-# (ревью 19.07: раньше роутер держал все три слоя сразу).
-import json
-
+# Доменная логика полки — в services/shelf.py, атмосферы — в services/atmosphere.py,
+# склейка ответа — BookRead.from_pair (ревью 19.07).
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import defer
 from sqlmodel import Session, select
@@ -26,8 +24,9 @@ from deps import (
 )
 from events import log_event
 from google_books import fetch_book_info
-from models import AISelection, Book, UserBook
+from models import Book, UserBook
 from schemas import BookCreate, BookRead, BookUpdate
+from services.atmosphere import generate_design_in_background, read_design_summary
 from services.enrichment import apply_enrichment, enrich_in_background
 from services.shelf import (
     add_to_shelf,
@@ -64,29 +63,10 @@ def list_books(
 
 @router.get("/books/design-summary")
 def design_summary():
-    """Символьный режим полки (задача 66): экслибрис и палитры паспорта по книгам
-    пользователя — чтобы полка не догружала паспорт по каждой книге отдельно.
-    Маршрут ВЫШЕ /books/{book_id}, иначе 'design-summary' поймается как book_id."""
+    """Символьный режим полки (задача 66). Маршрут объявлен ВЫШЕ /books/{book_id},
+    иначе 'design-summary' поймается как book_id."""
     with Session(database.engine) as session:
-        rows = session.exec(
-            select(AISelection)
-            .join(UserBook, UserBook.book_id == AISelection.book_id)
-            .where(
-                UserBook.user_id == CURRENT_USER_ID,
-                AISelection.category == "design",
-            )
-        ).all()
-        designs = [
-            {
-                "book_id": row.book_id,
-                "symbol_svg": payload.get("symbol_svg"),
-                # старый формат паспорта — одно поле palette (тёмное)
-                "palette_dark": payload.get("palette_dark") or payload.get("palette"),
-                "palette_light": payload.get("palette_light"),
-            }
-            for row, payload in ((r, json.loads(r.payload)) for r in rows)
-        ]
-    return {"designs": designs}
+        return {"designs": read_design_summary(session, CURRENT_USER_ID)}
 
 
 @router.get("/books/{book_id}", response_model=BookRead)
@@ -114,8 +94,7 @@ def add_book(
     # обогащение и оформление — только для НОВОЙ книги; у существующей всё есть
     if is_new:
         background_tasks.add_task(enrich_in_background, book_id, lang, data.external_id)
-        from routers.atmosphere import design_in_background
-        background_tasks.add_task(design_in_background, book_id, lang)
+        background_tasks.add_task(generate_design_in_background, book_id, lang)
     return result
 
 
