@@ -120,6 +120,14 @@ function HomePage() {
   // «Хочу прочитать» — недавно добавленные сверху (created_at = когда книга
   // легла на полку). Даты приходят ISO-строками, сравнение строк корректно;
   // книги без даты уходят в конец. filter() даёт новый массив — кэш не мутируем.
+  // «Читаю» — самая верхняя полка, но только если такие книги есть.
+  // Сортировка по updated_at: статус менялся недавно — значит начали недавно
+  // (отдельного started_at пока нет, он в задаче 27).
+  const readingBooks = useMemo(
+    () =>
+      books.filter((b) => b.status === "reading").sort(byDateDesc("updated_at")),
+    [books],
+  );
   const readBooks = useMemo(
     () => books.filter((b) => b.status === "read").sort(byDateDesc("read_at")),
     [books],
@@ -230,6 +238,17 @@ function HomePage() {
         )
       ) : (
         <>
+          {readingBooks.length > 0 && (
+            <Shelf
+              title="Читаю"
+              books={readingBooks}
+              onSelect={openBook}
+              symbolMode={symbolMode}
+              designs={designs}
+              theme={theme}
+              {...shelfProps("Читаю")}
+            />
+          )}
           <Shelf
             title="Прочитано"
             books={readBooks}
