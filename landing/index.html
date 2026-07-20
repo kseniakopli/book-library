@@ -39,6 +39,25 @@
 
       * { box-sizing: border-box; }
 
+      /* видимый акцентный фокус для клавиатурной навигации */
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* скрыть визуально, оставив для скринридеров */
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
       body {
         margin: 0;
         background: var(--bg);
@@ -98,11 +117,11 @@
         font-size: 16px; /* <16px вызывает автозум на iOS */
         color: var(--text);
         background: var(--surface);
-        border: 1px solid var(--border);
+        border: 1px solid #7d7266; /* ≥3:1 к фону поля (WCAG 1.4.11) */
         border-radius: 10px;
         padding: 13px 14px;
       }
-      .waitlist input::placeholder { color: #7d7266; }
+      .waitlist input::placeholder { color: var(--muted); }
       .waitlist button {
         font: inherit;
         font-size: 16px;
@@ -239,7 +258,7 @@
 
         <!-- ЛИСТ ОЖИДАНИЯ: отправка в Formspree через fetch (скрипт внизу страницы) -->
         <form class="waitlist" action="https://formspree.io/f/xnjevbzd" method="POST">
-          <label for="email" hidden>Ваша почта</label>
+          <label for="email" class="visually-hidden">Ваша почта</label>
           <input
             id="email"
             type="email"
@@ -258,6 +277,7 @@
       </div>
     </header>
 
+    <main>
     <section>
       <div class="wrap">
         <h2>Что делает nocturne</h2>
@@ -349,7 +369,7 @@
           Сервис в разработке. Оставьте почту — напишу, когда открою доступ.
         </p>
         <form class="waitlist" action="https://formspree.io/f/xnjevbzd" method="POST">
-          <label for="email2" hidden>Ваша почта</label>
+          <label for="email2" class="visually-hidden">Ваша почта</label>
           <input
             id="email2"
             type="email"
@@ -368,6 +388,7 @@
         </p>
       </div>
     </section>
+    </main>
 
     <footer>
       <div class="wrap">
