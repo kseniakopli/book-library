@@ -18,6 +18,8 @@ MESSAGES = {
                              "en": "File must be UTF-8 encoded"},
     "import_too_many_rows": {"ru": "Слишком много строк (лимит 2000)",
                              "en": "Too many rows (2000 limit)"},
+    "import_unknown_columns": {"ru": "Не удалось распознать колонки CSV: нужны название и автор. Проверьте заголовки файла",
+                               "en": "Could not detect CSV columns: title and author are required. Check the file headers"},
     "bad_category":         {"ru": "Неизвестная категория атмосферы",
                              "en": "Unknown atmosphere category"},
     "no_music_for_playlist": {"ru": "Сначала подберите музыку — плейлист собирается из неё",

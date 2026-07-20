@@ -133,6 +133,63 @@ def test_backfill_metadata_failure_marks_failed(client, monkeypatch):
     assert client.get("/api/v1/books/1").json()["enrich_status"] == "failed"
 
 
+# --- AI-маппинг колонок (задача 28) ---
+
+def test_import_maps_unknown_headers_with_ai(client, monkeypatch):
+    """Незнакомые заголовки → модель говорит, где что; импорт работает как обычно."""
+    from routers import imports
+    from services.ai import CsvMapping
+
+    async def fake_map(headers, sample_rows, lang="ru"):
+        assert "Book" in headers        # модель получает реальные заголовки
+        assert sample_rows              # и строки-примеры
+        return CsvMapping(
+            title_column="Book", author_column="Writer",
+            rating_column="Score", read_date_column="Finished",
+            isbn_column=None,
+        )
+
+    monkeypatch.setattr(imports, "map_csv_columns", fake_map)
+    csv_text = (
+        "Book,Writer,Score,Finished\n"
+        "Экспортированная,Автор Экспорта,9,2026-06-01\n"
+    )
+    r = _upload(client, csv_text)
+    assert r.status_code == 200
+    assert r.json()["imported"] == 1
+    book = next(
+        b for b in client.get("/api/v1/books").json()
+        if b["title"] == "Экспортированная"
+    )
+    assert book["status"] == "read" and book["rating"] == 9
+    assert book["read_at"].startswith("2026-06-01")
+
+
+def test_import_standard_headers_do_not_call_ai(client, monkeypatch):
+    """LiveLib-заголовки распознаются эвристикой — токены не тратятся."""
+    from routers import imports
+
+    async def boom(*args, **kwargs):
+        raise AssertionError("AI не должен вызываться для стандартных заголовков")
+
+    monkeypatch.setattr(imports, "map_csv_columns", boom)
+    csv_text = "Название,Автор\nОбычная,Автор\n"
+    assert _upload(client, csv_text).json()["imported"] == 1
+
+
+def test_import_rejects_unmappable_columns(client, monkeypatch):
+    """Модель вернула выдуманную колонку или упала → понятная 400, а не пустой импорт."""
+    from routers import imports
+    from services.ai import CsvMapping
+
+    async def fake_map(headers, sample_rows, lang="ru"):
+        return CsvMapping(title_column="Нет такой", author_column="Тоже нет")
+
+    monkeypatch.setattr(imports, "map_csv_columns", fake_map)
+    r = _upload(client, "Colonna,Autore\nLibro,Qualcuno\n")
+    assert r.status_code == 400
+
+
 # --- лимиты (задача 38) ---
 
 def test_import_rejects_bad_encoding(client):

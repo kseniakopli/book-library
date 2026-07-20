@@ -14,6 +14,7 @@ from events import log_event
 from google_books import search_books
 from i18n import msg
 from models import Book, UserBook
+from services.ai import map_csv_columns, start_ai_metrics, take_ai_metrics
 from services.enrichment import backfill_in_background
 
 router = APIRouter(tags=["import"])
@@ -21,10 +22,53 @@ router = APIRouter(tags=["import"])
 MAX_IMPORT_BYTES = 2 * 1024 * 1024   # лимит CSV-файла: 2 МБ (задача 38)
 MAX_IMPORT_ROWS = 2000               # лимит строк за один импорт
 
+# Стандартные заголовки (LiveLib и наш экспорт) — распознаются без AI
+STANDARD_COLUMNS = {
+    "title": "Название",
+    "author": "Автор",
+    "rating": "Моя оценка",
+    "read_date": "Дата прочтения",
+    "isbn": "ISBN",
+}
+SAMPLE_ROWS = 3          # столько строк-примеров показываем модели
+SAMPLE_CELL_CHARS = 80   # длинные ячейки обрезаем — модели хватит начала
+
 
 def _norm_isbn(value):
     """ISBN без дефисов и пробелов — для сравнения/дедупликации."""
     return value.replace("-", "").replace(" ", "") if value else None
+
+
+async def _resolve_columns(fieldnames: list[str], rows: list[dict], lang: str) -> tuple[dict, bool]:
+    """Роль → имя колонки. Стандартные заголовки — эвристикой; незнакомые —
+    моделью (задача 28, structured output). Возвращает (маппинг, использован_ли_AI).
+    Имена от модели проверяем по реальным заголовкам: выдуманную колонку
+    молча превращать в пустые значения нельзя."""
+    if STANDARD_COLUMNS["title"] in fieldnames and STANDARD_COLUMNS["author"] in fieldnames:
+        return STANDARD_COLUMNS, False
+
+    sample = [
+        {k: (v or "")[:SAMPLE_CELL_CHARS] for k, v in row.items() if k}
+        for row in rows[:SAMPLE_ROWS]
+    ]
+    try:
+        mapping = await map_csv_columns(fieldnames, sample, lang)
+    except Exception as e:
+        print("AI-маппинг колонок не удался:", e)
+        raise HTTPException(status_code=400, detail=msg("import_unknown_columns", lang))
+
+    if mapping.title_column not in fieldnames or mapping.author_column not in fieldnames:
+        raise HTTPException(status_code=400, detail=msg("import_unknown_columns", lang))
+    optional = {
+        role: name
+        for role, name in {
+            "rating": mapping.rating_column,
+            "read_date": mapping.read_date_column,
+            "isbn": mapping.isbn_column,
+        }.items()
+        if name in fieldnames   # None и выдуманные имена отбрасываем
+    }
+    return {"title": mapping.title_column, "author": mapping.author_column, **optional}, True
 
 
 @router.post("/import")
@@ -43,6 +87,15 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
     header = text.splitlines()[0] if text else ""
     delimiter = ";" if header.count(";") > header.count(",") else ","
     reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
+    rows = list(reader)
+
+    # Задача 28: роли колонок. LiveLib-заголовки — без AI; незнакомые — моделью.
+    start_ai_metrics()
+    cols, ai_mapped = await _resolve_columns(reader.fieldnames or [], rows, lang)
+
+    def cell(row: dict, role: str) -> str:
+        name = cols.get(role)
+        return (row.get(name) or "").strip() if name else ""
 
     imported = 0
     skipped = 0
@@ -58,14 +111,14 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
             select(UserBook.book_id).where(UserBook.user_id == CURRENT_USER_ID)
         ).all())
 
-        for row in reader:
-            title = (row.get("Название") or "").strip()
-            author = (row.get("Автор") or "").strip()
+        for row in rows:
+            title = cell(row, "title")
+            author = cell(row, "author")
             if not title or not author:       # нет названия/автора — пропускаем строку
                 skipped += 1
                 continue
 
-            isbn = (row.get("ISBN") or "").strip() or None
+            isbn = cell(row, "isbn") or None
             clean_isbn = _norm_isbn(isbn)
             key = (title.lower(), author.lower())
 
@@ -76,11 +129,11 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
                 continue
 
             rating = None
-            raw = (row.get("Моя оценка") or "").strip()
+            raw = cell(row, "rating")
             if raw.isdigit() and 1 <= int(raw) <= 10:
                 rating = int(raw)
 
-            read_date = (row.get("Дата прочтения") or "").strip()
+            read_date = cell(row, "read_date")
             status = STATUS_READ if (rating is not None or read_date) else STATUS_WANT
             # задача 1: гибкий разбор даты («Июль 2026 г.», ISO, дд.мм.гггг);
             # не разобрали — книга прочитана, но без даты
@@ -104,9 +157,11 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
             shelf_ids.add(book_id)
         session.commit()
 
-    log_event(EVENT_IMPORT, detail={
-        "imported": imported, "duplicates": duplicates, "skipped": skipped,
-    })
+    detail = {"imported": imported, "duplicates": duplicates, "skipped": skipped}
+    if ai_mapped:   # задача 28: чем распознали колонки + цена вызова (з.80)
+        detail["ai_mapping"] = {role: name for role, name in cols.items()}
+        detail["ai_calls"] = take_ai_metrics()
+    log_event(EVENT_IMPORT, detail=detail)
     return {"imported": imported, "duplicates": duplicates, "skipped": skipped}
 
 

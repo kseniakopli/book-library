@@ -15,6 +15,7 @@ from constants import SOURCE_CHATGPT, SOURCE_CLAUDE
 import prompt_config
 from prompt_config import (
     build_aroma_prompt,
+    build_csv_mapping_prompt,
     build_design_prompt,
     build_food_prompt,
     build_insights_prompt,
@@ -295,6 +296,30 @@ async def generate_insights(summary: str, lang: str = "ru") -> InsightsResult:
         _with_style(build_insights_prompt(summary, lang)),
         InsightsResult,
         max_tokens=1000,
+    )
+
+
+class CsvMapping(BaseModel):
+    """Задача 28: какая колонка «грязного» CSV что означает.
+    None — такой колонки в файле нет (модели разрешено не найти)."""
+    title_column: str
+    author_column: str
+    rating_column: str | None = None
+    read_date_column: str | None = None
+    isbn_column: str | None = None
+
+
+async def map_csv_columns(
+    headers: list[str], sample_rows: list[dict], lang: str = "ru"
+) -> CsvMapping:
+    """Распознать роли колонок CSV с нестандартными заголовками.
+    Модель видит заголовки и 2–3 строки-примера; ответ — строгий JSON по схеме.
+    Валидация «колонка существует» — на вызывающей стороне (routers/imports.py):
+    модель может вернуть выдуманное имя, доверять без проверки нельзя."""
+    return await ask_claude(
+        build_csv_mapping_prompt(headers, sample_rows, lang),
+        CsvMapping,
+        max_tokens=500,
     )
 
 

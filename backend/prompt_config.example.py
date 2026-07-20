@@ -75,6 +75,30 @@ def build_aroma_prompt(title: str, author: str, lang: str = "ru") -> str:
 на {language} языке. Не повторяй близкие по смыслу пункты.
 """
 
+def build_csv_mapping_prompt(
+    headers: list[str], sample_rows: list[dict], lang: str = "ru"
+) -> str:
+    """Задача 28: распознавание колонок CSV с нестандартными заголовками.
+    headers — список заголовков файла, sample_rows — 2–3 строки-примера."""
+    header_line = ", ".join(f"«{h}»" for h in headers)
+    examples = "\n".join(
+        " | ".join(f"{k}: {v}" for k, v in row.items()) for row in sample_rows
+    )
+    return f"""Это CSV-файл с списком книг читателя. Заголовки колонок:
+{header_line}
+
+Примеры строк:
+{examples}
+
+Определи, какая колонка содержит: название книги (title_column), автора
+(author_column), оценку читателя (rating_column), дату прочтения
+(read_date_column), ISBN (isbn_column).
+Используй ТОЛЬКО имена колонок из списка заголовков, дословно. Если для роли
+подходящей колонки нет — верни null, не подбирай натяжкой. Не путай оценку
+читателя со средней оценкой сервиса (например, «Средняя оценка» — это НЕ
+rating_column)."""
+
+
 def build_insights_prompt(summary: str, lang: str = "ru") -> str:
     """Задача 24/63: наблюдения о привычках чтения по готовым цифрам.
     summary — уже посчитанная сводка текстом (модель ничего не считает сама)."""
