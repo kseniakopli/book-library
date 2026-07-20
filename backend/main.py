@@ -1,9 +1,11 @@
+import base64
 import logging
 import os
+import secrets
 import time
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from sqlalchemy import text
 
 import database
@@ -62,6 +64,42 @@ def check_api_keys():
             f"Не заданы API-ключи: {', '.join(missing)}. "
             "Заполните backend/.env (или SKIP_KEY_CHECK=1, чтобы поднять без AI)."
         )
+
+
+# --- Basic Auth для внешнего теста (задача 81, план деплоя п.1.1) ---
+# Один общий логин/пароль до настоящей авторизации (з.31). Включается, только
+# если заданы ОБЕ переменные окружения BASIC_AUTH_USER / BASIC_AUTH_PASSWORD —
+# локальная разработка и тесты работают без пароля как раньше.
+# /health открыт для мониторинга хостинга. Spotify /callback под паролем:
+# браузер сам приложит сохранённые учётные данные при редиректе.
+# Читаем env на каждый запрос (а не при импорте): дёшево и тестируемо.
+
+def _basic_auth_ok(header: str | None, user: str, password: str) -> bool:
+    if not header or not header.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(header[6:]).decode("utf-8")
+    except Exception:
+        return False
+    got_user, _, got_password = decoded.partition(":")
+    # compare_digest: сравнение за постоянное время (не течёт длина совпадения)
+    return secrets.compare_digest(got_user, user) and secrets.compare_digest(
+        got_password, password
+    )
+
+
+@app.middleware("http")
+async def basic_auth(request: Request, call_next):
+    user = os.getenv("BASIC_AUTH_USER")
+    password = os.getenv("BASIC_AUTH_PASSWORD")
+    if not (user and password) or request.url.path == "/health":
+        return await call_next(request)
+    if _basic_auth_ok(request.headers.get("Authorization"), user, password):
+        return await call_next(request)
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="nocturne"'},
+    )
 
 
 # --- Задача 71: request id + структурный access-лог ---
