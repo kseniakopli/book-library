@@ -1,0 +1,28 @@
+# Что НЕ копировать в образ (з.81).
+# ⚠ prompt_config.py здесь СОЗНАТЕЛЬНО не указан: он в .gitignore, но в образ
+# попасть должен — без него приложение не стартует. Ключи в образ не пекутся,
+# они приходят из fly secrets.
+
+.git
+.github
+docs
+landing
+documentation
+venv
+**/__pycache__
+**/*.pyc
+
+# node_modules пересобираются внутри образа (npm ci)
+frontend/node_modules
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+
+# локальные данные и секреты
+**/.env
+backend/library.db
+backend/library.db-wal
+backend/library.db-shm
+backend/backups
+backend/spotify_token.json
+backend/livelib-*.csv

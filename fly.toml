@@ -1,0 +1,45 @@
+# Конфигурация Fly.io (з.81). Имя приложения подставит `fly launch`.
+# База — SQLite на постоянном диске (volume), поэтому инстанс ровно один.
+
+app = "nocturne-library"
+primary_region = "waw"          # Варшава — ближе к Европе/СНГ; при желании: fra, ams
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # База живёт на volume, а не внутри контейнера: переживает деплои и рестарты.
+  # Четыре слэша = абсолютный путь (sqlite:////data/library.db → /data/library.db).
+  DATABASE_URL = "sqlite:////data/library.db"
+  PORT = "8080"
+
+# Миграции применяются перед выпуском новой версии.
+# ⚠ release_command выполняется в отдельной машине БЕЗ volume — поэтому alembic
+# гоняется в entrypoint основного процесса (см. ниже), а не здесь.
+
+[[mounts]]
+  source = "data"               # имя volume: fly volumes create data --size 1
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend" # простаивает — засыпает (экономия)
+  auto_start_machines = true
+  min_machines_running = 0
+  # Один инстанс: SQLite не переживёт несколько писателей на одном диске
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+    hard_limit = 40
+
+  [[http_service.checks]]
+    grace_period = "15s"
+    interval = "30s"
+    method = "GET"
+    path = "/health"            # открыт даже при включённом Basic Auth
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"              # AI-вызовы асинхронные, память не нужна большая
