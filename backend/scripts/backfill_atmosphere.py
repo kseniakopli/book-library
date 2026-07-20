@@ -13,6 +13,7 @@ import sys
 
 from sqlmodel import Session, select
 
+import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path
 import database
 from events import Event
 from models import AISelection, Book

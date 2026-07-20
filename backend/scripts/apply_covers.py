@@ -6,8 +6,8 @@ import json
 import sqlite3
 from pathlib import Path
 
-DOCS = Path(__file__).resolve().parent.parent / "docs"
-DB = Path(__file__).resolve().parent / "library.db"
+DOCS = Path(__file__).resolve().parent.parent.parent / "docs"
+DB = Path(__file__).resolve().parent.parent / "library.db"
 
 
 def main():

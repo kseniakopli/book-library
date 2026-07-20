@@ -17,6 +17,7 @@ import sys
 
 from sqlmodel import Session, col, select
 
+import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path
 import database
 from models import Book
 

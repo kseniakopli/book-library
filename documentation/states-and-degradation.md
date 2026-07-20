@@ -61,7 +61,7 @@ stateDiagram-v2
     [*] --> absent
     absent --> present: background generation on add
     absent --> present: lazy generation on first open
-    absent --> present: batch backfill (backfill_passports.py)
+    absent --> present: batch backfill (scripts/backfill_passports.py)
     present --> present: regeneration — admin only
 ```
 
@@ -113,13 +113,13 @@ and ratings live in the local database and are always available.
 | **Google Books** (enrichment) | 429 / 5xx / timeout | 3 attempts, `Retry-After` + backoff & jitter; then an empty result. Background task catches everything → `enrich_status = failed` | Book is already on the shelf with title and author; error line + "Refresh info" | Manual "Refresh info" (admin), or `POST /books/backfill-metadata` |
 | **Google Books** (search) | any error | `search_books` returns `[]` | Local catalog matches still shown; if nothing — "Ничего не найдено" + **"Добавить вручную"** | Manual entry always works |
 | **Anthropic Claude** (atmosphere) | error / timeout (90 s) | `safe_ask` returns an empty fallback; the guard skips writing it | The other provider's variant is still shown; if both failed — the previous selection survives untouched | Press the button again |
-| **Anthropic Claude** (passport) | error / timeout | `generate_design` raises; the background task logs and gives up (book stays without a passport) | Shelf shows the moon logo; page uses the base theme | Reopen the book (lazy retry) or run `backfill_passports.py` |
+| **Anthropic Claude** (passport) | error / timeout | `generate_design` raises; the background task logs and gives up (book stays without a passport) | Shelf shows the moon logo; page uses the base theme | Reopen the book (lazy retry) or run `scripts/backfill_passports.py` |
 | **OpenAI** (atmosphere) | error / refusal / truncation | same `safe_ask` fallback | Only the Claude variant in the source tabs | Regenerate |
 | **Spotify** | no refresh token | `POST /playlist` → `{status: "auth_required", auth_url}` | Authorisation window opens; playlist is created right after | One-time authorisation |
 | **Spotify** | no music generated | `400` with a localized message | "Generate music first — the playlist is built from it"; the button is disabled until music exists | Generate atmosphere |
 | **Spotify** | API error | exception → 500 | "Плейлист не создался: …" on the book page | Retry |
 | **QR code** | no playlist | `404` | Dashed placeholder frame on the print card | Create the playlist |
-| **Database** | unavailable | `GET /health` → 500 | Library fails to load, "Повторить" button | Restore from `backend/backups/` (see `backup_db.py`) |
+| **Database** | unavailable | `GET /health` → 500 | Library fails to load, "Повторить" button | Restore from `backend/backups/` (see `scripts/backup_db.py`) |
 
 ### Notes
 

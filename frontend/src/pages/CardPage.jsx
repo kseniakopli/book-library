@@ -253,7 +253,7 @@ function CardPage() {
             вечера.
           </span>
           {/* Статичный QR на лендинг (frontend/public/landing-qr.svg,
-              перегенерация — backend/make_landing_qr.py) */}
+              перегенерация — backend/scripts/make_landing_qr.py) */}
           <img
             className="pc-landing-qr"
             src="/landing-qr.svg"

@@ -13,9 +13,10 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path
 from dates import parse_read_date
 
-BACKEND = Path(__file__).resolve().parent
+BACKEND = Path(__file__).resolve().parent.parent
 DB = BACKEND / "library.db"
 USER_ID = 1
 

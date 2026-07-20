@@ -20,6 +20,7 @@ import anthropic
 from dotenv import load_dotenv
 from sqlmodel import Session, select
 
+import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path
 import database
 from constants import SOURCE_CLAUDE
 from models import AISelection, Book

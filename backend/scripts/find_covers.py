@@ -8,9 +8,10 @@ from pathlib import Path
 
 import requests
 
+import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path
 from google_books import _author_matches, _books_request
 
-DOCS = Path(__file__).resolve().parent.parent / "docs"
+DOCS = Path(__file__).resolve().parent.parent.parent / "docs"
 
 
 def clean_isbn(isbn: str | None) -> str | None:

@@ -86,7 +86,7 @@ dimensions, and every external dependency is optional. Both are documented separ
 see [states-and-degradation.md](states-and-degradation.md).
 
 The API contract is snapshotted in [openapi.json](openapi.json) — regenerate with
-`python backend/dump_openapi.py` after changing endpoints, so breaking changes show up
+`python scripts/dump_openapi.py` (from `backend/`) after changing endpoints, so breaking changes show up
 as a plain diff.
 
 ## Decisions worth knowing (short ADR log)

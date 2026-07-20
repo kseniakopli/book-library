@@ -15,7 +15,7 @@ import qrcode
 import qrcode.image.svg
 
 LANDING_URL = "https://nocturne-library.netlify.app/"
-OUT = Path(__file__).resolve().parent.parent / "frontend" / "public" / "landing-qr.svg"
+OUT = Path(__file__).resolve().parent.parent.parent / "frontend" / "public" / "landing-qr.svg"
 
 qr = qrcode.QRCode(
     error_correction=qrcode.constants.ERROR_CORRECT_M,

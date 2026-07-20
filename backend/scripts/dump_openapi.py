@@ -11,9 +11,10 @@
 import json
 from pathlib import Path
 
+import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path
 from main import app
 
-OUT = Path(__file__).resolve().parent.parent / "documentation" / "openapi.json"
+OUT = Path(__file__).resolve().parent.parent.parent / "documentation" / "openapi.json"
 
 
 def main():

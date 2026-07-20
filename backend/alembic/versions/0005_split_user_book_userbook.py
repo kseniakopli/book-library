@@ -6,7 +6,7 @@
 - userbook     — личное: статус, оценка, дата прочтения, связь user↔book.
 
 Переносим личные поля каждой книги в userbook (user_id=1), затем убираем их из book.
-ВАЖНО: перед прогоном сделать бэкап library.db (python backup_db.py) — миграция
+ВАЖНО: перед прогоном сделать бэкап library.db (python scripts/backup_db.py) — миграция
 пересоздаёт таблицу book в SQLite (batch mode).
 
 Revision ID: 0005

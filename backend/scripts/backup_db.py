@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-BACKEND = Path(__file__).resolve().parent
+BACKEND = Path(__file__).resolve().parent.parent
 DB = BACKEND / "library.db"
 BACKUP_DIR = BACKEND / "backups"
 KEEP = 10

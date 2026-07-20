@@ -98,7 +98,8 @@ npm run dev                  # http://localhost:5173
 ```
 
 Missing required keys fail the startup with a clear message (`SKIP_KEY_CHECK=1` to bypass).
-Database backup: `python backup_db.py` (or schedule `run_backup.bat`).
+One-off maintenance scripts live in `backend/scripts/` (run from `backend/`, e.g.
+`python scripts/backup_db.py`); see `backend/scripts/README.md`.
 
 ## API
 
