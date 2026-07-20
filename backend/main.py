@@ -7,10 +7,12 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
 
 import database
+import rate_limit
+from i18n import msg
 from logging_setup import request_id_var, setup_logging
 from routers import (
     atmosphere,
@@ -104,6 +106,28 @@ async def basic_auth(request: Request, call_next):
     )
 
 
+# --- Лимиты частоты на дорогие эндпоинты (задача 39, план деплоя п.1.3) ---
+# Правила и настройка — в rate_limit.py. Зарегистрирован ПОСЛЕ basic_auth,
+# то есть оборачивает его: лимит считается и для запросов без пароля.
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = rate_limit.check(
+        request.method, request.url.path, client_ip
+    )
+    if not allowed:
+        log.warning(
+            "rate limited",
+            extra={"method": request.method, "path": request.url.path, "status": 429},
+        )
+        return JSONResponse(
+            status_code=429,
+            content={"detail": msg("rate_limited", "ru")},
+            headers={"Retry-After": str(retry_after)},
+        )
+    return await call_next(request)
+
+
 # --- Задача 71: request id + структурный access-лог ---
 # Каждому запросу — короткий id: он в JSON-логах (через contextvar даже
 # в записях из глубины кода) и в заголовке ответа X-Request-ID, чтобы
@@ -139,6 +163,45 @@ def health():
     with database.engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+# --- Security-заголовки (задача 40, план деплоя п.1.3) ---
+# Регистрируется ПОСЛЕДНИМ, то есть оборачивает все остальные middleware:
+# заголовки попадают и на 401 (нет пароля), и на 429 (лимит).
+# CSP: свои скрипты/стили + шрифты Google + обложки книг (любой https) + data:
+# для символов-экслибрисов (SVG рендерится через <img data:>).
+# ⚠ Появится Spotify-embed (з.29б) — добавить frame-src https://open.spotify.com.
+CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data: https:; "
+    "connect-src 'self'; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'"
+)
+
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    "Content-Security-Policy": CSP,
+}
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    # /docs и /redoc грузят свои скрипты с CDN — на них CSP не вешаем
+    skip_csp = request.url.path in ("/docs", "/redoc") or request.url.path.startswith(
+        "/openapi"
+    )
+    for name, value in SECURITY_HEADERS.items():
+        if name == "Content-Security-Policy" and skip_csp:
+            continue
+        response.headers.setdefault(name, value)
+    return response
 
 
 # --- Раздача собранного фронтенда (задача 81, план деплоя п.1.2) ---

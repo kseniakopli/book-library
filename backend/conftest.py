@@ -78,6 +78,25 @@ async def fake_generate_design(title, author, lang="ru"):
 
 
 @pytest.fixture(autouse=True)
+def _no_basic_auth(monkeypatch):
+    """Basic Auth (план деплоя п.1.1) включается переменными окружения.
+    Если они остались в терминале после локальной проверки прода, весь прогон
+    упирался бы в 401 — снимаем их для тестов. test_auth.py выставляет свои
+    значения уже поверх этого."""
+    monkeypatch.delenv("BASIC_AUTH_USER", raising=False)
+    monkeypatch.delenv("BASIC_AUTH_PASSWORD", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Счётчики лимитера (план деплоя п.1.3) живут в памяти процесса и общие
+    для всех тестов — без сброса длинный прогон упёрся бы в лимит AI-вызовов."""
+    import rate_limit
+
+    rate_limit.reset()
+
+
+@pytest.fixture(autouse=True)
 def _fake_design_generation(monkeypatch):
     """Задача 57: add_book фоном генерирует оформление, а TestClient выполняет
     фоновые задачи синхронно — без этого фейка любой POST /books ушёл бы

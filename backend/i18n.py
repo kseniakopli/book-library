@@ -18,6 +18,8 @@ MESSAGES = {
                              "en": "File must be UTF-8 encoded"},
     "import_too_many_rows": {"ru": "Слишком много строк (лимит 2000)",
                              "en": "Too many rows (2000 limit)"},
+    "rate_limited": {"ru": "Слишком часто. Попробуйте позже — лимит генераций защищает бюджет сервиса",
+                     "en": "Too many requests. Try later — the generation limit protects the service budget"},
     "import_unknown_columns": {"ru": "Не удалось распознать колонки CSV: нужны название и автор. Проверьте заголовки файла",
                                "en": "Could not detect CSV columns: title and author are required. Check the file headers"},
     "bad_category":         {"ru": "Неизвестная категория атмосферы",

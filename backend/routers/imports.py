@@ -9,7 +9,7 @@ from sqlmodel import Session, col, func, select
 import database
 from constants import ENRICH_PENDING, EVENT_BACKFILL, EVENT_IMPORT, STATUS_READ, STATUS_WANT
 from dates import parse_read_date
-from deps import CURRENT_USER_ID, get_lang
+from deps import CURRENT_USER_ID, get_lang, require_admin
 from events import log_event
 from google_books import search_books
 from i18n import msg
@@ -166,9 +166,12 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
 
 
 @router.post("/books/backfill-covers")
-def backfill_covers():
+def backfill_covers(lang: str = Depends(get_lang)):
+    """Массовая операция над общим каталогом → только admin (план деплоя п.1.3):
+    на проде эндпоинт не должен быть доступен любому тестеру."""
     updated = 0
     with Session(database.engine) as session:
+        require_admin(session, lang)
         books = session.exec(
             # задача 52: raw_metadata здесь не нужен — не грузим
             select(Book)
@@ -194,9 +197,11 @@ def backfill_metadata(
     lang: str = Depends(get_lang),
 ):
     """Задача 12: дозаполнение старых книг метаданными — В ФОНЕ.
-    Ответ мгновенный; партия помечается pending, фронт поллит список,
-    и обложки/жанры «проявляются» по мере обогащения."""
+    Ответ мгновенный; партия помечается pending, фронт поллит счётчик,
+    и обложки/жанры «проявляются» по мере обогащения.
+    Массовая операция над общим каталогом → только admin (план деплоя п.1.3)."""
     with Session(database.engine) as session:
+        require_admin(session, lang)
         # порция книг без метаданных (raw_metadata пуст)
         books = session.exec(
             select(Book).where(col(Book.raw_metadata).is_(None)).limit(limit)
