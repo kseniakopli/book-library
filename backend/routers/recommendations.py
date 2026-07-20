@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 import database
 from constants import EVENT_AI_RECOMMENDATIONS, STATUS_READ
-from deps import CURRENT_USER_ID, get_lang, require_admin
+from deps import CURRENT_USER_ID, get_lang, get_session, require_admin
 from events import log_event
 from google_books import search_books
 from models import Book, Recommendation, UserBook
@@ -26,32 +26,38 @@ def _norm(title: str, author: str) -> tuple[str, str]:
     return title.strip().lower(), author.strip().lower()
 
 
+def _stored(session: Session) -> dict:
+    """Сохранённые рекомендации пользователя в формате ответа."""
+    rows = session.exec(
+        select(Recommendation)
+        .where(Recommendation.user_id == CURRENT_USER_ID)
+        .order_by(Recommendation.id)
+    ).all()
+    return {
+        "recommendations": [
+            {
+                "title": r.title,
+                "author": r.author,
+                "reason": r.reason,
+                "cover_url": r.cover_url,
+                "external_id": r.external_id,
+            }
+            for r in rows
+        ]
+    }
+
+
 @router.get("/recommendations")
-def list_recommendations():
-    """Сохранённые рекомендации пользователя (пусто — фронт зовёт подобрать)."""
-    with Session(database.engine) as session:
-        rows = session.exec(
-            select(Recommendation)
-            .where(Recommendation.user_id == CURRENT_USER_ID)
-            .order_by(Recommendation.id)
-        ).all()
-        return {
-            "recommendations": [
-                {
-                    "title": r.title,
-                    "author": r.author,
-                    "reason": r.reason,
-                    "cover_url": r.cover_url,
-                    "external_id": r.external_id,
-                }
-                for r in rows
-            ]
-        }
+def list_recommendations(session: Session = Depends(get_session)):
+    """Сохранённые рекомендации (пусто — фронт зовёт подобрать)."""
+    return _stored(session)
 
 
 @router.post("/recommendations")
 async def generate(lang: str = Depends(get_lang)):
-    """Подобрать рекомендации заново. Тратит токены → только admin."""
+    """Подобрать рекомендации заново. Тратит токены → только admin.
+    Сессию открываем вручную КОРОТКИМИ отрезками (не через get_session):
+    между ними идёт долгий AI-вызов, держать соединение всё это время не нужно."""
     with Session(database.engine) as session:
         require_admin(session, lang)
 
@@ -124,4 +130,5 @@ async def generate(lang: str = Depends(get_lang)):
         session.commit()
 
     log_event(EVENT_AI_RECOMMENDATIONS, detail=f"count={len(fresh)}")
-    return list_recommendations()
+    with Session(database.engine) as session:
+        return _stored(session)

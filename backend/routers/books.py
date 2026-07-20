@@ -1,11 +1,11 @@
 # HTTP-слой для книг: разобрать запрос → вызвать сервис → вернуть схему.
 # Доменная логика полки — в services/shelf.py, атмосферы — в services/atmosphere.py,
 # склейка ответа — BookRead.from_pair (ревью 19.07).
+# Сессия приходит зависимостью get_session (задача 77).
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import defer
 from sqlmodel import Session, select
 
-import database
 from constants import (
     ENRICH_READY,
     EVENT_BOOK_ADDED,
@@ -19,6 +19,7 @@ from deps import (
     CURRENT_USER_ID,
     get_book_or_404,
     get_lang,
+    get_session,
     get_userbook_or_404,
     require_admin,
 )
@@ -43,38 +44,40 @@ def list_books(
     status: str | None = None,
     limit: int | None = None,
     offset: int = 0,
+    session: Session = Depends(get_session),
 ):
     """Полка текущего пользователя: JOIN userbook → book.
     Задача 70: фильтр по статусу + limit/offset (под ленивую загрузку полок).
     Задача 52: raw_metadata (тяжёлый JSON) в список не грузим."""
-    with Session(database.engine) as session:
-        query = (
-            select(Book, UserBook)
-            .join(UserBook, UserBook.book_id == Book.id)
-            .where(UserBook.user_id == CURRENT_USER_ID)
-        )
-        if status is not None:
-            query = query.where(UserBook.status == status)
-        query = query.options(defer(Book.raw_metadata)).order_by(Book.id).offset(offset)
-        if limit is not None:
-            query = query.limit(limit)
-        return [BookRead.from_pair(b, ub) for b, ub in session.exec(query).all()]
+    query = (
+        select(Book, UserBook)
+        .join(UserBook, UserBook.book_id == Book.id)
+        .where(UserBook.user_id == CURRENT_USER_ID)
+    )
+    if status is not None:
+        query = query.where(UserBook.status == status)
+    query = query.options(defer(Book.raw_metadata)).order_by(Book.id).offset(offset)
+    if limit is not None:
+        query = query.limit(limit)
+    return [BookRead.from_pair(b, ub) for b, ub in session.exec(query).all()]
 
 
 @router.get("/books/design-summary")
-def design_summary():
+def design_summary(session: Session = Depends(get_session)):
     """Символьный режим полки (задача 66). Маршрут объявлен ВЫШЕ /books/{book_id},
     иначе 'design-summary' поймается как book_id."""
-    with Session(database.engine) as session:
-        return {"designs": read_design_summary(session, CURRENT_USER_ID)}
+    return {"designs": read_design_summary(session, CURRENT_USER_ID)}
 
 
 @router.get("/books/{book_id}", response_model=BookRead)
-def get_book(book_id: int, lang: str = Depends(get_lang)):
-    with Session(database.engine) as session:
-        book = get_book_or_404(session, book_id, lang)
-        user_book = get_userbook_or_404(session, book_id, lang)
-        return BookRead.from_pair(book, user_book)
+def get_book(
+    book_id: int,
+    lang: str = Depends(get_lang),
+    session: Session = Depends(get_session),
+):
+    book = get_book_or_404(session, book_id, lang)
+    user_book = get_userbook_or_404(session, book_id, lang)
+    return BookRead.from_pair(book, user_book)
 
 
 @router.post("/books", response_model=BookRead)
@@ -82,16 +85,17 @@ def add_book(
     data: BookCreate,
     background_tasks: BackgroundTasks,
     lang: str = Depends(get_lang),
+    session: Session = Depends(get_session),
 ):
-    with Session(database.engine) as session:
-        book, user_book, is_new = add_to_shelf(session, data, CURRENT_USER_ID, lang)
-        result = BookRead.from_pair(book, user_book)
-        book_id = book.id
+    book, user_book, is_new = add_to_shelf(session, data, CURRENT_USER_ID, lang)
+    result = BookRead.from_pair(book, user_book)
+    book_id = book.id
 
     log_event(
         EVENT_BOOK_ADDED, book_id, detail="source=new" if is_new else "source=catalog"
     )
-    # обогащение и оформление — только для НОВОЙ книги; у существующей всё есть
+    # обогащение и оформление — только для НОВОЙ книги; у существующей всё есть.
+    # Фоновые задачи открывают свои сессии, эта к тому моменту уже закрыта.
     if is_new:
         background_tasks.add_task(enrich_in_background, book_id, lang, data.external_id)
         background_tasks.add_task(generate_design_in_background, book_id, lang)
@@ -99,59 +103,68 @@ def add_book(
 
 
 @router.patch("/books/{book_id}", response_model=BookRead)
-def update_book(book_id: int, data: BookUpdate, lang: str = Depends(get_lang)):
-    with Session(database.engine) as session:
-        book = get_book_or_404(session, book_id, lang)
-        user_book = get_userbook_or_404(session, book_id, lang)
+def update_book(
+    book_id: int,
+    data: BookUpdate,
+    lang: str = Depends(get_lang),
+    session: Session = Depends(get_session),
+):
+    book = get_book_or_404(session, book_id, lang)
+    user_book = get_userbook_or_404(session, book_id, lang)
 
-        edited = apply_book_fields(session, book, data, lang)   # общие поля — admin
-        apply_shelf_fields(user_book, data, lang)               # личные поля полки
+    edited = apply_book_fields(session, book, data, lang)   # общие поля — admin
+    apply_shelf_fields(user_book, data, lang)               # личные поля полки
 
-        session.add(user_book)
-        session.commit()
-        session.refresh(user_book)
-        session.refresh(book)
-        result = BookRead.from_pair(book, user_book)
-        status, rating = user_book.status, user_book.rating
+    session.add(user_book)
+    session.commit()
+    session.refresh(user_book)
+    session.refresh(book)
+    result = BookRead.from_pair(book, user_book)
 
     if data.status is not None:
-        log_event(EVENT_STATUS_CHANGED, book_id, detail=status)
-    if data.rating is not None and rating is not None:
-        log_event(EVENT_RATED, book_id, detail=str(rating))
+        log_event(EVENT_STATUS_CHANGED, book_id, detail=user_book.status)
+    if data.rating is not None and user_book.rating is not None:
+        log_event(EVENT_RATED, book_id, detail=str(user_book.rating))
     if edited:
         log_event(EVENT_BOOK_EDITED, book_id, detail=",".join(edited))
     return result
 
 
 @router.delete("/books/{book_id}")
-def delete_book(book_id: int, lang: str = Depends(get_lang)):
-    with Session(database.engine) as session:
-        user_book = get_userbook_or_404(session, book_id, lang)
-        book = get_book_or_404(session, book_id, lang)
-        title = book.title
-        remove_from_shelf(session, book, user_book)
+def delete_book(
+    book_id: int,
+    lang: str = Depends(get_lang),
+    session: Session = Depends(get_session),
+):
+    user_book = get_userbook_or_404(session, book_id, lang)
+    book = get_book_or_404(session, book_id, lang)
+    title = book.title
+    remove_from_shelf(session, book, user_book)
     log_event(EVENT_BOOK_DELETED, book_id, detail=title)
     return {"deleted": book_id}
 
 
 @router.post("/books/{book_id}/enrich", response_model=BookRead)
-def enrich_book(book_id: int, lang: str = Depends(get_lang)):
+def enrich_book(
+    book_id: int,
+    lang: str = Depends(get_lang),
+    session: Session = Depends(get_session),
+):
     """Ручное обогащение (кнопка «Обновить информацию») — синхронное.
     Меняет общие данные книги, поэтому только admin."""
-    with Session(database.engine) as session:
-        book = get_book_or_404(session, book_id, lang)
-        user_book = get_userbook_or_404(session, book_id, lang)
-        require_admin(session, lang)
+    book = get_book_or_404(session, book_id, lang)
+    user_book = get_userbook_or_404(session, book_id, lang)
+    require_admin(session, lang)
 
-        info = fetch_book_info(book.title, book.author, lang, isbn=book.isbn)
-        found = bool(info["raw_metadata"])
-        if found:
-            apply_enrichment(book, info)
-        book.enrich_status = ENRICH_READY   # ручной повтор снимает статус failed
-        session.add(book)
-        session.commit()
-        session.refresh(book)
-        session.refresh(user_book)
-        result = BookRead.from_pair(book, user_book)
+    info = fetch_book_info(book.title, book.author, lang, isbn=book.isbn)
+    found = bool(info["raw_metadata"])
+    if found:
+        apply_enrichment(book, info)
+    book.enrich_status = ENRICH_READY   # ручной повтор снимает статус failed
+    session.add(book)
+    session.commit()
+    session.refresh(book)
+    session.refresh(user_book)
+
     log_event(EVENT_ENRICHED, book_id, detail="ok" if found else "miss")
-    return result
+    return BookRead.from_pair(book, user_book)

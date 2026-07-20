@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { STATUS_LABELS } from "../constants";
+import { useImageFallback } from "../hooks/useImageFallback";
 import { centeredSvgDataUri } from "../lib/svg";
 import { pickPalette } from "../lib/palette";
 
@@ -19,12 +20,11 @@ function BookCard({
     () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
     [design?.symbol_svg],
   );
-  // символ мог сгенерироваться битым (обрезанный/невалидный SVG) — тогда
-  // <img> не отрисуется; ловим onError и откатываемся на полумесяц
-  const [symbolBroken, setSymbolBroken] = useState(false);
-  // обложка может не загрузиться (битая/пропавшая ссылка) — тогда честная заглушка
-  const [coverBroken, setCoverBroken] = useState(false);
-  const showSymbol = symbolMode && palette && symbolUri && !symbolBroken;
+  // символ мог сгенерироваться битым, обложка — пропасть по ссылке;
+  // в обоих случаях откатываемся на заглушку (хук useImageFallback)
+  const symbol = useImageFallback();
+  const cover = useImageFallback();
+  const showSymbol = symbolMode && palette && symbol.ok(symbolUri);
 
   // логотип-полумесяц: и для книг без паспорта, и как фолбэк для битого символа
   const moon = (
@@ -70,25 +70,15 @@ function BookCard({
           showSymbol ? (
             // паспорт есть — экслибрис на палитре
             <div className="cover-symbol">
-              <img
-                src={symbolUri}
-                alt=""
-                aria-hidden="true"
-                onError={() => setSymbolBroken(true)}
-              />
+              <img src={symbolUri} alt="" aria-hidden="true" onError={symbol.onError} />
             </div>
           ) : (
             // нет паспорта или битый символ — логотип-полумесяц (полка единая)
             moon
           )
-        ) : book.cover_url && !coverBroken ? (
+        ) : cover.ok(book.cover_url) ? (
           // задача 56: lazy — браузер грузит обложку при приближении к экрану
-          <img
-            src={book.cover_url}
-            alt=""
-            loading="lazy"
-            onError={() => setCoverBroken(true)}
-          />
+          <img src={book.cover_url} alt="" loading="lazy" onError={cover.onError} />
         ) : (
           <div className="cover-empty">Нет обложки</div>
         )}

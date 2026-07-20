@@ -6,6 +6,7 @@ import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
 import { useBookDesign } from "../hooks/useBookDesign";
+import { useImageFallback } from "../hooks/useImageFallback";
 import AtmosphereSection from "./AtmosphereSection";
 import BookActionsBar from "./BookActionsBar";
 import BookStatusRow from "./BookStatusRow";
@@ -30,8 +31,7 @@ function BookDetail({ book, onBack, onDeleted }) {
   } = useBookDesign(book.id, theme);
 
   // обложка может не загрузиться (битая ссылка) — откатываемся на символ/заглушку
-  const [coverBroken, setCoverBroken] = useState(false);
-  const coverOk = book.cover_url && !coverBroken;
+  const cover = useImageFallback();
 
   // Кнопка Spotify доступна, только когда музыка подобрана — плейлист собирается
   // из неё. Ключ кэша общий с AtmosphereSection, лишнего запроса нет.
@@ -97,11 +97,11 @@ function BookDetail({ book, onBack, onDeleted }) {
         <div className="detail-main">
           <div className="detail-top">
             <div className="detail-cover">
-              {coverOk ? (
+              {cover.ok(book.cover_url) ? (
                 <img
                   src={book.cover_url}
                   alt={`Обложка книги «${book.title}»`}
-                  onError={() => setCoverBroken(true)}
+                  onError={cover.onError}
                 />
               ) : symbolOk ? (
                 // задача 50: вместо «Нет обложки» — символ-экслибрис книги

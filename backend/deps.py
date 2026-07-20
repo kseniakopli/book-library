@@ -3,12 +3,28 @@
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
+import database
 from i18n import ALLOWED_LANGS, msg
 from models import Book, User, UserBook
 
 # Пока пользователь один (id=1, admin). Появится авторизация (этап 9) — заменится
 # зависимостью, достающей текущего пользователя из сессии/JWT.
 CURRENT_USER_ID = 1
+
+
+def get_session():
+    """FastAPI-зависимость: сессия БД на время запроса (задача 77).
+    Роутеры пишут `session: Session = Depends(get_session)` вместо ручного
+    `with Session(database.engine)`.
+
+    ⚠ Не для эндпоинтов с долгими внешними вызовами: генерация атмосферы и
+    рекомендаций сознательно открывает КОРОТКУЮ сессию, закрывает её и только
+    потом идёт в AI (до 90 с) — иначе соединение висело бы всё это время.
+
+    `database.engine` читается в момент вызова, поэтому подмена движка
+    в тестах (in-memory база) продолжает работать."""
+    with Session(database.engine) as session:
+        yield session
 
 
 def get_lang(lang: str = "ru") -> str:

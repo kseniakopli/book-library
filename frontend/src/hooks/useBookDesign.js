@@ -3,10 +3,11 @@
 //
 // Вынесено из BookDetail (ревью 19.07): компонент держал всё это в себе и
 // разросся до 380 строк. Здесь — только логика паспорта, без вёрстки.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
+import { useImageFallback } from "./useImageFallback";
 import { bestTextOn, hasReadableContrast, withAlpha } from "../lib/contrast";
 import { pickPalette } from "../lib/palette";
 import { centeredSvgDataUri } from "../lib/svg";
@@ -28,10 +29,9 @@ export function useBookDesign(bookId, theme) {
     () => (design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null),
     [design?.symbol_svg],
   );
-  // символ мог сгенерироваться битым (обрезанный/невалидный SVG) — <img> не
-  // отрисуется, ловим onError и прячем символ
-  const [symbolBroken, setSymbolBroken] = useState(false);
-  const symbolOk = Boolean(symbolUri) && !symbolBroken;
+  // символ мог сгенерироваться битым (обрезанный/невалидный SVG) — тогда прячем его
+  const symbol = useImageFallback();
+  const symbolOk = symbol.ok(symbolUri);
 
   const palette = pickPalette(design, theme);
   // Задача 23: применяем AI-палитру, только если текст читаем на её фоне (WCAG AA)
@@ -98,7 +98,7 @@ export function useBookDesign(bookId, theme) {
     themedStyle,
     symbolUri,
     symbolOk,
-    onSymbolError: () => setSymbolBroken(true),
+    onSymbolError: symbol.onError,
     generating: generation.isPending,
     generationError: generation.isError ? generation.error : null,
   };
