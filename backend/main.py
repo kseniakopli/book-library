@@ -4,8 +4,10 @@ import os
 import secrets
 import time
 import uuid
+from pathlib import Path
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 from sqlalchemy import text
 
 import database
@@ -137,3 +139,35 @@ def health():
     with database.engine.connect() as conn:
         conn.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+# --- Раздача собранного фронтенда (задача 81, план деплоя п.1.2) ---
+# На проде FastAPI отдаёт и API, и статику из frontend/dist — один origin,
+# без CORS. Локально папки dist может не быть (фронт живёт на Vite :5173) —
+# тогда отвечаем обычным 404.
+# Catch-all объявлен ПОСЛЕ всех роутеров: /api/v1/*, /health и /callback
+# матчатся первыми. include_in_schema=False — снимок OpenAPI не меняется.
+# Наличие dist проверяем В ЗАПРОСЕ, а не при импорте: иначе сервер, поднятый
+# до `npm run build`, отдавал бы 404 до перезапуска.
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def spa(full_path: str):
+    """Файл существует — отдаём его; иначе index.html (SPA-fallback:
+    прямые ссылки /books/5, /stats и F5 работают, роутит react-router)."""
+    index = FRONTEND_DIST / "index.html"
+    if not index.is_file():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    file = (FRONTEND_DIST / full_path).resolve()
+    # защита от ../: отдаём только файлы внутри dist
+    if full_path and file.is_file() and file.is_relative_to(FRONTEND_DIST):
+        response = FileResponse(file)
+        if full_path.startswith("assets/"):
+            # у Vite имена ассетов с хэшем — можно кэшировать намертво
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+    response = FileResponse(index)
+    response.headers["Cache-Control"] = "no-cache"   # свежий index после деплоя
+    return response

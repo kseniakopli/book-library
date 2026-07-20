@@ -12,6 +12,9 @@ backend/backups/
 *.pyc
 node_modules/
 
+# Сборка фронтенда (на проде собирается в Docker, з.81)
+frontend/dist/
+
 # Playwright E2E (задача 68): отчёты и артефакты прогонов
 frontend/test-results/
 frontend/playwright-report/
