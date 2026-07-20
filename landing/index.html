@@ -115,12 +115,27 @@
         white-space: nowrap;
       }
       .waitlist button:hover { filter: brightness(1.06); }
+      .waitlist button:disabled {
+        opacity: 0.6;
+        cursor: default;
+        filter: none;
+      }
       .note {
         color: var(--muted);
         font-size: 14px;
         margin-top: 12px;
       }
       .note a { color: var(--accent); }
+
+      /* статус отправки формы (заполняется скриптом) */
+      .form-status {
+        font-size: 15px;
+        margin: 12px auto 0;
+        max-width: 460px;
+        min-height: 1.4em; /* резерв места — вёрстка не прыгает */
+      }
+      .form-status.ok { color: var(--accent); }
+      .form-status.err { color: #d98a7e; }
 
       /* --- секции --- */
       section { padding: 56px 0; }
@@ -222,10 +237,8 @@
           книгой стал ритуалом, а не строкой в списке.
         </p>
 
-        <!-- ЛИСТ ОЖИДАНИЯ.
-             Вставь в action ссылку своей формы (Formspree, Tally, Getform):
-             например action="https://formspree.io/f/xxxxxxx" -->
-        <form class="waitlist" action="ВСТАВЬТЕ_ССЫЛКУ_ФОРМЫ" method="POST">
+        <!-- ЛИСТ ОЖИДАНИЯ: отправка в Formspree через fetch (скрипт внизу страницы) -->
+        <form class="waitlist" action="https://formspree.io/f/xnjevbzd" method="POST">
           <label for="email" hidden>Ваша почта</label>
           <input
             id="email"
@@ -235,8 +248,10 @@
             placeholder="ваша@почта.ru"
             autocomplete="email"
           />
+          <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" hidden />
           <button type="submit">Хочу попробовать</button>
         </form>
+        <p class="form-status" role="status" aria-live="polite"></p>
         <p class="note">
           Напишу, когда открою доступ. Без рассылок и спама — только одно письмо.
         </p>
@@ -348,7 +363,7 @@
         <p class="section-lead">
           Сервис в разработке. Оставьте почту — напишу, когда открою доступ.
         </p>
-        <form class="waitlist" action="ВСТАВЬТЕ_ССЫЛКУ_ФОРМЫ" method="POST">
+        <form class="waitlist" action="https://formspree.io/f/xnjevbzd" method="POST">
           <label for="email2" hidden>Ваша почта</label>
           <input
             id="email2"
@@ -358,11 +373,13 @@
             placeholder="ваша@почта.ru"
             autocomplete="email"
           />
+          <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" hidden />
           <button type="submit">Записаться</button>
         </form>
+        <p class="form-status" role="status" aria-live="polite"></p>
         <p class="note">
           Или просто напишите:
-          <a href="mailto:ВАША_ПОЧТА@example.com">ВАША_ПОЧТА@example.com</a>
+          <a href="mailto:nctrnlib@gmail.com">nctrnlib@gmail.com</a>
         </p>
       </div>
     </section>
@@ -372,5 +389,45 @@
         nocturne — личный проект о том, что чтение заслуживает атмосферы.
       </div>
     </footer>
+
+    <script>
+      // Отправка листа ожидания без ухода со страницы.
+      // Если JS выключен или fetch упал до ответа — форма отправится
+      // обычным способом на Formspree (страница «спасибо» у них).
+      document.querySelectorAll("form.waitlist").forEach((form) => {
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const status = form.parentElement.querySelector(".form-status");
+          const button = form.querySelector("button");
+          button.disabled = true;
+          status.className = "form-status";
+          status.textContent = "Отправляю…";
+          try {
+            const response = await fetch(form.action, {
+              method: "POST",
+              body: new FormData(form),
+              headers: { Accept: "application/json" },
+            });
+            if (response.ok) {
+              status.classList.add("ok");
+              status.textContent = "Готово! Напишу, когда открою доступ.";
+              form.reset();
+            } else {
+              const data = await response.json().catch(() => ({}));
+              status.classList.add("err");
+              status.textContent =
+                (data.errors && data.errors[0] && data.errors[0].message) ||
+                "Не получилось отправить. Попробуйте ещё раз или напишите на почту.";
+            }
+          } catch {
+            status.classList.add("err");
+            status.textContent =
+              "Нет связи. Попробуйте ещё раз или напишите на почту.";
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+    </script>
   </body>
 </html>
