@@ -256,9 +256,8 @@ function CardPage() {
         <div className="pc-footer">
           {symbolUri && <img src={symbolUri} alt="" />}
           <span contentEditable suppressContentEditableWarning>
-            <b>nocturne</b> — атмосферные литературные вечера.
-            <br />
-            Собрано под эту книгу · nocturne-library.netlify.app
+            <b>nocturne-library.netlify.app</b> — атмосферные литературные
+            вечера.
           </span>
           {/* Статичный QR на лендинг (frontend/public/landing-qr.svg,
               перегенерация — backend/make_landing_qr.py) */}
