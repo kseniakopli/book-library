@@ -1,0 +1,23 @@
+# Деплой лендинга nocturne (папка landing/) на Netlify.
+# Файл читается из корня репозитория при подключении через Git.
+
+[build]
+  # Статический сайт без сборки: публикуем папку как есть
+  publish = "landing"
+
+# Security-заголовки (частично закрывает задачу 40 для лендинга)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    # Разрешаем только своё + шрифты Google и отправку формы в Formspree
+    Content-Security-Policy = "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action https://formspree.io; connect-src https://formspree.io; frame-ancestors 'none'"
+
+# Кэш скриншотов подольше (при замене меняйте имя файла или очищайте кэш деплоем)
+[[headers]]
+  for = "/screens/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
