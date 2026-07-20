@@ -210,6 +210,16 @@
 .pc-footer b {
   color: var(--c-text);
 }
+/* QR на лендинг: прижат вправо; белая подложка — как у QR плейлиста.
+   15mm достаточно для сканирования с руки (в URL мало данных, QR мелкоячеистый) */
+.pc-footer .pc-landing-qr {
+  width: 15mm;
+  height: 15mm;
+  margin-left: auto;
+  background: #fff;
+  border-radius: 1mm;
+  flex: none;
+}
 
 /* Аудит 18.07: карточка (105mm ≈ 397px) шире узких телефонов —
    скроллится сама карточка, а не вся страница */

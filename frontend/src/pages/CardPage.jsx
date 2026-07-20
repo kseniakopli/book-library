@@ -258,8 +258,15 @@ function CardPage() {
           <span contentEditable suppressContentEditableWarning>
             <b>nocturne</b> — атмосферные литературные вечера.
             <br />
-            Собрано AI под эту книгу · связь: kseniakopli@gmail.com
+            Собрано под эту книгу · nocturne-library.netlify.app
           </span>
+          {/* Статичный QR на лендинг (frontend/public/landing-qr.svg,
+              перегенерация — backend/make_landing_qr.py) */}
+          <img
+            className="pc-landing-qr"
+            src="/landing-qr.svg"
+            alt="QR-код: сайт nocturne"
+          />
         </div>
       </div>
     </div>
