@@ -95,13 +95,6 @@ function CardPage() {
     .map((item, idx) => ({ item, idx }))
     .filter(({ idx }) => !removed.aroma.includes(idx));
 
-  let genres = "";
-  try {
-    genres = (JSON.parse(book.categories) ?? []).slice(0, 2).join(" · ");
-  } catch {
-    genres = "";
-  }
-
   // Печатная карточка всегда в тёмной («вечерней») палитре — это её характер;
   // старый формат паспорта (palette) тоже понимаем
   const p = design?.palette_dark ?? design?.palette ?? DEFAULT_PALETTE;
@@ -167,12 +160,12 @@ function CardPage() {
         <p className="pc-author" contentEditable suppressContentEditableWarning>
           {book.author}
         </p>
-        <p className="pc-meta" contentEditable suppressContentEditableWarning>
-          {genres}
-          {genres && book.external_rating != null && " · "}
-          {book.external_rating != null &&
-            `★ ${String(book.external_rating.toFixed(1)).replace(".", ",")} · Google`}
-        </p>
+        {/* Жанр на карточку не выводим (решение 20.07); оценка Google — если есть */}
+        {book.external_rating != null && (
+          <p className="pc-meta" contentEditable suppressContentEditableWarning>
+            {`★ ${String(book.external_rating.toFixed(1)).replace(".", ",")} · Google`}
+          </p>
+        )}
         {/* Statement на карточку не выводим (решение 16.07): длинная цитата
             вытесняла треки — приоритет у «Музыки вечера» */}
         <div className="pc-tracks">
