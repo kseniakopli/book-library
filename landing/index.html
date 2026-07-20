@@ -196,13 +196,20 @@
         gap: 18px;
       }
       figure { margin: 0; }
+      figure a {
+        display: block;
+        border-radius: 12px;
+        cursor: zoom-in;
+      }
       figure img {
         width: 100%;
         display: block;
         border: 1px solid var(--border);
         border-radius: 12px;
         background: var(--surface);
+        transition: border-color 0.15s;
       }
+      figure a:hover img { border-color: var(--accent); }
       figcaption {
         color: var(--muted);
         font-size: 14px;
@@ -280,6 +287,36 @@
     <main>
     <section>
       <div class="wrap">
+        <h2>Как это выглядит</h2>
+        <p class="section-lead">
+          От полки до печатной карточки — каждая книга со своим настроением.
+        </p>
+
+        <div class="shots">
+          <figure>
+            <a href="screens/1.png" target="_blank" rel="noopener" title="Открыть в полном размере">
+              <img src="screens/1.png" alt="Полка библиотеки с обложками и символами книг" loading="lazy" />
+            </a>
+            <figcaption>Полка: обложки или фирменные символы книг</figcaption>
+          </figure>
+          <figure>
+            <a href="screens/2.png" target="_blank" rel="noopener" title="Открыть в полном размере">
+              <img src="screens/2.png" alt="Страница книги в палитре её паспорта оформления" loading="lazy" />
+            </a>
+            <figcaption>Книга в собственной палитре</figcaption>
+          </figure>
+          <figure>
+            <a href="screens/3.png" target="_blank" rel="noopener" title="Открыть в полном размере">
+              <img src="screens/3.png" alt="Печатная карточка книги с QR-кодом" loading="lazy" />
+            </a>
+            <figcaption>Печатная карточка</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
         <h2>Что делает nocturne</h2>
         <p class="section-lead">
           Каждой книге — своё настроение. Сервис собирает его целиком, а не по кусочкам.
@@ -298,8 +335,8 @@
           <article class="card">
             <h3>Музыка вечера</h3>
             <p>
-              Плейлист под конкретную книгу: два ИИ предлагают свои варианты с
-              пояснениями, треки собираются в плейлист Spotify одной кнопкой.
+              Плейлист под конкретную книгу — каждый трек с пояснением,
+              почему он подходит. Одной кнопкой собирается в Spotify.
             </p>
           </article>
 
@@ -339,30 +376,6 @@
     </section>
 
     <section>
-      <div class="wrap">
-        <h2>Как это выглядит</h2>
-        <p class="section-lead">
-          От полки до печатной карточки — каждая книга со своим настроением.
-        </p>
-
-        <div class="shots">
-          <figure>
-            <img src="screens/1.png" alt="Полка библиотеки с обложками и символами книг" />
-            <figcaption>Полка: обложки или фирменные символы книг</figcaption>
-          </figure>
-          <figure>
-            <img src="screens/2.png" alt="Страница книги в палитре её паспорта оформления" />
-            <figcaption>Книга в собственной палитре</figcaption>
-          </figure>
-          <figure>
-            <img src="screens/3.png" alt="Печатная карточка книги с QR-кодом" />
-            <figcaption>Печатная карточка</figcaption>
-          </figure>
-        </div>
-      </div>
-    </section>
-
-    <section>
       <div class="wrap" style="text-align: center">
         <h2>Хотите попробовать?</h2>
         <p class="section-lead">
@@ -379,7 +392,7 @@
             autocomplete="email"
           />
           <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" hidden />
-          <button type="submit">Записаться</button>
+          <button type="submit">Хочу попробовать</button>
         </form>
         <p class="form-status" role="status" aria-live="polite"></p>
         <p class="note">
