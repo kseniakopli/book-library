@@ -153,6 +153,33 @@ export const handlers = [
     return HttpResponse.json({ recommendations: db.recommendations });
   }),
 
+  // Статистика (задачи 24/63): готовые цифры с бэкенда
+  http.get("/api/v1/stats", () =>
+    HttpResponse.json({
+      totals: { all: 3, read: 1, reading: 0, want: 2 },
+      pages_read: 706,
+      average_rating: 9.0,
+      rated_count: 1,
+      ratings: Array.from({ length: 10 }, (_, i) => ({
+        rating: i + 1,
+        count: i + 1 === 9 ? 1 : 0,
+      })),
+      by_month: [
+        { month: "2025-08", count: 0 },
+        { month: "2026-07", count: 1 },
+      ],
+      this_year: { year: 2026, count: 1 },
+      streak_months: 1,
+      top_authors: [{ author: "Томас Манн", count: 1 }],
+      top_genres: [{ genre: "Роман", count: 1 }],
+    }),
+  ),
+  http.post("/api/v1/stats/insights", () =>
+    HttpResponse.json({
+      observations: ["Летом вы читаете заметно больше."],
+    }),
+  ),
+
   // Символьный режим полки (задача 66): символ+палитры паспорта по книгам
   http.get("/api/v1/books/design-summary", () =>
     HttpResponse.json({

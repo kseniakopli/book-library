@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 // Шапка главной: заголовок и действия (вид полки, тема, импорт, добавить).
 // Вынесено из HomePage (ревью 19.07).
 //
@@ -21,6 +23,10 @@ function LibraryHeader({
       </div>
 
       <div className="header-actions">
+        <Link className="btn-ghost" to="/stats" title="Статистика чтения">
+          ◔ Статистика
+        </Link>
+
         <button
           className="btn-ghost"
           onClick={onToggleMode}

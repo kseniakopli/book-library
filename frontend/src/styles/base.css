@@ -65,6 +65,14 @@ body {
   cursor: pointer;
 }
 
+/* Тот же вид для ссылок-кнопок (вход в статистику, возврат в библиотеку):
+   у <a> нужно погасить подчёркивание и выровнять по одной линии с <button> */
+a.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 /* Разрушительные действия (задача 47): видны, но не приглашают нажать */
 .btn-danger {
   font-family: inherit;

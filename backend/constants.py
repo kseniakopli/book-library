@@ -31,5 +31,6 @@ EVENT_AI_DESIGN = "ai_design_generated"
 EVENT_AI_FOOD = "ai_food_generated"
 EVENT_AI_AROMA = "ai_aroma_generated"
 EVENT_AI_RECOMMENDATIONS = "ai_recommendations_generated"   # этап 8
+EVENT_AI_INSIGHTS = "ai_insights_generated"                 # задача 24/63
 EVENT_PLAYLIST_CREATED = "spotify_playlist_created"
 EVENT_BACKFILL = "backfill_scheduled"

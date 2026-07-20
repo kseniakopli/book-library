@@ -15,6 +15,7 @@ from prompt_config import (
     build_aroma_prompt,
     build_design_prompt,
     build_food_prompt,
+    build_insights_prompt,
     build_music_prompt,
     build_recommendations_prompt,
 )
@@ -217,6 +218,22 @@ async def generate_recommendations(
     return await ask_claude(
         _with_style(build_recommendations_prompt(favorites, exclude, count, lang)),
         RecommendationsResult,
+    )
+
+
+class InsightsResult(BaseModel):
+    """Наблюдения о привычках чтения (задача 24/63)."""
+    observations: list[str]
+
+
+async def generate_insights(summary: str, lang: str = "ru") -> InsightsResult:
+    """Комментарий к статистике. Цифры считает бэкенд, модель только их толкует —
+    так в тексте не появится чисел, которых нет в сводке.
+    max_tokens небольшой: ответ — несколько предложений."""
+    return await ask_claude(
+        _with_style(build_insights_prompt(summary, lang)),
+        InsightsResult,
+        max_tokens=1000,
     )
 
 

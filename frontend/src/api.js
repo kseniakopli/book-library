@@ -64,6 +64,11 @@ export const getRecommendations = () => request("/recommendations");
 export const generateRecommendations = () =>
   request("/recommendations", { method: "POST" });
 
+// Статистика (задачи 24/63): цифры считает бэкенд, инсайты — по кнопке (токены)
+export const getStats = () => request("/stats");
+export const generateInsights = () =>
+  request("/stats/insights", { method: "POST" });
+
 // Атмосфера: единые эндпоинты для всех категорий (music, design, food, aroma).
 // GET и POST возвращают одинаковый формат: { book_id, category, selections: [...] }
 export const getAtmosphere = (id, category) =>

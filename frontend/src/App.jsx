@@ -11,6 +11,9 @@ import BookPage from "./pages/BookPage";
 // грузим их отдельными чанками по требованию (React.lazy → меньше стартовый бандл).
 const CardPage = lazy(() => import("./pages/CardPage"));
 const EveningPage = lazy(() => import("./pages/EveningPage"));
+// Статистика (задачи 24/63) тянет recharts — самый тяжёлый пакет в проекте.
+// Отдельный чанк: главная страница от него не толстеет.
+const StatsPage = lazy(() => import("./pages/StatsPage"));
 
 function App() {
   // Применяем сохранённую тему на уровне App: он смонтирован всегда,
@@ -25,6 +28,7 @@ function App() {
           <Route path="/books/:id" element={<BookPage />} />
           <Route path="/books/:id/card" element={<CardPage />} />
           <Route path="/books/:id/evening" element={<EveningPage />} />
+          <Route path="/stats" element={<StatsPage />} />
         </Routes>
       </Suspense>
     </div>

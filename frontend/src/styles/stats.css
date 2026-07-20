@@ -1,0 +1,168 @@
+/* ===== Страница «Статистика» (задачи 24/63) =====
+   Цвета берём только из токенов: графики recharts получают var(--accent)
+   прямо в fill/stroke, поэтому смена темы перекрашивает и их. */
+
+.stats-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.stats-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.stats-header .title {
+  margin: 0;
+}
+
+/* --- карточки-итоги: auto-fit, поэтому на телефоне становятся в 2 колонки --- */
+.stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.stat-value {
+  font-family: var(--serif);
+  font-size: 2rem;
+  line-height: 1.1;
+  color: var(--accent);
+}
+
+.stat-label {
+  margin-top: 4px;
+  font-size: 0.95rem;
+}
+
+.stat-hint {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.stat-block {
+  margin-bottom: 32px;
+}
+
+.stat-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-family: var(--serif);
+  font-size: 1.2rem;
+  font-weight: normal;
+  margin: 0 0 12px;
+}
+
+.stat-note {
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.chart-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 8px 4px;
+}
+
+/* --- топы: имя, полоска, число --- */
+.stat-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.top-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.top-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 80px 28px;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.top-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-bar-track {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.top-bar {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.top-count {
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- AI-наблюдения --- */
+.insights .btn-ghost {
+  margin-top: 8px;
+}
+
+.insight-list {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insight-list li {
+  position: relative;
+  padding: 10px 0 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.insight-list li::before {
+  content: "☾";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+@media (max-width: 480px) {
+  .stat-value {
+    font-size: 1.6rem;
+  }
+
+  /* на узком экране полоска съедает имя автора — оставляем имя и число */
+  .top-row {
+    grid-template-columns: minmax(0, 1fr) 28px;
+  }
+
+  .top-bar-track {
+    display: none;
+  }
+}
