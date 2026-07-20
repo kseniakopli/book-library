@@ -49,7 +49,7 @@ def _create_and_save(session: Session, book, lang: str) -> dict:
     book.spotify_playlist_url = result["url"]
     session.add(book)
     session.commit()
-    log_event(EVENT_PLAYLIST_CREATED, book.id, detail=f"found={result['found']}")
+    log_event(EVENT_PLAYLIST_CREATED, book.id, detail={"found": result["found"]})
     return {
         "status": "created",
         "playlist_url": result["url"],

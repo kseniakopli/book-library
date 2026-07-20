@@ -7,6 +7,7 @@ export const keys = {
   search: (term) => ["search", term],
   atmosphere: (id, category) => ["atmosphere", Number(id), category],
   designSummary: ["design-summary"],   // символы+палитры для символьного режима полки
+  pendingCount: ["pending-count"],      // задача 56б: поллинг фонового обогащения
   recommendations: ["recommendations"], // этап 8: советы новых книг
   stats: ["stats"],                     // задачи 24/63: статистика чтения
 };

@@ -54,6 +54,17 @@
             ],
             "title": "External Id"
           },
+          "isbn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Isbn"
+          },
           "read_at": {
             "anyOf": [
               {
@@ -84,7 +95,7 @@
         "type": "object"
       },
       "BookRead": {
-        "description": "Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —\nполный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний).",
+        "description": "Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —\nполный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний).\n\nПосле разделения таблиц ответ склеивается из двух источников: общие поля\nкниги (Book) + личные поля полки (UserBook). Сборка — в `from_pair`,\nрядом с самим контрактом (ревью 19.07: раньше жила в роутере).",
         "properties": {
           "author": {
             "title": "Author",
@@ -421,7 +432,7 @@
   "paths": {
     "/api/v1/books": {
       "get": {
-        "description": "Полка текущего пользователя: JOIN userbook → book.\nЗадача 70: фильтр по статусу + limit/offset — под пополковую (ленивую)\nзагрузку на фронте. Задача 52: raw_metadata (тяжёлый JSON) в список не грузим.",
+        "description": "Полка текущего пользователя: JOIN userbook → book.\nЗадача 70: фильтр по статусу + limit/offset (под ленивую загрузку полок).\nЗадача 52: raw_metadata (тяжёлый JSON) в список не грузим.",
         "operationId": "list_books_api_v1_books_get",
         "parameters": [
           {
@@ -623,7 +634,7 @@
     },
     "/api/v1/books/design-summary": {
       "get": {
-        "description": "Символьный режим полки (задача 66): для книг пользователя — экслибрис и\nпалитры из паспорта оформления, чтобы полка рисовала символы, не догружая\nпаспорт по каждой книге отдельно. Маршрут ВЫШЕ /books/{book_id}, иначе\n'design-summary' поймается как book_id.",
+        "description": "Символьный режим полки (задача 66). Маршрут объявлен ВЫШЕ /books/{book_id},\nиначе 'design-summary' поймается как book_id.",
         "operationId": "design_summary_api_v1_books_design_summary_get",
         "responses": {
           "200": {
@@ -636,6 +647,26 @@
           }
         },
         "summary": "Design Summary",
+        "tags": [
+          "books"
+        ]
+      }
+    },
+    "/api/v1/books/pending-count": {
+      "get": {
+        "description": "Задача 56б: лёгкий счётчик недообогащённых книг. Пока идёт фоновое\nобогащение, фронт поллит ЭТОТ эндпоинт (одно число), а не весь список книг.\nМаршрут тоже выше /books/{book_id}.",
+        "operationId": "pending_count_api_v1_books_pending_count_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Pending Count",
         "tags": [
           "books"
         ]
@@ -1123,6 +1154,66 @@
         ]
       }
     },
+    "/api/v1/recommendations": {
+      "get": {
+        "description": "Сохранённые рекомендации (пусто — фронт зовёт подобрать).",
+        "operationId": "list_recommendations_api_v1_recommendations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Recommendations",
+        "tags": [
+          "recommendations"
+        ]
+      },
+      "post": {
+        "description": "Подобрать рекомендации заново. Тратит токены → только admin.\nСессию открываем вручную КОРОТКИМИ отрезками (не через get_session):\nмежду ними идёт долгий AI-вызов, держать соединение всё это время не нужно.",
+        "operationId": "generate_api_v1_recommendations_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
     "/api/v1/search": {
       "get": {
         "operationId": "search_api_v1_search_get",
@@ -1160,6 +1251,68 @@
         "summary": "Search",
         "tags": [
           "search"
+        ]
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "description": "Цифры по полке. Считается на лету: библиотека персональная, запрос дешёвый,\nа кэш пришлось бы сбрасывать на каждое изменение статуса или оценки.",
+        "operationId": "read_stats_api_v1_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Stats",
+        "tags": [
+          "stats"
+        ]
+      }
+    },
+    "/api/v1/stats/insights": {
+      "post": {
+        "description": "Наблюдения о привычках чтения. Тратит токены → только admin, по кнопке.\nНе сохраняем: цифры меняются с каждой прочитанной книгой, и устаревший\nкомментарий хуже, чем его отсутствие.\nСессию открываем вручную КОРОТКИМ отрезком (не через get_session) — дальше\nидёт долгий AI-вызов, держать соединение всё это время не нужно.",
+        "operationId": "create_insights_api_v1_stats_insights_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Insights",
+        "tags": [
+          "stats"
         ]
       }
     },

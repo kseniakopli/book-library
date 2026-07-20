@@ -21,6 +21,8 @@ const json = (method, body) => ({
 });
 
 export const getBooks = () => request("/books");
+// Задача 56б: лёгкий счётчик для поллинга фонового обогащения
+export const getPendingCount = () => request("/books/pending-count");
 export const getBook = (id) => request(`/books/${id}`);
 // Символьный режим полки (задача 66): символ+палитры паспорта для всех книг разом
 export const getDesignSummary = () => request("/books/design-summary");

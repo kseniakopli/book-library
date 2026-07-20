@@ -61,6 +61,13 @@ const notFound = () =>
 export const handlers = [
   http.get("/api/v1/books", () => HttpResponse.json(db.books)),
 
+  // задача 56б: счётчик фонового обогащения (в тестах фон мгновенный)
+  http.get("/api/v1/books/pending-count", () =>
+    HttpResponse.json({
+      pending: db.books.filter((b) => b.enrich_status === "pending").length,
+    }),
+  ),
+
   http.get("/api/v1/books/:id", ({ params }) => {
     const book = findBook(params);
     return book ? HttpResponse.json(book) : notFound();

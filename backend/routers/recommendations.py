@@ -13,7 +13,7 @@ from deps import CURRENT_USER_ID, get_lang, get_session, require_admin
 from events import log_event
 from google_books import search_books
 from models import Book, Recommendation, UserBook
-from services.ai import generate_recommendations
+from services.ai import generate_recommendations, start_ai_metrics, take_ai_metrics
 
 router = APIRouter(tags=["recommendations"])
 
@@ -89,6 +89,7 @@ async def generate(lang: str = Depends(get_lang)):
         # нечего анализировать — честно говорим, токены не тратим
         return {"recommendations": [], "detail": "no_favorites"}
 
+    start_ai_metrics()   # задача 80: латентность и токены — в событие
     result = await generate_recommendations(favorites, exclude, COUNT, lang)
 
     # 3) дедуп на своей стороне: модель могла не заметить книгу из списка
@@ -129,6 +130,8 @@ async def generate(lang: str = Depends(get_lang)):
             ))
         session.commit()
 
-    log_event(EVENT_AI_RECOMMENDATIONS, detail=f"count={len(fresh)}")
+    log_event(EVENT_AI_RECOMMENDATIONS, detail={
+        "count": len(fresh), "ai_calls": take_ai_metrics(),
+    })
     with Session(database.engine) as session:
         return _stored(session)

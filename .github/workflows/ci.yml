@@ -34,6 +34,22 @@ jobs:
           OPENAI_API_KEY: test-dummy
           GOOGLE_BOOKS_API_KEY: test-dummy
         run: pytest -q
+      - name: API contract check (task 75)
+        # Перегенерируем снимок OpenAPI и сравниваем с закоммиченным:
+        # незамеченное изменение контракта валит CI, а не глаза на ревью.
+        # После намеренных правок API: python dump_openapi.py и закоммитить снимок.
+        env:
+          ANTHROPIC_API_KEY: test-dummy
+          OPENAI_API_KEY: test-dummy
+          GOOGLE_BOOKS_API_KEY: test-dummy
+        run: |
+          python dump_openapi.py
+          git diff --exit-code ../documentation/openapi.json
+      - name: Dependency audit (pip-audit, task 41)
+        # Аудитим установленное окружение (включая транзитивные зависимости).
+        run: |
+          pip install --quiet pip-audit
+          pip-audit
 
   frontend:
     name: Frontend (lint + vitest)
@@ -54,3 +70,7 @@ jobs:
         run: npm run lint
       - name: Unit tests (vitest)
         run: npm test
+      - name: Dependency audit (npm audit, task 41)
+        # Только прод-зависимости и только high/critical — dev-инструменты
+        # (vite, vitest) шумят advisories, не попадающими в собранный бандл.
+        run: npm audit --omit=dev --audit-level=high

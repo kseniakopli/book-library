@@ -113,5 +113,5 @@ def search(q: str):
                     seen.add(key)
             session.commit()
 
-    log_event(EVENT_SEARCH, detail=f"q={q}; found={len(results)}")
+    log_event(EVENT_SEARCH, detail={"q": q, "found": len(results)})
     return {"results": results[:10]}

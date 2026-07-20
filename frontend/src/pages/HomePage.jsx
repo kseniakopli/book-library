@@ -1,9 +1,9 @@
 // Главная: шапка, поиск по библиотеке, полки. Логика вынесена в хуки
 // (useShelves / useCsvImport / useStickyHeader / useShelfPositions),
 // шапка — в LibraryHeader (ревью 19.07). Здесь остались состав и состояния экрана.
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
@@ -33,7 +33,8 @@ function HomePage() {
   const [showModal, setShowModal] = useState(false);
   const addButtonRef = useRef(null);
 
-  // Список книг: кэш keys.books; пока есть pending — поллинг каждые 2 секунды
+  // Список книг: кэш keys.books (без собственного поллинга — задача 56б)
+  const queryClient = useQueryClient();
   const {
     data: books = [],
     isLoading: loading,
@@ -42,9 +43,27 @@ function HomePage() {
   } = useQuery({
     queryKey: keys.books,
     queryFn: api.getBooks,
-    refetchInterval: (q) =>
-      q.state.data?.some((b) => b.enrich_status === "pending") ? 2000 : false,
   });
+
+  // Задача 56б: пока в списке есть pending-книги, поллим ЛЁГКИЙ счётчик
+  // (одно число), а не весь список. Счётчик уменьшился — значит, какие-то
+  // книги дообогатились: тогда (и только тогда) перечитываем список.
+  const anyPending = books.some((b) => b.enrich_status === "pending");
+  const { data: pendingData } = useQuery({
+    queryKey: keys.pendingCount,
+    queryFn: api.getPendingCount,
+    enabled: anyPending,
+    refetchInterval: 2000,
+  });
+  const pendingCount = pendingData?.pending;
+  const prevPending = useRef(null);
+  useEffect(() => {
+    if (pendingCount == null) return;
+    if (prevPending.current != null && pendingCount < prevPending.current) {
+      queryClient.invalidateQueries({ queryKey: keys.books });
+    }
+    prevPending.current = pendingCount;
+  }, [pendingCount, queryClient]);
 
   // Символьный режим (задача 66): символы+палитры тянем один раз и только когда
   // режим включён; строим карту book_id → паспорт для карточек

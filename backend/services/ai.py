@@ -2,7 +2,9 @@
 # Контракт генераторов: async (title, author, lang) -> {источник: Pydantic-модель}
 # (для дизайна словарь собирает обёртка в services/atmosphere.py).
 import asyncio
+import contextvars
 import re
+from time import perf_counter
 
 from pydantic import BaseModel, field_validator
 from dotenv import load_dotenv
@@ -129,15 +131,58 @@ class DesignResult(BaseModel):
         return v
 
 
+# --- Метрики AI-вызовов (задача 80) ---
+# Каждый ask_* пишет в буфер провайдера, латентность и usage tokens — событийный
+# лог получает «сколько стоил этот запрос и кто отвечал быстрее».
+# ContextVar, а не глобальный список: параллельные HTTP-запросы (панель атмосферы
+# генерирует все категории разом) не перемешивают чужие метрики.
+_ai_metrics: contextvars.ContextVar[list | None] = contextvars.ContextVar(
+    "ai_metrics", default=None
+)
+
+
+def start_ai_metrics() -> None:
+    """Начать сбор метрик (вызывается перед генерацией, обычно в роутере)."""
+    _ai_metrics.set([])
+
+
+def take_ai_metrics() -> list[dict]:
+    """Забрать собранное и остановить сбор. Без start_* вернёт []."""
+    metrics = _ai_metrics.get() or []
+    _ai_metrics.set(None)
+    return metrics
+
+
+def _record_metric(entry: dict) -> None:
+    metrics = _ai_metrics.get()
+    if metrics is not None:
+        metrics.append(entry)
+
+
 # --- Обобщённые вызовы провайдеров (7.1): промпт и модель — параметры ---
 
 async def ask_claude(prompt: str, output_model, max_tokens: int = 8000):
-    message = await claude_client.messages.parse(
-        model="claude-sonnet-5",
-        max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}],
-        output_format=output_model,
-    )
+    start = perf_counter()
+    try:
+        message = await claude_client.messages.parse(
+            model="claude-sonnet-5",
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+            output_format=output_model,
+        )
+    except Exception as e:
+        _record_metric({
+            "provider": SOURCE_CLAUDE,
+            "latency_ms": round((perf_counter() - start) * 1000),
+            "error": type(e).__name__,
+        })
+        raise
+    _record_metric({
+        "provider": SOURCE_CLAUDE,
+        "latency_ms": round((perf_counter() - start) * 1000),
+        "input_tokens": message.usage.input_tokens,
+        "output_tokens": message.usage.output_tokens,
+    })
     if message.parsed_output is None:
         raise ValueError(
             f"Claude: пустой parsed_output (stop_reason={message.stop_reason})"
@@ -146,11 +191,27 @@ async def ask_claude(prompt: str, output_model, max_tokens: int = 8000):
 
 
 async def ask_openai(prompt: str, output_model):
-    response = await openai_client.chat.completions.parse(
-        model="gpt-5.4-mini",
-        messages=[{"role": "user", "content": prompt}],
-        response_format=output_model,
-    )
+    start = perf_counter()
+    try:
+        response = await openai_client.chat.completions.parse(
+            model="gpt-5.4-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format=output_model,
+        )
+    except Exception as e:
+        _record_metric({
+            "provider": SOURCE_CHATGPT,
+            "latency_ms": round((perf_counter() - start) * 1000),
+            "error": type(e).__name__,
+        })
+        raise
+    usage = response.usage
+    _record_metric({
+        "provider": SOURCE_CHATGPT,
+        "latency_ms": round((perf_counter() - start) * 1000),
+        "input_tokens": usage.prompt_tokens if usage else None,
+        "output_tokens": usage.completion_tokens if usage else None,
+    })
     choice = response.choices[0]
     if choice.message.parsed is None:
         raise ValueError(

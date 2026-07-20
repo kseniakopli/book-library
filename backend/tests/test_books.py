@@ -1,7 +1,7 @@
 # CRUD книг: статусы, оценки, локализация, удаление, фоновое обогащение.
 import pytest
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 import database
 from conftest import fake_book_info
@@ -38,6 +38,34 @@ def test_invalid_status(client):
 
 def test_book_not_found(client):
     assert client.patch("/api/v1/books/999", json={"status": "read"}).status_code == 404
+
+
+# --- pending-count (задача 56б): лёгкий счётчик для поллинга обогащения ---
+
+def test_pending_count_zero_by_default(client):
+    r = client.get("/api/v1/books/pending-count")
+    assert r.status_code == 200
+    assert r.json() == {"pending": 0}
+
+
+def test_pending_count_counts_pending_books(client):
+    with Session(database.engine) as session:
+        book = session.get(Book, 1)
+        book.enrich_status = "pending"
+        session.add(book)
+        session.commit()
+    assert client.get("/api/v1/books/pending-count").json() == {"pending": 1}
+
+
+# --- событийный лог (задача 80): detail — структура, а не строка ---
+
+def test_event_detail_is_json(client):
+    from events import Event
+
+    client.patch("/api/v1/books/1", json={"status": "read", "rating": 9})
+    with Session(database.engine) as session:
+        rated = session.exec(select(Event).where(Event.type == "rated")).all()
+    assert rated and rated[-1].detail == {"rating": 9}
 
 
 # --- задача 3: ручная правка полей ---

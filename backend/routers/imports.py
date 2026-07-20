@@ -104,7 +104,9 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
             shelf_ids.add(book_id)
         session.commit()
 
-    log_event(EVENT_IMPORT, detail=f"imported={imported}; duplicates={duplicates}; skipped={skipped}")
+    log_event(EVENT_IMPORT, detail={
+        "imported": imported, "duplicates": duplicates, "skipped": skipped,
+    })
     return {"imported": imported, "duplicates": duplicates, "skipped": skipped}
 
 
@@ -159,5 +161,5 @@ def backfill_metadata(
 
     if ids:
         background_tasks.add_task(backfill_in_background, ids, lang)
-        log_event(EVENT_BACKFILL, detail=f"scheduled={len(ids)}")
+        log_event(EVENT_BACKFILL, detail={"scheduled": len(ids)})
     return {"scheduled": len(ids), "remaining": total_without - len(ids)}

@@ -19,7 +19,14 @@ from constants import (
 )
 from events import log_event
 from models import AISelection, Book, UserBook
-from services.ai import generate_aroma, generate_design, generate_food, generate_music
+from services.ai import (
+    generate_aroma,
+    generate_design,
+    generate_food,
+    generate_music,
+    start_ai_metrics,
+    take_ai_metrics,
+)
 
 
 async def _generate_design_selections(title: str, author: str, lang: str = "ru") -> dict:
@@ -148,6 +155,7 @@ async def generate_design_in_background(book_id: int, lang: str = "ru") -> None:
             return
         title, author = book.title, book.author
 
+    start_ai_metrics()   # задача 80: латентность и токены — в событие
     try:
         results = await cfg["generate"](title, author, lang)
     except Exception as e:
@@ -155,7 +163,10 @@ async def generate_design_in_background(book_id: int, lang: str = "ru") -> None:
         print(f"Фоновое оформление книги {book_id} не удалось:", e)
         return
     replace_selections(book_id, "design", cfg, results)
-    log_event(cfg["event"], book_id, detail="auto")
+    log_event(cfg["event"], book_id, detail={
+        "trigger": "auto",
+        "ai_calls": take_ai_metrics(),
+    })
 
 
 def read_design_summary(session: Session, user_id: int) -> list[dict]:

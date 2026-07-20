@@ -57,7 +57,7 @@ def enrich_in_background(book_id: int, lang: str, external_id: str = None) -> No
             book.enrich_status = ENRICH_READY
             session.add(book)
             session.commit()
-        log_event(EVENT_ENRICHED, book_id, detail="ok" if info["raw_metadata"] else "miss")
+        log_event(EVENT_ENRICHED, book_id, detail={"result": "ok" if info["raw_metadata"] else "miss"})
     except Exception as e:
         print("Фоновое обогащение не удалось:", e)
         with Session(database.engine) as session:
@@ -66,4 +66,4 @@ def enrich_in_background(book_id: int, lang: str, external_id: str = None) -> No
                 book.enrich_status = ENRICH_FAILED
                 session.add(book)
                 session.commit()
-        log_event(EVENT_ENRICHED, book_id, detail="failed")
+        log_event(EVENT_ENRICHED, book_id, detail={"result": "failed"})

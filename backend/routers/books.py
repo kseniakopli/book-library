@@ -3,10 +3,12 @@
 # склейка ответа — BookRead.from_pair (ревью 19.07).
 # Сессия приходит зависимостью get_session (задача 77).
 from fastapi import APIRouter, BackgroundTasks, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import defer
 from sqlmodel import Session, select
 
 from constants import (
+    ENRICH_PENDING,
     ENRICH_READY,
     EVENT_BOOK_ADDED,
     EVENT_BOOK_DELETED,
@@ -69,6 +71,23 @@ def design_summary(session: Session = Depends(get_session)):
     return {"designs": read_design_summary(session, CURRENT_USER_ID)}
 
 
+@router.get("/books/pending-count")
+def pending_count(session: Session = Depends(get_session)):
+    """Задача 56б: лёгкий счётчик недообогащённых книг. Пока идёт фоновое
+    обогащение, фронт поллит ЭТОТ эндпоинт (одно число), а не весь список книг.
+    Маршрут тоже выше /books/{book_id}."""
+    count = session.exec(
+        select(func.count())
+        .select_from(Book)
+        .join(UserBook, UserBook.book_id == Book.id)
+        .where(
+            UserBook.user_id == CURRENT_USER_ID,
+            Book.enrich_status == ENRICH_PENDING,
+        )
+    ).one()
+    return {"pending": count}
+
+
 @router.get("/books/{book_id}", response_model=BookRead)
 def get_book(
     book_id: int,
@@ -92,7 +111,7 @@ def add_book(
     book_id = book.id
 
     log_event(
-        EVENT_BOOK_ADDED, book_id, detail="source=new" if is_new else "source=catalog"
+        EVENT_BOOK_ADDED, book_id, detail={"source": "new" if is_new else "catalog"}
     )
     # обогащение и оформление — только для НОВОЙ книги; у существующей всё есть.
     # Фоновые задачи открывают свои сессии, эта к тому моменту уже закрыта.
@@ -122,11 +141,11 @@ def update_book(
     result = BookRead.from_pair(book, user_book)
 
     if data.status is not None:
-        log_event(EVENT_STATUS_CHANGED, book_id, detail=user_book.status)
+        log_event(EVENT_STATUS_CHANGED, book_id, detail={"status": user_book.status})
     if data.rating is not None and user_book.rating is not None:
-        log_event(EVENT_RATED, book_id, detail=str(user_book.rating))
+        log_event(EVENT_RATED, book_id, detail={"rating": user_book.rating})
     if edited:
-        log_event(EVENT_BOOK_EDITED, book_id, detail=",".join(edited))
+        log_event(EVENT_BOOK_EDITED, book_id, detail={"fields": edited})
     return result
 
 
@@ -140,7 +159,7 @@ def delete_book(
     book = get_book_or_404(session, book_id, lang)
     title = book.title
     remove_from_shelf(session, book, user_book)
-    log_event(EVENT_BOOK_DELETED, book_id, detail=title)
+    log_event(EVENT_BOOK_DELETED, book_id, detail={"title": title})
     return {"deleted": book_id}
 
 
@@ -166,5 +185,5 @@ def enrich_book(
     session.refresh(book)
     session.refresh(user_book)
 
-    log_event(EVENT_ENRICHED, book_id, detail="ok" if found else "miss")
+    log_event(EVENT_ENRICHED, book_id, detail={"result": "ok" if found else "miss"})
     return BookRead.from_pair(book, user_book)

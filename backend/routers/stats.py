@@ -6,7 +6,7 @@ import database
 from constants import EVENT_AI_INSIGHTS
 from deps import CURRENT_USER_ID, get_lang, get_session, require_admin
 from events import log_event
-from services.ai import generate_insights
+from services.ai import generate_insights, start_ai_metrics, take_ai_metrics
 from services.stats import compute_stats, format_summary
 
 router = APIRouter(tags=["stats"])
@@ -34,6 +34,9 @@ async def create_insights(lang: str = Depends(get_lang)):
         # нечего толковать — честно говорим, токены не тратим
         return {"observations": [], "detail": "no_data"}
 
+    start_ai_metrics()   # задача 80: латентность и токены — в событие
     result = await generate_insights(format_summary(stats), lang)
-    log_event(EVENT_AI_INSIGHTS, detail=f"count={len(result.observations)}")
+    log_event(EVENT_AI_INSIGHTS, detail={
+        "count": len(result.observations), "ai_calls": take_ai_metrics(),
+    })
     return {"observations": result.observations}

@@ -8,6 +8,7 @@ import database
 from deps import get_book_or_404, get_lang, require_admin
 from events import log_event
 from i18n import msg
+from services.ai import start_ai_metrics, take_ai_metrics
 from services.atmosphere import (
     CATEGORIES,          # ре-экспорт: на него ссылаются тесты и разовые скрипты
     read_selections,
@@ -47,10 +48,14 @@ async def generate_atmosphere(
         require_admin(session, lang)
         title, author = book.title, book.author
 
-    # 2) реальные AI-вызовы (токены тратятся здесь)
+    # 2) реальные AI-вызовы (токены тратятся здесь); метрики — в событие (з.80)
+    start_ai_metrics()
     results = await cfg["generate"](title, author, lang)
 
     # 3) сохраняем — пустой результат не затирает готовую подборку (задача 74)
     response = replace_selections(book_id, category, cfg, results)
-    log_event(cfg["event"], book_id)
+    log_event(cfg["event"], book_id, detail={
+        "trigger": "manual",
+        "ai_calls": take_ai_metrics(),
+    })
     return response
