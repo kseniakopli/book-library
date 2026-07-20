@@ -3,7 +3,9 @@
 # дальше плейлисты создаются без участия браузера.
 import json
 import os
+import re
 import urllib.parse
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import requests
@@ -82,17 +84,56 @@ def _access_token() -> str:
     return resp["access_token"]
 
 
+# Пороги похожести при проверке найденного трека (инцидент 20.07 — см. _matches).
+TITLE_RATIO = 0.72
+ARTIST_RATIO = 0.6
+SEARCH_LIMIT = 5     # смотрим несколько кандидатов, а не только первого
+
+
+def _normalize(value: str) -> str:
+    """Приводим название/исполнителя к сравнимому виду: нижний регистр, без
+    приписок вроде «- Remastered 2011», «(feat. X)», «[Live]» и без пунктуации.
+    Без этого «Song To The Siren - Remastered» не совпало бы с оригиналом."""
+    text = value.lower()
+    text = re.split(r"\s+-\s+|\s*[\(\[]", text)[0]      # хвост после «-» или скобки
+    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
+    return " ".join(text.split())
+
+
+def _similar(a: str, b: str) -> float:
+    return SequenceMatcher(None, _normalize(a), _normalize(b)).ratio()
+
+
+def _matches(item: dict, title: str, artist: str) -> bool:
+    """Действительно ли найденное — тот трек, который просили.
+
+    Инцидент 20.07: в плейлист «Демона из Пустоши» попал рэп-трек. Причина —
+    свободный поиск брал ПЕРВЫЙ результат без проверки: если выдуманного моделью
+    трека в Spotify нет, поиск возвращает что-нибудь популярное по отдельным
+    словам. Теперь сверяем название и исполнителя, и лучше не добавить трек,
+    чем добавить чужой."""
+    if _similar(item.get("name", ""), title) < TITLE_RATIO:
+        return False
+    # у трека может быть несколько исполнителей — достаточно совпадения с одним
+    return any(
+        _similar(performer.get("name", ""), artist) >= ARTIST_RATIO
+        for performer in item.get("artists", [])
+    )
+
+
 def _search_track(headers: dict, title: str, artist: str):
-    """Поиск трека: сначала строгий по полям, затем свободный (из book-playlist)."""
+    """Поиск трека: строгий запрос по полям, затем свободный.
+    Кандидаты проверяются `_matches` — непохожие отбрасываются."""
     for q in (f"track:{title} artist:{artist}", f"{artist} {title}"):
         found = requests.get(
             "https://api.spotify.com/v1/search",
             headers=headers,
-            params={"q": q, "type": "track", "limit": 1},
+            params={"q": q, "type": "track", "limit": SEARCH_LIMIT},
             timeout=TIMEOUT,
         ).json().get("tracks", {}).get("items", [])
-        if found:
-            return found[0]["uri"]
+        for item in found:
+            if _matches(item, title, artist):
+                return item["uri"]
     return None
 
 

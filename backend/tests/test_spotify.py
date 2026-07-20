@@ -121,6 +121,68 @@ def test_qr_returns_png(client):
     assert r.content[:8] == b"\x89PNG\r\n\x1a\n"   # магические байты PNG
 
 
+# --- проверка совпадения найденного трека (инцидент 20.07) ---
+
+def _track(name, *artists):
+    return {"name": name, "artists": [{"name": a} for a in artists], "uri": f"uri:{name}"}
+
+
+def test_matches_accepts_exact_and_remastered():
+    assert spotify_service._matches(
+        _track("Spiegel im Spiegel", "Arvo Pärt"), "Spiegel im Spiegel", "Arvo Pärt"
+    )
+    # приписки ремастера/переиздания не должны мешать
+    assert spotify_service._matches(
+        _track("Song To The Siren - Remastered", "This Mortal Coil"),
+        "Song To The Siren", "This Mortal Coil",
+    )
+    # трек с несколькими исполнителями — достаточно совпадения с одним
+    assert spotify_service._matches(
+        _track("Solas", "Lisa Gerrard", "Patrick Cassidy"), "Solas", "Patrick Cassidy"
+    )
+
+
+def test_matches_rejects_foreign_track():
+    """Именно так в плейлист попадал случайный популярный трек."""
+    assert not spotify_service._matches(
+        _track("1Train", "A$AP Rocky", "Kendrick Lamar"),
+        "The Deer's Cry", "Arvo Pärt",
+    )
+    # название совпало, а исполнитель — нет: это кавер/однофамилец, не берём
+    assert not spotify_service._matches(
+        _track("History", "Kings of Leon"), "History", "Ólafur Arnalds"
+    )
+
+
+def test_search_track_skips_mismatched_candidates(monkeypatch):
+    """Первый кандидат чужой — берём следующего подходящего, а не первого подряд."""
+    class FakeResponse:
+        @staticmethod
+        def json():
+            return {"tracks": {"items": [
+                _track("1Train", "A$AP Rocky"),
+                _track("The Deer's Cry", "Arvo Pärt"),
+            ]}}
+
+    monkeypatch.setattr(
+        spotify_service.requests, "get", lambda *a, **kw: FakeResponse()
+    )
+    uri = spotify_service._search_track({}, "The Deer's Cry", "Arvo Pärt")
+    assert uri == "uri:The Deer's Cry"
+
+
+def test_search_track_returns_none_when_nothing_matches(monkeypatch):
+    class FakeResponse:
+        @staticmethod
+        def json():
+            return {"tracks": {"items": [_track("1Train", "A$AP Rocky")]}}
+
+    monkeypatch.setattr(
+        spotify_service.requests, "get", lambda *a, **kw: FakeResponse()
+    )
+    assert spotify_service._search_track({}, "Выдуманный трек", "Никто") is None
+
+
 def test_dedupe_songs_unit():
     songs = [
         {"title": "A", "artist": "X"},
