@@ -115,9 +115,12 @@ and ratings live in the local database and are always available.
 | **Anthropic Claude** (atmosphere) | error / timeout (90 s) | `safe_ask` returns an empty fallback; the guard skips writing it | The other provider's variant is still shown; if both failed — the previous selection survives untouched | Press the button again |
 | **Anthropic Claude** (passport) | error / timeout | `generate_design` raises; the background task logs and gives up (book stays without a passport) | Shelf shows the moon logo; page uses the base theme | Reopen the book (lazy retry) or run `scripts/backfill_passports.py` |
 | **OpenAI** (atmosphere) | error / refusal / truncation | same `safe_ask` fallback | Only the Claude variant in the source tabs | Regenerate |
-| **Spotify** | no refresh token | `POST /playlist` → `{status: "auth_required", auth_url}` | Authorisation window opens; playlist is created right after | One-time authorisation |
-| **Spotify** | no music generated | `400` with a localized message | "Generate music first — the playlist is built from it"; the button is disabled until music exists | Generate atmosphere |
-| **Spotify** | API error | exception → 500 | "Плейлист не создался: …" on the book page | Retry |
+| **Spotify** (track resolution) | no credentials / network error | `resolve_songs` returns the songs unchanged | Atmosphere is saved unverified (may contain invented tracks); no playlist yet | Regenerate once Spotify works, or run `scripts/verify_music.py` |
+| **Spotify** (track resolution) | 429 / 5xx | up to 3 attempts honouring `Retry-After`, then the track counts as missing | Fewer tracks in the list and the playlist | Regenerate the atmosphere |
+| **Spotify** (playlist on generation) | no refresh token | playlist step is skipped; the atmosphere is still saved | Fallback button "Создать плейлист в Spotify" | One-time authorisation, then press the button |
+| **Spotify** (playlist on generation) | API error | logged, generation still succeeds | Fallback button as above | Retry via the button |
+| **Spotify** | no music generated | the whole playlist block is hidden | Nothing — the button would be useless without music | Generate atmosphere |
+| **Playlist cover** | `requirements-cover.txt` not installed / bad SVG | `build_cover` returns `None`, upload skipped | Spotify shows its default mosaic of track covers | `pip install -r requirements-cover.txt`, then `scripts/reset_playlist.py --cover` |
 | **QR code** | no playlist | `404` | Dashed placeholder frame on the print card | Create the playlist |
 | **Database** | unavailable | `GET /health` → 500 | Library fails to load, "Повторить" button | Restore from `backend/backups/` (see `scripts/backup_db.py`) |
 
@@ -128,4 +131,10 @@ and ratings live in the local database and are always available.
   rejected at the boundary rather than stored.
 - AI palettes are applied **only** if they pass a WCAG 4.5:1 contrast check; otherwise the
   base theme is used.
-- Secrets live in `backend/.env`; a missing key surfaces as a failed generation, not a crash.
+- Secrets live in `backend/.env`. Required keys (Anthropic, OpenAI, Google Books) are
+  checked **at startup** — the app refuses to start with a clear message instead of
+  failing later inside a generation (`SKIP_KEY_CHECK=1` bypasses this).
+- Every request carries an id: it is in the JSON logs and in the `X-Request-ID` response
+  header, so a report of "it didn't work" can be traced to exact log lines.
+- Expensive endpoints (AI generation, import) are rate limited per IP; exceeding the limit
+  returns `429` with `Retry-After`, never a partial result.

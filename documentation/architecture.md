@@ -36,8 +36,12 @@ flowchart LR
 - **React Query** owns all server state: cache keys are centralized in `src/queryKeys.js`,
   mutations invalidate by key prefix. No manual `fetch`/`useState` for server data.
 - **Schema is owned by Alembic** (`alembic upgrade head`); `create_all` exists only in tests.
-- **Event log** (`event` table) records every meaningful action; nothing reads it yet —
-  it is the foundation for future statistics.
+- **Event log** (`event` table) records every meaningful action. `detail` is stored as
+  JSON (not a string), and AI events carry per-call metrics: provider, latency and token
+  usage — so "what does a generation cost and which provider is faster" is answerable.
+- **Observability**: JSON logs with a request id (also returned as `X-Request-ID`),
+  a fail-fast check for required API keys at startup, rate limits on the expensive
+  endpoints, and security headers — see `logging_setup.py`, `rate_limit.py`, `main.py`.
 
 ## Key flows
 
@@ -71,6 +75,7 @@ sequenceDiagram
     F->>B: POST /books/{id}/atmosphere/{category}
     B->>AI: generator from CATEGORIES[category]
     AI-->>B: {source: PydanticModel} (structured outputs)
+    B->>B: optional postprocess (music: resolve tracks in Spotify)
     B->>B: replace old AISelection rows<br/>(delete → flush → insert; unique constraint as safety net)
     B-->>F: {selections: [{source, payload, explanation}]}
     Note over F: same shape as GET —<br/>response goes straight into the query cache
@@ -78,6 +83,14 @@ sequenceDiagram
 
 Adding a category (stage 7: food, aroma) = a generator in `services/ai.py` + one entry in
 `CATEGORIES` (backend) + one entry in `COPY`/`renderPayload` in `AtmosphereSection.jsx`.
+
+**Music has an extra step.** Models routinely invent plausible track titles (Ólafur
+Arnalds has no "Familiar Ground"), and such a track would end up on the book page and on
+the printed card. So `CATEGORIES["music"]["postprocess"]` resolves every unique track in
+Spotify — in one parallel pass that returns both canonical names (saved with the
+atmosphere) and track URIs (used to create or refresh the book's playlist right away).
+Tracks that don't resolve are dropped. Without Spotify credentials the step degrades to
+"save as generated" — an unverified atmosphere beats an empty one.
 
 ## Runtime states and failure behaviour
 
@@ -99,3 +112,9 @@ as a plain diff.
 | AI palette applied only if WCAG contrast ≥ 4.5:1 | AI colors go into inline styles; unreadable/unsafe values fall back to base theme | — |
 | Two AI providers for the same category | learning goal: compare models side by side | cost optimization |
 | `raw_metadata` stored but never returned by API | keeps a full copy for future re-parsing without leaking internals | — |
+| Tracks resolved against Spotify **before** the atmosphere is saved | models invent titles; verifying at export time left them visible in the app and on printed cards | another catalog is added as a source |
+| One resolve pass feeds both the atmosphere and the playlist | halves Spotify calls; the playlist is ready the moment the atmosphere is | playlists become per-user (stage 9) |
+| Playlist refresh replaces items instead of recreating | the URL is printed as a QR code on cards — it must stay valid | — |
+| Structured JSON logs + request id (`X-Request-ID`) | needed before publishing: filterable logs, one id ties a complaint to log lines | log shipping is set up |
+| In-memory rate limiter instead of slowapi/Redis | one instance in production; a plain counter is enough and adds no dependency | scaling beyond one instance |
+| Basic Auth (shared password) for the test deploy | real auth (stage 9) is a bigger task; this closes the service and the AI budget today | stage 9 lands |
