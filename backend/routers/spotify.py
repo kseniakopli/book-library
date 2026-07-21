@@ -66,7 +66,8 @@ def _create_and_save(session: Session, book, lang: str) -> dict:
     log_event(EVENT_PLAYLIST_CREATED, book.id, detail={
         "found": result["found"],
         "cover_set": result.get("cover_set", False),
-        # какие треки не нашлись — видно, где промахивается поиск (з.80)
+        # что не нашлось: после проверки на генерации таких быть почти не должно —
+        # если список непустой, значит трек пропал из Spotify или сменил название
         "not_found": result["not_found"],
     })
     return {

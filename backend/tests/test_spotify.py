@@ -191,8 +191,10 @@ def test_search_track_skips_mismatched_candidates(monkeypatch):
             _track("The Deer's Cry", "Arvo Pärt"),
         ]),
     )
-    uri = spotify_service._search_track({}, "The Deer's Cry", "Arvo Pärt")
-    assert uri == "uri:The Deer's Cry"
+    assert (
+        spotify_service._search_track({}, "The Deer's Cry", "Arvo Pärt")
+        == "uri:The Deer's Cry"
+    )
 
 
 def test_search_track_returns_none_when_nothing_matches(monkeypatch):
@@ -201,6 +203,48 @@ def test_search_track_returns_none_when_nothing_matches(monkeypatch):
         lambda *a, **kw: FakeResponse([_track("1Train", "A$AP Rocky")]),
     )
     assert spotify_service._search_track({}, "Выдуманный трек", "Никто") is None
+
+
+# --- проверка треков ПЕРЕД сохранением атмосферы (20.07) ---
+
+def test_verify_songs_drops_invented_tracks(monkeypatch):
+    """Выдуманный трек не должен попасть в сервис: у Ólafur Arnalds нет
+    «Familiar Ground» — Spotify отдаёт другие его вещи, значит отбрасываем."""
+    monkeypatch.setattr(
+        spotify_service, "_client_credentials_token", lambda: "token"
+    )
+    monkeypatch.setattr(
+        spotify_service.requests, "get",
+        lambda *a, **kw: FakeResponse([_track("Near Light", "Ólafur Arnalds")]),
+    )
+    verified, dropped = spotify_service.verify_songs([
+        {"title": "Near Light", "artist": "Ólafur Arnalds"},
+        {"title": "Familiar Ground", "artist": "Ólafur Arnalds"},
+    ])
+    assert [s["title"] for s in verified] == ["Near Light"]
+    assert dropped == ["Ólafur Arnalds — Familiar Ground"]
+
+
+def test_verify_songs_uses_canonical_names(monkeypatch):
+    """У проверенных треков названия и исполнители — как в Spotify."""
+    monkeypatch.setattr(
+        spotify_service, "_client_credentials_token", lambda: "token"
+    )
+    monkeypatch.setattr(
+        spotify_service.requests, "get",
+        lambda *a, **kw: FakeResponse([_track("Sudno", "Molchat Doma")]),
+    )
+    verified, _ = spotify_service.verify_songs(
+        [{"title": "Судно", "artist": "Молчат Дома"}]
+    )
+    assert verified == [{"title": "Sudno", "artist": "Molchat Doma"}]
+
+
+def test_verify_songs_skipped_without_credentials(monkeypatch):
+    """Нет ключей Spotify — подборка сохраняется как есть (лучше, чем пустая)."""
+    monkeypatch.setattr(spotify_service, "_client_credentials_token", lambda: None)
+    songs = [{"title": "Что угодно", "artist": "Кто угодно"}]
+    assert spotify_service.verify_songs(songs) == (songs, [])
 
 
 def test_search_retries_on_rate_limit(monkeypatch):

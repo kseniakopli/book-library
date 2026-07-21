@@ -97,6 +97,19 @@ def _reset_rate_limits():
 
 
 @pytest.fixture(autouse=True)
+def _no_track_verification(monkeypatch):
+    """С 20.07 музыка перед сохранением проверяется в Spotify (verify_songs).
+    В тестах это означало бы реальные запросы (в .env есть рабочие ключи) —
+    подменяем на «всё существует». Проверка тестируется отдельно
+    в test_spotify.py на моках."""
+    import services.atmosphere as atmosphere_service
+
+    monkeypatch.setattr(
+        atmosphere_service, "verify_songs", lambda songs: (songs, [])
+    )
+
+
+@pytest.fixture(autouse=True)
 def _fake_design_generation(monkeypatch):
     """Задача 57: add_book фоном генерирует оформление, а TestClient выполняет
     фоновые задачи синхронно — без этого фейка любой POST /books ушёл бы

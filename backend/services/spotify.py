@@ -197,14 +197,88 @@ def _search_request(headers: dict, query: str, attempts: int = 4) -> list:
     return []
 
 
-def _search_track(headers: dict, title: str, artist: str):
-    """Поиск трека: строгий запрос по полям, затем свободный.
-    Кандидаты проверяются `_matches` — непохожие отбрасываются."""
+def find_track(headers: dict, title: str, artist: str) -> dict | None:
+    """Карточка трека из Spotify или None. Строго: название И исполнитель должны
+    совпасть (`_matches`) — подстановок «другой вещи того же автора» здесь нет.
+    Выдуманные моделью треки отсеиваются ДО сохранения атмосферы (verify_songs),
+    так что на этом шаге терять уже нечего."""
     for q in (f"track:{title} artist:{artist}", f"{artist} {title}"):
         for item in _search_request(headers, q):
             if _matches(item, title, artist):
-                return item["uri"]
+                return item
     return None
+
+
+def _search_track(headers: dict, title: str, artist: str) -> str | None:
+    item = find_track(headers, title, artist)
+    return item["uri"] if item else None
+
+
+# --- Проверка треков ПЕРЕД сохранением атмосферы (20.07) ---
+# Модели выдумывают правдоподобные названия («Familiar Ground» у Ólafur Arnalds
+# не существует). Решение: не пускать выдумки в сервис вообще — иначе они
+# попадут и на страницу книги, и в печатную карточку, и в сцену вечера,
+# а плейлист окажется вдвое короче списка.
+#
+# Для проверки хватает client credentials (ключи приложения): пользовательская
+# авторизация нужна только для создания плейлистов. Значит, атмосфера
+# валидируется даже до первого входа в Spotify.
+_client_token: dict = {"value": None, "expires": 0.0}
+
+
+def _client_credentials_token() -> str | None:
+    """Токен приложения для поиска (без участия пользователя). Кэшируем до
+    истечения срока. Нет ключей или отказ — None, проверка тогда пропускается."""
+    if not (CLIENT_ID and CLIENT_SECRET):
+        return None
+    if _client_token["value"] and time.time() < _client_token["expires"]:
+        return _client_token["value"]
+    try:
+        resp = requests.post(
+            "https://accounts.spotify.com/api/token",
+            data={"grant_type": "client_credentials"},
+            auth=(CLIENT_ID, CLIENT_SECRET),
+            timeout=TIMEOUT,
+        ).json()
+    except requests.RequestException as e:
+        log.warning("проверка треков: не удалось получить токен (%s)", e)
+        return None
+    token = resp.get("access_token")
+    if not token:
+        log.warning("проверка треков: Spotify не выдал токен приложения: %s", resp)
+        return None
+    _client_token["value"] = token
+    _client_token["expires"] = time.time() + resp.get("expires_in", 3600) - 60
+    return token
+
+
+def verify_songs(songs: list[dict]) -> tuple[list[dict], list[str]]:
+    """Оставляет только реально существующие треки.
+
+    Возвращает (проверенные, отброшенные). У проверенных название и исполнитель
+    заменяются на КАНОНИЧЕСКИЕ из Spotify — дальше и карточка, и плейлист
+    показывают то же, что увидит слушатель.
+    Проверить не удалось (нет ключей/сети) — возвращаем список как есть:
+    лучше неточная атмосфера, чем пустая."""
+    token = _client_credentials_token()
+    if token is None:
+        return songs, []
+
+    headers = {"Authorization": f"Bearer {token}"}
+    verified, dropped = [], []
+    for song in songs:
+        title, artist = song.get("title", ""), song.get("artist", "")
+        item = find_track(headers, title, artist)
+        if item is None:
+            dropped.append(f"{artist} — {title}")
+            continue
+        verified.append({
+            "title": item["name"],
+            "artist": ", ".join(a["name"] for a in item.get("artists", [])),
+        })
+    if dropped:
+        log.info("проверка треков: отброшено %s из %s", len(dropped), len(songs))
+    return verified, dropped
 
 
 def dedupe_songs(songs: list[dict]) -> list[dict]:
@@ -255,9 +329,9 @@ def create_playlist_from_songs(name: str, songs: list[dict], cover: str | None =
     not_found = []
     for song in dedupe_songs(songs):
         uri = _search_track(headers, song["title"], song["artist"])
-        if uri:
+        if uri and uri not in uris:
             uris.append(uri)
-        else:
+        elif not uri:
             not_found.append(f"{song['artist']} — {song['title']}")
 
     playlist = requests.post(

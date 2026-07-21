@@ -27,6 +27,7 @@ from services.ai import (
     start_ai_metrics,
     take_ai_metrics,
 )
+from services.spotify import verify_songs
 
 
 async def _generate_design_selections(title: str, author: str, lang: str = "ru") -> dict:
@@ -38,12 +39,28 @@ async def _generate_design_selections(title: str, author: str, lang: str = "ru")
 # Конфигурация категорий. Контракт генератора: async (title, author, lang) -> {source: BaseModel}.
 # payload — что кладём в AISelection.payload (JSON-строка),
 # explanation — короткий текст-пояснение для UI.
+def _verified_songs_payload(result) -> str:
+    """Музыка сохраняется ТОЛЬКО после проверки в Spotify (20.07).
+
+    Модели выдумывают правдоподобные названия («Familiar Ground» у Ólafur
+    Arnalds не существует). Раньше выдумка жила в сервисе: показывалась на
+    странице книги, уезжала в печатную карточку, а в плейлист не попадала —
+    он выходил вдвое короче списка. Теперь несуществующее отсеивается сразу,
+    а у оставшегося название и исполнитель — канонические, как в Spotify.
+
+    Проверка недоступна (нет ключей Spotify или сеть легла) — сохраняем как
+    есть: лучше непроверенная атмосфера, чем пустая."""
+    songs = [s.model_dump() for s in result.songs]
+    verified, dropped = verify_songs(songs)
+    if dropped:
+        print(f"Атмосфера: отброшены несуществующие треки: {'; '.join(dropped)}")
+    return json.dumps(verified, ensure_ascii=False)
+
+
 CATEGORIES = {
     "music": {
         "generate": generate_music,
-        "payload": lambda r: json.dumps(
-            [s.model_dump() for s in r.songs], ensure_ascii=False
-        ),
+        "payload": _verified_songs_payload,
         "explanation": lambda r: r.explanation,
         "event": EVENT_AI_MUSIC,
     },

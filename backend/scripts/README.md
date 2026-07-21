@@ -23,6 +23,9 @@ python scripts/backup_db.py
 | `reset_playlist.py` | Сброс ссылки на Spotify-плейлист (`--list` / `<id>` / `--all`), чтобы плейлист можно было собрать заново |
 | `make_landing_qr.py` | QR со ссылкой на лендинг → `frontend/public/landing-qr.svg`. Перегенерировать при смене домена |
 | `backfill_passports.py` | Пакетная генерация паспортов оформления через Anthropic Batch API (вдвое дешевле) |
+| `verify_music.py` | Чистка сохранённых подборок от несуществующих треков (`--dry-run` / `--book N`) |
+| `clear_atmosphere.py` | Удаление сохранённой атмосферы, чтобы сгенерировать заново (по умолчанию — только музыка) |
+| `check_track_search.py` | Диагностика поиска трека в Spotify: кто найден, кто отклонён и почему |
 | `backfill_atmosphere.py` | Восстановление музыки/угощений/ароматов у книг, где они пропали (инцидент 18.07) |
 | `backfill_read_dates.py` | Разовый перенос дат прочтения из CSV-выгрузки LiveLib |
 | `find_covers.py` / `apply_covers.py` | Поиск недостающих обложек через Google Books и применение найденного к базе |
