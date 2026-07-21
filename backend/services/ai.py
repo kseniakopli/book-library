@@ -162,14 +162,21 @@ def _record_metric(entry: dict) -> None:
 
 # --- Обобщённые вызовы провайдеров (7.1): промпт и модель — параметры ---
 
-async def ask_claude(prompt: str, output_model, max_tokens: int = 8000):
+async def ask_claude(
+    prompt: str, output_model, max_tokens: int = 8000, temperature: float | None = None
+):
     start = perf_counter()
+    # temperature задаётся не всегда: для музыки повыше — против «одинаковых
+    # атмосферных» подборок (mode collapse: модель тянет клише вроде
+    # Sigur Rós / Massive Attack в каждую книгу). Для дизайна/инсайтов не трогаем.
+    extra = {} if temperature is None else {"temperature": temperature}
     try:
         message = await claude_client.messages.parse(
             model="claude-sonnet-5",
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
             output_format=output_model,
+            **extra,
         )
     except Exception as e:
         _record_metric({
@@ -191,13 +198,15 @@ async def ask_claude(prompt: str, output_model, max_tokens: int = 8000):
     return message.parsed_output
 
 
-async def ask_openai(prompt: str, output_model):
+async def ask_openai(prompt: str, output_model, temperature: float | None = None):
     start = perf_counter()
+    extra = {} if temperature is None else {"temperature": temperature}
     try:
         response = await openai_client.chat.completions.parse(
             model="gpt-5.4-mini",
             messages=[{"role": "user", "content": prompt}],
             response_format=output_model,
+            **extra,
         )
     except Exception as e:
         _record_metric({
@@ -231,14 +240,17 @@ async def safe_ask(coro, fallback_factory):
         return fallback_factory()
 
 
-def make_two_source_generator(build_prompt, result_model, fallback_factory):
+def make_two_source_generator(
+    build_prompt, result_model, fallback_factory, temperature: float | None = None
+):
     """Генератор категории «спросить оба AI параллельно» (music, food, aroma).
-    Новая категория = промпт + модель результата + эта фабрика."""
+    Новая категория = промпт + модель результата + эта фабрика.
+    temperature — общий рычаг разнообразия (для музыки выше, см. generate_music)."""
     async def generate(title: str, author: str, lang: str = "ru") -> dict:
         prompt = _with_style(build_prompt(title, author, lang))
         claude_result, openai_result = await asyncio.gather(
-            safe_ask(ask_claude(prompt, result_model), fallback_factory),
-            safe_ask(ask_openai(prompt, result_model), fallback_factory),
+            safe_ask(ask_claude(prompt, result_model, temperature=temperature), fallback_factory),
+            safe_ask(ask_openai(prompt, result_model, temperature=temperature), fallback_factory),
         )
         return {SOURCE_CLAUDE: claude_result, SOURCE_CHATGPT: openai_result}
     return generate
@@ -246,9 +258,15 @@ def make_two_source_generator(build_prompt, result_model, fallback_factory):
 
 FAILED_TEXT = "(не удалось получить ответ)"
 
+# Музыка — с повышенной температурой: против «одинаковых атмосферных» подборок
+# (Sigur Rós / Massive Attack в каждой книге). Выдумки, которые даёт высокая
+# температура, отсеет резолв в Spotify (services/atmosphere.verify_music_results).
+MUSIC_TEMPERATURE = 1.0
+
 generate_music = make_two_source_generator(
     build_music_prompt, MusicResult,
     lambda: MusicResult(songs=[], explanation=FAILED_TEXT),
+    temperature=MUSIC_TEMPERATURE,
 )
 generate_food = make_two_source_generator(
     build_food_prompt, FoodResult,
