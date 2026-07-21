@@ -152,7 +152,7 @@ def _matches(item: dict, title: str, artist: str) -> bool:
     )
 
 
-def _search_request(headers: dict, query: str, attempts: int = 4) -> list:
+def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
     """Один поиск в Spotify с обработкой отказов.
 
     Инцидент 20.07: плейлист собирался наполовину — терялись даже очевидные

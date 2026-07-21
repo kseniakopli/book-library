@@ -51,6 +51,10 @@ async def generate_atmosphere(
     # 2) реальные AI-вызовы (токены тратятся здесь); метрики — в событие (з.80)
     start_ai_metrics()
     results = await cfg["generate"](title, author, lang)
+    # 2а) постобработка категории: для музыки — проверка треков в Spotify (20.07),
+    # чтобы выдуманные моделью названия не попадали в сервис
+    if cfg.get("postprocess"):
+        results = await cfg["postprocess"](results)
 
     # 3) сохраняем — пустой результат не затирает готовую подборку (задача 74)
     response = replace_selections(book_id, category, cfg, results)

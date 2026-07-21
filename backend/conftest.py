@@ -104,8 +104,20 @@ def _no_track_verification(monkeypatch):
     в test_spotify.py на моках."""
     import services.atmosphere as atmosphere_service
 
+    async def passthrough(results):
+        return results
+
     monkeypatch.setattr(
         atmosphere_service, "verify_songs", lambda songs: (songs, [])
+    )
+    # постобработка музыки ходит в Spotify — в тестах пропускаем целиком
+    monkeypatch.setitem(
+        atmosphere_service.CATEGORIES["music"], "postprocess", passthrough
+    )
+    from routers import atmosphere as atmosphere_router
+
+    monkeypatch.setitem(
+        atmosphere_router.CATEGORIES["music"], "postprocess", passthrough
     )
 
 

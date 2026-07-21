@@ -5,6 +5,7 @@
 # здесь, роутеры импортируют её сверху — граница модулей на месте.
 #
 # Добавление новой категории = генератор в services/ai.py + запись в CATEGORIES.
+import asyncio
 import json
 
 from sqlmodel import Session, select
@@ -39,28 +40,72 @@ async def _generate_design_selections(title: str, author: str, lang: str = "ru")
 # Конфигурация категорий. Контракт генератора: async (title, author, lang) -> {source: BaseModel}.
 # payload — что кладём в AISelection.payload (JSON-строка),
 # explanation — короткий текст-пояснение для UI.
-def _verified_songs_payload(result) -> str:
-    """Музыка сохраняется ТОЛЬКО после проверки в Spotify (20.07).
+VERIFY_CONCURRENCY = 6   # столько треков проверяем в Spotify одновременно
+
+
+async def verify_music_results(results: dict) -> dict:
+    """Постобработка музыки (20.07): выкидываем треки, которых нет в Spotify.
 
     Модели выдумывают правдоподобные названия («Familiar Ground» у Ólafur
     Arnalds не существует). Раньше выдумка жила в сервисе: показывалась на
     странице книги, уезжала в печатную карточку, а в плейлист не попадала —
-    он выходил вдвое короче списка. Теперь несуществующее отсеивается сразу,
-    а у оставшегося название и исполнитель — канонические, как в Spotify.
+    он выходил вдвое короче списка.
 
-    Проверка недоступна (нет ключей Spotify или сеть легла) — сохраняем как
+    Почему так, а не внутри `payload`: проверка — это сетевые запросы (до двух
+    на трек). Первая версия делала их последовательно и синхронно прямо
+    в обработчике — генерация висела минутами и блокировала цикл событий.
+    Теперь: уникальные треки обоих источников проверяются ПАРАЛЛЕЛЬНО
+    (`asyncio.to_thread` + семафор), результат раскладывается обратно
+    по источникам. Дубли между Claude и ChatGPT проверяются один раз.
+
+    Проверка недоступна (нет ключей Spotify или сеть легла) — оставляем как
     есть: лучше непроверенная атмосфера, чем пустая."""
-    songs = [s.model_dump() for s in result.songs]
-    verified, dropped = verify_songs(songs)
+    unique: dict[tuple[str, str], dict | None] = {}
+    for result in results.values():
+        for song in result.songs:
+            unique.setdefault((song.title.strip(), song.artist.strip()), None)
+
+    if not unique:
+        return results
+
+    semaphore = asyncio.Semaphore(VERIFY_CONCURRENCY)
+
+    async def check(key: tuple[str, str]):
+        title, artist = key
+        async with semaphore:
+            # sync-функция (requests) уезжает в поток — цикл событий свободен
+            verified, _ = await asyncio.to_thread(
+                verify_songs, [{"title": title, "artist": artist}]
+            )
+        return key, (verified[0] if verified else None)
+
+    for key, canonical in await asyncio.gather(*(check(k) for k in unique)):
+        unique[key] = canonical
+
+    dropped = [f"{a} — {t}" for (t, a), value in unique.items() if value is None]
     if dropped:
         print(f"Атмосфера: отброшены несуществующие треки: {'; '.join(dropped)}")
-    return json.dumps(verified, ensure_ascii=False)
+
+    for result in results.values():
+        kept = []
+        for song in result.songs:
+            canonical = unique.get((song.title.strip(), song.artist.strip()))
+            if canonical:
+                song.title = canonical["title"]
+                song.artist = canonical["artist"]
+                kept.append(song)
+        result.songs = kept
+    return results
 
 
 CATEGORIES = {
     "music": {
         "generate": generate_music,
-        "payload": _verified_songs_payload,
+        # проверка треков — отдельным async-шагом после генерации (см. выше)
+        "postprocess": verify_music_results,
+        "payload": lambda r: json.dumps(
+            [s.model_dump() for s in r.songs], ensure_ascii=False
+        ),
         "explanation": lambda r: r.explanation,
         "event": EVENT_AI_MUSIC,
     },
@@ -175,6 +220,8 @@ async def generate_design_in_background(book_id: int, lang: str = "ru") -> None:
     start_ai_metrics()   # задача 80: латентность и токены — в событие
     try:
         results = await cfg["generate"](title, author, lang)
+        if cfg.get("postprocess"):
+            results = await cfg["postprocess"](results)
     except Exception as e:
         # фон не должен ронять процесс; при открытии книги фронт попробует снова
         print(f"Фоновое оформление книги {book_id} не удалось:", e)
