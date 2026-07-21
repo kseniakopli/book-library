@@ -20,6 +20,12 @@ function SpotifyPlaylistBlock({ book, hasMusic }) {
     },
   });
 
+  // Пока музыки нет, блок не показываем вовсе: кнопка «Создать плейлист»
+  // всё равно ничего не может — плейлист собирается из музыкальной подборки.
+  // Обычно он появляется сам вместе с атмосферой; кнопка остаётся запасным
+  // путём (например, если при генерации не было авторизации в Spotify).
+  if (!book.spotify_playlist_url && !hasMusic) return null;
+
   return (
     <>
       <div className="playlist-row">
@@ -36,12 +42,8 @@ function SpotifyPlaylistBlock({ book, hasMusic }) {
           <button
             className="btn-ghost"
             onClick={() => playlist.mutate()}
-            disabled={playlist.isPending || !hasMusic}
-            title={
-              hasMusic
-                ? "Обычно плейлист собирается сам вместе с атмосферой — эта кнопка нужна, если тогда не было авторизации в Spotify"
-                : "Сначала нажмите «Подобрать атмосферу» — плейлист собирается из музыкальной подборки"
-            }
+            disabled={playlist.isPending}
+            title="Обычно плейлист собирается сам вместе с атмосферой — эта кнопка нужна, если тогда не было авторизации в Spotify"
           >
             {playlist.isPending
               ? "Создаю плейлист…"
