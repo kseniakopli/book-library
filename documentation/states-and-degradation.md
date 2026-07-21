@@ -116,7 +116,8 @@ and ratings live in the local database and are always available.
 | **Anthropic Claude** (passport) | error / timeout | `generate_design` raises; the background task logs and gives up (book stays without a passport) | Shelf shows the moon logo; page uses the base theme | Reopen the book (lazy retry) or run `scripts/backfill_passports.py` |
 | **OpenAI** (atmosphere) | error / refusal / truncation | same `safe_ask` fallback | Only the Claude variant in the source tabs | Regenerate |
 | **Spotify** (track resolution) | no credentials / network error | `resolve_songs` returns the songs unchanged | Atmosphere is saved unverified (may contain invented tracks); no playlist yet | Regenerate once Spotify works, or run `scripts/verify_music.py` |
-| **Spotify** (track resolution) | 429 / 5xx | up to 3 attempts honouring `Retry-After`, then the track counts as missing | Fewer tracks in the list and the playlist | Regenerate the atmosphere |
+| **Spotify** (track resolution) | 429 / 5xx (short) | up to 3 attempts honouring `Retry-After` (capped at `MAX_WAIT` 5 s), then the track counts as missing | Fewer tracks in the list and the playlist | Regenerate the atmosphere |
+| **Spotify** (track resolution) | 429 with long `Retry-After` (app quota ban) | **circuit breaker**: if `Retry-After` > `COOLDOWN_THRESHOLD` (30 s), the service enters a cooldown (`in_cooldown()`) and skips Spotify entirely until it passes — no waiting, no retries | Atmosphere saved unverified, no playlist; server stays responsive | Wait out the cooldown (usually an hour or two), then regenerate |
 | **Spotify** (playlist on generation) | no refresh token | playlist step is skipped; the atmosphere is still saved | Fallback button "Создать плейлист в Spotify" | One-time authorisation, then press the button |
 | **Spotify** (playlist on generation) | API error | logged, generation still succeeds | Fallback button as above | Retry via the button |
 | **Spotify** | no music generated | the whole playlist block is hidden | Nothing — the button would be useless without music | Generate atmosphere |
@@ -138,3 +139,8 @@ and ratings live in the local database and are always available.
   header, so a report of "it didn't work" can be traced to exact log lines.
 - Expensive endpoints (AI generation, import) are rate limited per IP; exceeding the limit
   returns `429` with `Retry-After`, never a partial result.
+- **Spotify has a per-app quota**, not just a per-user one. Hammering it (e.g. mass playlist
+  rebuilds) earns a 429 with a very long `Retry-After` — we observed ~78 000 s (~21 h). The
+  cooldown breaker keeps the server alive during such a ban, but the fix is not to trigger it:
+  never loop mass Spotify operations. This is also why the deploy plan adds a rate limit on
+  playlist-building endpoints before external testers arrive.
