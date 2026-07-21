@@ -272,15 +272,21 @@ class RecommendationsResult(BaseModel):
 
 
 async def generate_recommendations(
-    favorites: list[str], exclude: list[str], count: int = 8, lang: str = "ru"
-) -> RecommendationsResult:
-    """Этап 8: рекомендации новых книг по высоко оценённым.
+    favorites: list[str], exclude: list[str], count: int = 5, lang: str = "ru"
+) -> dict:
+    """Этап 8: рекомендации новых книг по высоко оценённым — от ОБОИХ моделей
+    (20.07), как в атмосфере: интереснее сравнивать, и вкусы у них разные.
     `favorites` — «Название — Автор (оценка)», `exclude` — что уже в библиотеке
-    (модель просят не повторять; на всякий случай дедуп ещё и в роутере)."""
-    return await ask_claude(
-        _with_style(build_recommendations_prompt(favorites, exclude, count, lang)),
-        RecommendationsResult,
+    (модель просят не повторять; дедуп между источниками — в роутере).
+    Контракт как у генераторов атмосферы: {источник: RecommendationsResult}.
+    Один провайдер упал — второй всё равно даст советы (safe_ask)."""
+    prompt = _with_style(build_recommendations_prompt(favorites, exclude, count, lang))
+    empty = lambda: RecommendationsResult(items=[])   # noqa: E731
+    claude_result, openai_result = await asyncio.gather(
+        safe_ask(ask_claude(prompt, RecommendationsResult), empty),
+        safe_ask(ask_openai(prompt, RecommendationsResult), empty),
     )
+    return {SOURCE_CLAUDE: claude_result, SOURCE_CHATGPT: openai_result}
 
 
 class InsightsResult(BaseModel):

@@ -7,16 +7,25 @@ from routers import recommendations as rec_routes
 from services.ai import RecommendationItem, RecommendationsResult
 
 
-def _fake_generate(favorites, exclude, count=8, lang="ru"):
-    """Мгновенный «AI»: одна новая книга и одна, которая уже есть на полке
-    (проверяем, что дедуп её отбросит)."""
+def _fake_generate(favorites, exclude, count=5, lang="ru"):
+    """Мгновенный «AI» от ДВУХ источников (контракт с 20.07):
+    - Claude: новая книга + книга, которая уже на полке (дедуп её отбросит);
+    - ChatGPT: своя новая книга + повтор совета Claude (дедуп между источниками)."""
     async def run():
-        return RecommendationsResult(items=[
-            RecommendationItem(title="Новая книга", author="Новый Автор",
-                               reason="похожа на ваши любимые"),
-            RecommendationItem(title="Test", author="Author",
-                               reason="а это уже есть в библиотеке"),
-        ])
+        return {
+            "Claude": RecommendationsResult(items=[
+                RecommendationItem(title="Новая книга", author="Новый Автор",
+                                   reason="похожа на ваши любимые"),
+                RecommendationItem(title="Test", author="Author",
+                                   reason="а это уже есть в библиотеке"),
+            ]),
+            "ChatGPT": RecommendationsResult(items=[
+                RecommendationItem(title="Новая книга", author="Новый Автор",
+                                   reason="дубль совета Claude"),
+                RecommendationItem(title="Вторая книга", author="Второй Автор",
+                                   reason="совет от ChatGPT"),
+            ]),
+        }
     return run()
 
 
@@ -67,6 +76,20 @@ def test_generate_and_dedupe(client, monkeypatch):
     assert client.get("/api/v1/recommendations").json()["recommendations"] == items
 
 
+def test_two_sources_with_cross_dedupe(client, monkeypatch):
+    """Две модели, дубли схлопнуты: «Новая книга» предложена обеими — остаётся
+    один раз и числится за Claude (он первый в фиксированном порядке)."""
+    _mock(monkeypatch)
+    _make_favorite(client)
+
+    items = client.post("/api/v1/recommendations").json()["recommendations"]
+    titles = [i["title"] for i in items]
+    assert titles == ["Новая книга", "Вторая книга"]     # дубль убран
+    by_title = {i["title"]: i["source"] for i in items}
+    assert by_title["Новая книга"] == "Claude"
+    assert by_title["Вторая книга"] == "ChatGPT"
+
+
 def test_regeneration_replaces_set(client, monkeypatch):
     _mock(monkeypatch)
     _make_favorite(client)
@@ -75,7 +98,7 @@ def test_regeneration_replaces_set(client, monkeypatch):
 
     with Session(database.engine) as session:
         rows = session.exec(select(Recommendation)).all()
-    assert len(rows) == 1                            # набор заменён, не задвоен
+    assert len(rows) == 2                            # набор заменён, не задвоен
 
 
 def test_generate_requires_admin(client, monkeypatch):

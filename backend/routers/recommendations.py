@@ -8,18 +8,28 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 
 import database
-from constants import EVENT_AI_RECOMMENDATIONS, STATUS_READ
+from constants import (
+    EVENT_AI_RECOMMENDATIONS,
+    SOURCE_CHATGPT,
+    SOURCE_CLAUDE,
+    STATUS_READ,
+)
 from deps import CURRENT_USER_ID, get_lang, get_session, require_admin
 from events import log_event
 from google_books import search_books
 from models import Book, Recommendation, UserBook
-from services.ai import generate_recommendations, start_ai_metrics, take_ai_metrics
+from services.ai import (
+    RecommendationsResult,
+    generate_recommendations,
+    start_ai_metrics,
+    take_ai_metrics,
+)
 
 router = APIRouter(tags=["recommendations"])
 
 MIN_RATING = 7        # что считаем «понравилось»
 MAX_FAVORITES = 20    # столько любимых книг отдаём модели (промпт не резиновый)
-COUNT = 8             # столько советов просим
+COUNT = 5             # столько советов просим У КАЖДОЙ модели (итого до 10)
 
 
 def _norm(title: str, author: str) -> tuple[str, str]:
@@ -39,6 +49,7 @@ def _stored(session: Session) -> dict:
                 "title": r.title,
                 "author": r.author,
                 "reason": r.reason,
+                "source": r.source,
                 "cover_url": r.cover_url,
                 "external_id": r.external_id,
             }
@@ -90,21 +101,26 @@ async def generate(lang: str = Depends(get_lang)):
         return {"recommendations": [], "detail": "no_favorites"}
 
     start_ai_metrics()   # задача 80: латентность и токены — в событие
-    result = await generate_recommendations(favorites, exclude, COUNT, lang)
+    # 20.07: спрашиваем ОБЕ модели, по COUNT советов у каждой
+    results = await generate_recommendations(favorites, exclude, COUNT, lang)
 
-    # 3) дедуп на своей стороне: модель могла не заметить книгу из списка
-    fresh = []
+    # 3) дедуп: (а) книги с полки — модель могла не заметить список исключений;
+    #    (б) советы, совпавшие у обеих моделей — показываем один раз.
+    #    Источники перебираем в фиксированном порядке, чтобы у одинакового
+    #    набора был предсказуемый результат, а не «кто раньше ответил».
+    fresh = []          # [(источник, item)]
     seen = set()
-    for item in result.items:
-        key = _norm(item.title, item.author)
-        if key in known or key in seen:
-            continue
-        seen.add(key)
-        fresh.append(item)
+    for source in (SOURCE_CLAUDE, SOURCE_CHATGPT):
+        for item in results.get(source, RecommendationsResult(items=[])).items:
+            key = _norm(item.title, item.author)
+            if key in known or key in seen:
+                continue
+            seen.add(key)
+            fresh.append((source, item))
 
     # 4) обложки: один поиск в Google Books на книгу (мягко — без обложки тоже ок)
     covers = {}
-    for item in fresh:
+    for _, item in fresh:
         candidates = search_books(f"{item.title} {item.author}", max_results=3)
         match = next((c for c in candidates if c.get("cover_url")), None)
         if match:
@@ -117,21 +133,26 @@ async def generate(lang: str = Depends(get_lang)):
         ).all():
             session.delete(old)
         session.flush()
-        for item in fresh:
+        for source, item in fresh:
             found = covers.get(_norm(item.title, item.author)) or {}
             session.add(Recommendation(
                 user_id=CURRENT_USER_ID,
                 title=item.title,
                 author=item.author,
                 reason=item.reason,
+                source=source,
                 cover_url=found.get("cover_url"),
                 external_id=found.get("external_id"),
                 created_at=datetime.now(),
             ))
         session.commit()
 
+    by_source = {
+        source: sum(1 for s, _ in fresh if s == source)
+        for source in (SOURCE_CLAUDE, SOURCE_CHATGPT)
+    }
     log_event(EVENT_AI_RECOMMENDATIONS, detail={
-        "count": len(fresh), "ai_calls": take_ai_metrics(),
+        "count": len(fresh), "by_source": by_source, "ai_calls": take_ai_metrics(),
     })
     with Session(database.engine) as session:
         return _stored(session)

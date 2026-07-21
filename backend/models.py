@@ -3,6 +3,8 @@ from typing import Optional
 from sqlalchemy import CheckConstraint
 from sqlmodel import Field, SQLModel, UniqueConstraint
 
+from constants import SOURCE_CLAUDE
+
 
 # --- Пользователь. Пока один (id=1, admin); задел под авторизацию (этап 9) ---
 class User(SQLModel, table=True):
@@ -84,6 +86,8 @@ class Recommendation(SQLModel, table=True):
     title: str
     author: str
     reason: str                            # почему именно эта книга
+    # Кто посоветовал: Claude / ChatGPT (20.07 — советы от обоих, как в атмосфере)
+    source: str = Field(default=SOURCE_CLAUDE)
     cover_url: Optional[str] = None        # подтягиваем из Google Books
     external_id: Optional[str] = None      # том Google Books — точное добавление
     created_at: datetime = Field(default_factory=datetime.now)

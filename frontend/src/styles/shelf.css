@@ -127,6 +127,16 @@
   line-height: 1.5;
   margin: 0;
 }
+/* Кто посоветовал книгу (Claude / ChatGPT) — приглушённая метка под причиной */
+.rec-source {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+}
 .rec-add {
   grid-area: add;
   justify-self: start;

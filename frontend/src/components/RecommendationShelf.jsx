@@ -1,6 +1,8 @@
 // Полка «Рекомендации» (этап 8): книги, которых в библиотеке ещё нет.
 // Подбираются по кнопке (тратит токены), хранятся на бэкенде до следующей
 // генерации. Клик по карточке добавляет книгу в «Хочу прочитать».
+// С 20.07 советуют обе модели (по 5 каждая); совпавшие книги бэкенд
+// схлопывает, у карточки виден источник.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
@@ -89,6 +91,8 @@ function RecommendationShelf() {
                 <h3 className="rec-title">{item.title}</h3>
                 <p className="rec-author">{item.author}</p>
                 <p className="rec-reason">{item.reason}</p>
+                {/* кто посоветовал: советы приходят от обеих моделей */}
+                {item.source && <span className="rec-source">{item.source}</span>}
               </div>
               <button
                 className="btn-ghost rec-add"

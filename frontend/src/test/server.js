@@ -148,11 +148,21 @@ export const handlers = [
     HttpResponse.json({ recommendations: db.recommendations }),
   ),
   http.post("/api/v1/recommendations", () => {
+    // с 20.07 советуют обе модели — у каждой карточки есть источник
     db.recommendations = [
       {
         title: "Тень ветра",
         author: "Карлос Руис Сафон",
         reason: "Готическая тайна в духе «Волшебной горы», которую вы оценили высоко",
+        source: "Claude",
+        cover_url: null,
+        external_id: null,
+      },
+      {
+        title: "Имя розы",
+        author: "Умберто Эко",
+        reason: "Медленный детектив в монастыре — под ваш вкус к атмосфере",
+        source: "ChatGPT",
         cover_url: null,
         external_id: null,
       },
