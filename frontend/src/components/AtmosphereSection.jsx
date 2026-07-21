@@ -73,6 +73,9 @@ function AtmosphereSection({ bookId }) {
       for (const c of CATEGORY_IDS) {
         queryClient.setQueryData(keys.atmosphere(bookId, c), fresh[c]);
       }
+      // вместе с музыкой бэкенд собирает Spotify-плейлист (20.07) — перечитываем
+      // книгу, чтобы кнопка сменилась на «Открыть плейлист»
+      queryClient.invalidateQueries({ queryKey: keys.book(bookId) });
     },
   });
 

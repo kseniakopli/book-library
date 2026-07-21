@@ -39,7 +39,7 @@ function SpotifyPlaylistBlock({ book, hasMusic }) {
             disabled={playlist.isPending || !hasMusic}
             title={
               hasMusic
-                ? undefined
+                ? "Обычно плейлист собирается сам вместе с атмосферой — эта кнопка нужна, если тогда не было авторизации в Spotify"
                 : "Сначала нажмите «Подобрать атмосферу» — плейлист собирается из музыкальной подборки"
             }
           >

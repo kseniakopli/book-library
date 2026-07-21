@@ -28,7 +28,9 @@ from services.ai import (
     start_ai_metrics,
     take_ai_metrics,
 )
-from services.spotify import verify_songs
+import services.spotify as spotify_service
+from services.cover_art import build_cover
+from services.spotify import resolve_songs
 
 
 async def _generate_design_selections(title: str, author: str, lang: str = "ru") -> dict:
@@ -40,62 +42,88 @@ async def _generate_design_selections(title: str, author: str, lang: str = "ru")
 # Конфигурация категорий. Контракт генератора: async (title, author, lang) -> {source: BaseModel}.
 # payload — что кладём в AISelection.payload (JSON-строка),
 # explanation — короткий текст-пояснение для UI.
-VERIFY_CONCURRENCY = 6   # столько треков проверяем в Spotify одновременно
+async def verify_music_results(results: dict, book_id: int, title: str) -> dict:
+    """Постобработка музыки (20.07, идея Ксении): ОДИН проход поиска в Spotify
+    и сразу — готовый плейлист.
 
+    Зачем: модели выдумывают правдоподобные названия («Familiar Ground»
+    у Ólafur Arnalds не существует). Такой трек нельзя пускать в сервис —
+    он оказался бы и на странице книги, и в печатной карточке. Раньше поиск
+    шёл дважды: сначала проверка атмосферы, потом создание плейлиста по кнопке.
+    Теперь один проход даёт и канонические названия для полки, и `uri` для
+    плейлиста, а кнопка на странице сразу «Открыть плейлист».
 
-async def verify_music_results(results: dict) -> dict:
-    """Постобработка музыки (20.07): выкидываем треки, которых нет в Spotify.
-
-    Модели выдумывают правдоподобные названия («Familiar Ground» у Ólafur
-    Arnalds не существует). Раньше выдумка жила в сервисе: показывалась на
-    странице книги, уезжала в печатную карточку, а в плейлист не попадала —
-    он выходил вдвое короче списка.
-
-    Почему так, а не внутри `payload`: проверка — это сетевые запросы (до двух
-    на трек). Первая версия делала их последовательно и синхронно прямо
-    в обработчике — генерация висела минутами и блокировала цикл событий.
-    Теперь: уникальные треки обоих источников проверяются ПАРАЛЛЕЛЬНО
-    (`asyncio.to_thread` + семафор), результат раскладывается обратно
-    по источникам. Дубли между Claude и ChatGPT проверяются один раз.
-
-    Проверка недоступна (нет ключей Spotify или сеть легла) — оставляем как
-    есть: лучше непроверенная атмосфера, чем пустая."""
+    Плейлист уже был — заменяем его содержимое: ссылка (и QR на печатной
+    карточке) остаётся прежней. Пользовательской авторизации нет — просто
+    отсеиваем несуществующее (поиск работает и по ключам приложения),
+    плейлист создастся потом кнопкой."""
     unique: dict[tuple[str, str], dict | None] = {}
     for result in results.values():
         for song in result.songs:
             unique.setdefault((song.title.strip(), song.artist.strip()), None)
-
     if not unique:
         return results
 
-    semaphore = asyncio.Semaphore(VERIFY_CONCURRENCY)
+    keys = list(unique)
+    songs = [{"title": t, "artist": a} for t, a in keys]
+    # sync-функция (requests в нескольких потоках) уезжает из цикла событий;
+    # результат выровнен по входу: карточка Spotify или None
+    resolved = await asyncio.to_thread(resolve_songs, songs)
+    unique = dict(zip(keys, resolved))
 
-    async def check(key: tuple[str, str]):
-        title, artist = key
-        async with semaphore:
-            # sync-функция (requests) уезжает в поток — цикл событий свободен
-            verified, _ = await asyncio.to_thread(
-                verify_songs, [{"title": title, "artist": artist}]
-            )
-        return key, (verified[0] if verified else None)
-
-    for key, canonical in await asyncio.gather(*(check(k) for k in unique)):
-        unique[key] = canonical
-
-    dropped = [f"{a} — {t}" for (t, a), value in unique.items() if value is None]
-    if dropped:
-        print(f"Атмосфера: отброшены несуществующие треки: {'; '.join(dropped)}")
+    missing = [f"{a} — {t}" for (t, a), item in unique.items() if item is None]
+    if missing:
+        print(f"Атмосфера: отброшены несуществующие треки: {'; '.join(missing)}")
 
     for result in results.values():
         kept = []
         for song in result.songs:
-            canonical = unique.get((song.title.strip(), song.artist.strip()))
-            if canonical:
-                song.title = canonical["title"]
-                song.artist = canonical["artist"]
+            item = unique.get((song.title.strip(), song.artist.strip()))
+            if item:
+                song.title = item["title"]
+                song.artist = item["artist"]
                 kept.append(song)
         result.songs = kept
+
+    uris = [item["uri"] for item in resolved if item and item.get("uri")]
+    await _sync_playlist(book_id, title, uris)
     return results
+
+
+async def _sync_playlist(book_id: int, title: str, uris: list[str]) -> None:
+    """Создать плейлист книги или обновить существующий. Ошибки не критичны:
+    музыка уже сохранена, плейлист можно собрать кнопкой позже."""
+    if not uris or not spotify_service.has_token():
+        return
+    try:
+        with Session(database.engine) as session:
+            book = session.get(Book, book_id)
+            existing = book.spotify_playlist_url if book else None
+
+        if existing:
+            await asyncio.to_thread(
+                spotify_service.replace_playlist_items, existing, uris
+            )
+            return
+
+        design = None
+        with Session(database.engine) as session:
+            rows = read_selections(session, book_id, "design")
+            design = rows[0].payload if rows else None
+        cover = build_cover(design) if design else None
+
+        result = await asyncio.to_thread(
+            spotify_service.create_playlist_with_uris,
+            f"nocturne · {title}", uris, cover,
+        )
+        with Session(database.engine) as session:
+            book = session.get(Book, book_id)
+            if book is not None:
+                book.spotify_playlist_url = result["url"]
+                session.add(book)
+                session.commit()
+    except Exception as e:
+        print(f"Плейлист для книги {book_id} не собрался:", e)
 
 
 CATEGORIES = {
@@ -221,7 +249,7 @@ async def generate_design_in_background(book_id: int, lang: str = "ru") -> None:
     try:
         results = await cfg["generate"](title, author, lang)
         if cfg.get("postprocess"):
-            results = await cfg["postprocess"](results)
+            results = await cfg["postprocess"](results, book_id, title)
     except Exception as e:
         # фон не должен ронять процесс; при открытии книги фронт попробует снова
         print(f"Фоновое оформление книги {book_id} не удалось:", e)

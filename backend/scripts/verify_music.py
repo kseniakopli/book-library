@@ -21,7 +21,7 @@ from sqlmodel import Session, select
 
 import database
 from models import AISelection, Book
-from services.spotify import verify_songs
+from services.spotify import resolve_songs
 
 
 def main() -> None:
@@ -48,7 +48,17 @@ def main() -> None:
             if not songs:
                 continue
 
-            verified, dropped = verify_songs(songs)
+            resolved = resolve_songs(songs)
+            verified = [
+                {"title": item["title"], "artist": item["artist"]}
+                for item in resolved
+                if item
+            ]
+            dropped = [
+                f"{song.get('artist')} — {song.get('title')}"
+                for song, item in zip(songs, resolved)
+                if item is None
+            ]
             if not dropped:
                 continue
 

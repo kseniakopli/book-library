@@ -98,26 +98,19 @@ def _reset_rate_limits():
 
 @pytest.fixture(autouse=True)
 def _no_track_verification(monkeypatch):
-    """С 20.07 музыка перед сохранением проверяется в Spotify (verify_songs).
+    """С 20.07 музыка перед сохранением проверяется в Spotify (resolve_songs).
     В тестах это означало бы реальные запросы (в .env есть рабочие ключи) —
     подменяем на «всё существует». Проверка тестируется отдельно
     в test_spotify.py на моках."""
     import services.atmosphere as atmosphere_service
 
-    async def passthrough(results):
+    async def passthrough(results, book_id=None, title=None):
         return results
 
-    monkeypatch.setattr(
-        atmosphere_service, "verify_songs", lambda songs: (songs, [])
-    )
-    # постобработка музыки ходит в Spotify — в тестах пропускаем целиком
+    # постобработка музыки ходит в Spotify (поиск треков + сборка плейлиста) —
+    # в тестах пропускаем целиком; сама она проверяется в test_spotify.py на моках
     monkeypatch.setitem(
         atmosphere_service.CATEGORIES["music"], "postprocess", passthrough
-    )
-    from routers import atmosphere as atmosphere_router
-
-    monkeypatch.setitem(
-        atmosphere_router.CATEGORIES["music"], "postprocess", passthrough
     )
 
 

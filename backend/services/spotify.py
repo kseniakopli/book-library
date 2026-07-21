@@ -8,6 +8,7 @@ import random
 import re
 import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -200,7 +201,7 @@ def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
 def find_track(headers: dict, title: str, artist: str) -> dict | None:
     """Карточка трека из Spotify или None. Строго: название И исполнитель должны
     совпасть (`_matches`) — подстановок «другой вещи того же автора» здесь нет.
-    Выдуманные моделью треки отсеиваются ДО сохранения атмосферы (verify_songs),
+    Выдуманные моделью треки отсеиваются ДО сохранения атмосферы (resolve_songs),
     так что на этом шаге терять уже нечего."""
     for q in (f"track:{title} artist:{artist}", f"{artist} {title}"):
         for item in _search_request(headers, q):
@@ -252,33 +253,6 @@ def _client_credentials_token() -> str | None:
     return token
 
 
-def verify_songs(songs: list[dict]) -> tuple[list[dict], list[str]]:
-    """Оставляет только реально существующие треки.
-
-    Возвращает (проверенные, отброшенные). У проверенных название и исполнитель
-    заменяются на КАНОНИЧЕСКИЕ из Spotify — дальше и карточка, и плейлист
-    показывают то же, что увидит слушатель.
-    Проверить не удалось (нет ключей/сети) — возвращаем список как есть:
-    лучше неточная атмосфера, чем пустая."""
-    token = _client_credentials_token()
-    if token is None:
-        return songs, []
-
-    headers = {"Authorization": f"Bearer {token}"}
-    verified, dropped = [], []
-    for song in songs:
-        title, artist = song.get("title", ""), song.get("artist", "")
-        item = find_track(headers, title, artist)
-        if item is None:
-            dropped.append(f"{artist} — {title}")
-            continue
-        verified.append({
-            "title": item["name"],
-            "artist": ", ".join(a["name"] for a in item.get("artists", [])),
-        })
-    if dropped:
-        log.info("проверка треков: отброшено %s из %s", len(dropped), len(songs))
-    return verified, dropped
 
 
 def dedupe_songs(songs: list[dict]) -> list[dict]:
@@ -317,6 +291,86 @@ def upload_cover(playlist_id: str, jpeg_base64: str) -> bool:
     except Exception as e:
         log.warning("обложка плейлиста: запрос не удался: %s", e)
     return False
+
+
+def resolve_songs(songs: list[dict], workers: int = 6) -> list[dict | None]:
+    """Один проход поиска. Результат ВЫРОВНЕН по входному списку: на месте
+    каждого трека либо карточка `{title, artist, uri}` с каноническими данными
+    Spotify, либо None (такого трека нет).
+
+    Одного прохода хватает и для сохранения атмосферы, и для наполнения
+    плейлиста — идея Ксении (20.07). Раньше Spotify опрашивался дважды:
+    при проверке атмосферы и потом при создании плейлиста.
+
+    Ищем в несколько потоков: последовательный проход по ~24 трекам занимал
+    больше десяти секунд. Нет ключей — возвращаем входные данные как есть
+    (лучше непроверенная атмосфера, чем пустая)."""
+    token = _access_token() if has_token() else _client_credentials_token()
+    if token is None:
+        return [dict(song) for song in songs]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    def resolve(song: dict) -> dict | None:
+        item = find_track(headers, song.get("title", ""), song.get("artist", ""))
+        if item is None:
+            return None
+        return {
+            "title": item["name"],
+            "artist": ", ".join(a["name"] for a in item.get("artists", [])),
+            "uri": item["uri"],
+        }
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(resolve, songs))
+
+
+def replace_playlist_items(playlist_url: str, uris: list[str]) -> bool:
+    """Заменить содержимое существующего плейлиста (атмосферу перегенерировали).
+    Плейлист и его ссылка остаются прежними — QR на печатной карточке не портится."""
+    playlist_id = playlist_url.rstrip("/").split("/")[-1].split("?")[0]
+    try:
+        response = requests.put(
+            f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
+            headers={"Authorization": f"Bearer {_access_token()}"},
+            json={"uris": uris},
+            timeout=TIMEOUT * 2,
+        )
+        if response.status_code in (200, 201):
+            return True
+        log.warning(
+            "не удалось обновить плейлист: %s %s",
+            response.status_code, response.text[:200],
+        )
+    except Exception as e:
+        log.warning("не удалось обновить плейлист: %s", e)
+    return False
+
+
+def create_playlist_with_uris(name: str, uris: list[str], cover: str | None = None) -> dict:
+    """Создать плейлист из уже найденных uri (поиск сделан в resolve_songs)."""
+    headers = {"Authorization": f"Bearer {_access_token()}"}
+    playlist = requests.post(
+        "https://api.spotify.com/v1/me/playlists",
+        headers=headers,
+        json={"name": name, "public": True},
+        timeout=TIMEOUT,
+    ).json()
+    if "external_urls" not in playlist:
+        raise RuntimeError(f"Spotify не создал плейлист: {playlist}")
+
+    if uris:
+        requests.post(
+            f"https://api.spotify.com/v1/playlists/{playlist['id']}/items",
+            headers=headers,
+            json={"uris": uris},
+            timeout=TIMEOUT,
+        )
+    cover_set = upload_cover(playlist["id"], cover) if cover else False
+    return {
+        "url": playlist["external_urls"]["spotify"],
+        "found": len(uris),
+        "cover_set": cover_set,
+    }
 
 
 def create_playlist_from_songs(name: str, songs: list[dict], cover: str | None = None) -> dict:
