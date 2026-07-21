@@ -324,23 +324,43 @@ def resolve_songs(songs: list[dict], workers: int = 6) -> list[dict | None]:
         return list(pool.map(resolve, songs))
 
 
+MAX_URIS_PER_REQUEST = 100   # ограничение Spotify на один запрос
+
+
 def replace_playlist_items(playlist_url: str, uris: list[str]) -> bool:
     """Заменить содержимое существующего плейлиста (атмосферу перегенерировали).
-    Плейлист и его ссылка остаются прежними — QR на печатной карточке не портится."""
+    Плейлист и его ссылка остаются прежними — QR на печатной карточке не портится.
+
+    ⚠ Путь именно `/items`: старый `/tracks` помечен deprecated, и замена по нему
+    молча не срабатывала — в плейлисте оставались прежние треки (20.07)."""
     playlist_id = playlist_url.rstrip("/").split("/")[-1].split("?")[0]
+    headers = {"Authorization": f"Bearer {_access_token()}"}
     try:
+        # первый запрос заменяет весь список, последующие — дописывают хвост
+        first, rest = uris[:MAX_URIS_PER_REQUEST], uris[MAX_URIS_PER_REQUEST:]
         response = requests.put(
-            f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
-            headers={"Authorization": f"Bearer {_access_token()}"},
-            json={"uris": uris},
+            f"https://api.spotify.com/v1/playlists/{playlist_id}/items",
+            headers=headers,
+            json={"uris": first},
             timeout=TIMEOUT * 2,
         )
-        if response.status_code in (200, 201):
-            return True
-        log.warning(
-            "не удалось обновить плейлист: %s %s",
-            response.status_code, response.text[:200],
-        )
+        if response.status_code not in (200, 201):
+            log.warning(
+                "не удалось обновить плейлист: %s %s",
+                response.status_code, response.text[:200],
+            )
+            return False
+
+        while rest:
+            chunk, rest = rest[:MAX_URIS_PER_REQUEST], rest[MAX_URIS_PER_REQUEST:]
+            requests.post(
+                f"https://api.spotify.com/v1/playlists/{playlist_id}/items",
+                headers=headers,
+                json={"uris": chunk},
+                timeout=TIMEOUT * 2,
+            )
+        log.info("плейлист обновлён: %s треков", len(uris))
+        return True
     except Exception as e:
         log.warning("не удалось обновить плейлист: %s", e)
     return False
@@ -358,11 +378,13 @@ def create_playlist_with_uris(name: str, uris: list[str], cover: str | None = No
     if "external_urls" not in playlist:
         raise RuntimeError(f"Spotify не создал плейлист: {playlist}")
 
-    if uris:
+    rest = uris
+    while rest:   # Spotify принимает не больше 100 uri за запрос
+        chunk, rest = rest[:MAX_URIS_PER_REQUEST], rest[MAX_URIS_PER_REQUEST:]
         requests.post(
             f"https://api.spotify.com/v1/playlists/{playlist['id']}/items",
             headers=headers,
-            json={"uris": uris},
+            json={"uris": chunk},
             timeout=TIMEOUT,
         )
     cover_set = upload_cover(playlist["id"], cover) if cover else False
