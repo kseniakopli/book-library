@@ -153,15 +153,36 @@ def _matches(item: dict, title: str, artist: str) -> bool:
     )
 
 
-def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
-    """Один поиск в Spotify с обработкой отказов.
+# Предохранитель против «залипания» на лимите Spotify (инцидент 21.07).
+# Spotify при серьёзном превышении квоты приложения отдаёт 429 с ОГРОМНЫМ
+# Retry-After (наблюдали 78285 с ≈ 21 час). Ждать столько бессмысленно, а
+# продолжать долбить — вредно: каждый трек занимал воркер, и сервер переставал
+# отвечать даже на GET /books. Решение: как только Spotify просит ждать дольше
+# COOLDOWN_THRESHOLD, помечаем сервис «в куладауне» и до его конца в Spotify
+# вообще не ходим — резолв просто пропускается (атмосфера сохраняется как есть).
+COOLDOWN_THRESHOLD = 30      # с: Retry-After больше — уходим в куладаун целиком
+MAX_WAIT = 5                 # с: максимум, сколько вообще ждём на одной попытке
+_cooldown_until = 0.0        # monotonic-время, до которого Spotify не трогаем
 
-    Инцидент 20.07: плейлист собирался наполовину — терялись даже очевидные
-    треки. Причина: ответ разбирался как `.json().get("tracks", …)` БЕЗ проверки
-    статуса. На пачке из ~60 песен (по два запроса на каждую) Spotify отвечает
-    429 Too Many Requests, в теле нет ключа `tracks` — и трек молча считался
-    ненайденным. Теперь: уважаем Retry-After, ретраим 429 и 5xx, остальное
-    логируем."""
+
+def in_cooldown() -> bool:
+    return time.monotonic() < _cooldown_until
+
+
+def _enter_cooldown(seconds: float) -> None:
+    global _cooldown_until
+    _cooldown_until = time.monotonic() + seconds
+    log.warning(
+        "Spotify в куладауне на %s с — резолв треков временно отключён", int(seconds)
+    )
+
+
+def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
+    """Один поиск в Spotify. Уважает Retry-After, ретраит 429/5xx.
+
+    Если сервис в куладауне (см. выше) — сразу пусто, без запроса."""
+    if in_cooldown():
+        return []
     for attempt in range(attempts):
         try:
             response = requests.get(
@@ -179,10 +200,13 @@ def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
             return response.json().get("tracks", {}).get("items", [])
 
         if response.status_code == 429:
-            # Spotify говорит, сколько ждать; иначе — растущая пауза
             wait = int(response.headers.get("Retry-After", 2 + attempt * 2))
+            if wait > COOLDOWN_THRESHOLD:
+                # долгий бан: не ждём и не повторяем — уходим в куладаун
+                _enter_cooldown(wait)
+                return []
             log.warning("поиск трека: лимит Spotify, ждём %s с", wait)
-            time.sleep(min(wait, 30) + random.uniform(0, 0.5))
+            time.sleep(min(wait, MAX_WAIT) + random.uniform(0, 0.5))
             continue
 
         if 500 <= response.status_code < 600:
@@ -305,6 +329,11 @@ def resolve_songs(songs: list[dict], workers: int = 6) -> list[dict | None]:
     Ищем в несколько потоков: последовательный проход по ~24 трекам занимал
     больше десяти секунд. Нет ключей — возвращаем входные данные как есть
     (лучше непроверенная атмосфера, чем пустая)."""
+    # Spotify забанил на время (см. in_cooldown) — не трогаем его, оставляем
+    # подборку как есть: атмосфера сохранится непроверенной, но сервер не висит
+    if in_cooldown():
+        return [dict(song) for song in songs]
+
     token = _access_token() if has_token() else _client_credentials_token()
     if token is None:
         return [dict(song) for song in songs]

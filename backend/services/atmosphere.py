@@ -93,7 +93,8 @@ async def verify_music_results(results: dict, book_id: int, title: str) -> dict:
 async def _sync_playlist(book_id: int, title: str, uris: list[str]) -> None:
     """Создать плейлист книги или обновить существующий. Ошибки не критичны:
     музыка уже сохранена, плейлист можно собрать кнопкой позже."""
-    if not uris or not spotify_service.has_token():
+    # Spotify в куладауне (лимит) — не дёргаем его, плейлист соберётся позже
+    if not uris or not spotify_service.has_token() or spotify_service.in_cooldown():
         return
     try:
         with Session(database.engine) as session:
