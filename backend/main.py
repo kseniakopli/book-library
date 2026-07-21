@@ -4,6 +4,7 @@ import os
 import secrets
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -27,7 +28,18 @@ from routers import (
 setup_logging()
 log = logging.getLogger("nocturne")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Стартовые проверки (задача 71). lifespan вместо устаревшего on_event
+    (FastAPI ругался DeprecationWarning). check_api_keys определена ниже —
+    к моменту старта приложения модуль уже загружен целиком."""
+    check_api_keys()
+    yield
+
+
 app = FastAPI(
+    lifespan=lifespan,
     title="nocturne API",
     description="Персональная библиотека для атмосферных литературных вечеров. "
     "Интерактивная документация: /docs (Swagger) и /redoc.",
@@ -58,8 +70,7 @@ app.include_router(spotify.callback_router)
 REQUIRED_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GOOGLE_BOOKS_API_KEY")
 
 
-@app.on_event("startup")
-def check_api_keys():
+def check_api_keys() -> None:
     if os.getenv("SKIP_KEY_CHECK") == "1":
         return
     missing = [k for k in REQUIRED_KEYS if not os.getenv(k)]

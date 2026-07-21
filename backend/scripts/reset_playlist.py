@@ -8,9 +8,12 @@
 иначе останется висеть в вашем профиле.
 
 Запуск из папки backend/:
-    python reset_playlist.py 42        # по id книги
-    python reset_playlist.py --all     # у всех книг сразу
-    python reset_playlist.py --list    # показать, у кого есть плейлисты
+    python scripts/reset_playlist.py 42        # по id книги
+    python scripts/reset_playlist.py --all     # у всех книг сразу
+    python scripts/reset_playlist.py --list    # показать, у кого есть плейлисты
+    python scripts/reset_playlist.py --cover   # ТОЛЬКО обновить обложки
+                                               # (символ книги) у существующих
+                                               # плейлистов — не пересоздавая их
 """
 
 import sys
@@ -28,6 +31,39 @@ def _books_with_playlist(session: Session) -> list[Book]:
     ).all()
 
 
+def _update_covers(session: Session) -> None:
+    """Ставит обложку-символ существующим плейлистам, не пересоздавая их.
+    Нужен токен со scope ugc-image-upload — если авторизация была до 20.07,
+    Spotify ответит 403: удалите spotify_token.json и авторизуйтесь заново."""
+    import services.spotify as spotify_service
+    from models import AISelection
+    from services.cover_art import build_cover
+
+    books = _books_with_playlist(session)
+    done = failed = skipped = 0
+    for book in books:
+        design = session.exec(
+            select(AISelection).where(
+                AISelection.book_id == book.id,
+                AISelection.category == "design",
+            )
+        ).first()
+        cover = build_cover(design.payload) if design else None
+        if cover is None:
+            print(f"— пропуск (нет паспорта/не отрисовался): {book.title}")
+            skipped += 1
+            continue
+        # id плейлиста — хвост ссылки вида https://open.spotify.com/playlist/<id>
+        playlist_id = book.spotify_playlist_url.rstrip("/").split("/")[-1].split("?")[0]
+        if spotify_service.upload_cover(playlist_id, cover):
+            print(f"✓ {book.title}")
+            done += 1
+        else:
+            print(f"✗ не принято Spotify: {book.title}")
+            failed += 1
+    print(f"Готово. Обновлено: {done}, ошибок: {failed}, пропущено: {skipped}")
+
+
 def main() -> None:
     args = sys.argv[1:]
     if not args:
@@ -40,6 +76,10 @@ def main() -> None:
             for book in books:
                 print(f"{book.id:>4}  {book.title} — {book.author}")
             print(f"Всего с плейлистами: {len(books)}")
+            return
+
+        if args[0] == "--cover":
+            _update_covers(session)
             return
 
         if args[0] == "--all":

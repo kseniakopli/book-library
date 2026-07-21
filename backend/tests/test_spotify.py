@@ -44,11 +44,11 @@ def test_playlist_created_and_saved(client, monkeypatch):
 
     captured = {}
 
-    def fake_create(name, songs):
+    def fake_create(name, songs, cover=None):
         captured["name"] = name
         captured["songs"] = songs
         return {"url": "https://open.spotify.com/playlist/test123",
-                "found": 3, "not_found": []}
+                "found": 3, "not_found": [], "cover_set": False}
 
     monkeypatch.setattr(spotify_service, "create_playlist_from_songs", fake_create)
 
@@ -72,12 +72,14 @@ def test_playlist_existing_returned_without_recreation(client, monkeypatch):
     monkeypatch.setattr(spotify_service, "has_token", lambda: True)
     monkeypatch.setattr(
         spotify_service, "create_playlist_from_songs",
-        lambda name, songs: {"url": "https://open.spotify.com/playlist/first",
-                             "found": 1, "not_found": []},
+        lambda name, songs, cover=None: {
+            "url": "https://open.spotify.com/playlist/first",
+            "found": 1, "not_found": [], "cover_set": False,
+        },
     )
     client.post("/api/v1/books/1/playlist")
 
-    def boom(name, songs):
+    def boom(name, songs, cover=None):
         raise AssertionError("плейлист не должен создаваться повторно")
 
     monkeypatch.setattr(spotify_service, "create_playlist_from_songs", boom)
@@ -142,6 +144,19 @@ def test_matches_accepts_exact_and_remastered():
     )
 
 
+def test_matches_accepts_transliterated_cyrillic():
+    """Русские исполнители в Spotify часто латиницей — сравнение через транслит."""
+    assert spotify_service._matches(
+        _track("Sudno", "Molchat Doma"), "Судно", "Молчат Дома"
+    )
+    assert spotify_service._matches(
+        _track("Судно (Борис Рыжий)", "Молчат Дома"), "Судно", "Molchat Doma"
+    )
+    assert spotify_service._matches(
+        _track("Plyazh", "Buerak"), "Пляж", "Буерак"
+    )
+
+
 def test_matches_rejects_foreign_track():
     """Именно так в плейлист попадал случайный популярный трек."""
     assert not spotify_service._matches(
@@ -181,6 +196,56 @@ def test_search_track_returns_none_when_nothing_matches(monkeypatch):
         spotify_service.requests, "get", lambda *a, **kw: FakeResponse()
     )
     assert spotify_service._search_track({}, "Выдуманный трек", "Никто") is None
+
+
+# --- обложка плейлиста из символа-экслибриса (20.07) ---
+
+DESIGN_PAYLOAD = json.dumps({
+    "symbol_svg": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+                  '<circle cx="50" cy="50" r="40" fill="#e08b2d"/></svg>',
+    "palette_dark": {"bg": "#161311", "surface": "#221c17", "accent": "#e08b2d",
+                     "text": "#e9e1d3", "muted": "#a19585"},
+})
+
+
+def test_build_cover_returns_base64_jpeg():
+    """Символ превращается в JPEG в пределах лимита Spotify (256 КБ base64)."""
+    pytest.importorskip("svglib")
+    import base64
+
+    from services.cover_art import MAX_BASE64, build_cover, rasterizer_available
+
+    if not rasterizer_available():
+        pytest.skip("нет бэкенда растеризации (pip install rlPyCairo)")
+
+    encoded = build_cover(DESIGN_PAYLOAD)
+    assert encoded is not None
+    assert len(encoded) <= MAX_BASE64
+    assert base64.b64decode(encoded)[:2] == b"\xff\xd8"   # маркер JPEG
+
+
+def test_build_cover_handles_bad_payload():
+    """Кривой паспорт не должен ронять создание плейлиста."""
+    from services.cover_art import build_cover
+
+    assert build_cover("не json") is None
+    assert build_cover(json.dumps({"palette_dark": {}})) is None   # нет символа
+
+
+def test_playlist_created_without_cover_when_no_design(client, monkeypatch):
+    """Паспорта у книги нет — плейлист всё равно создаётся, cover=None."""
+    _add_music()
+    monkeypatch.setattr(spotify_service, "has_token", lambda: True)
+    captured = {}
+
+    def fake_create(name, songs, cover=None):
+        captured["cover"] = cover
+        return {"url": "https://open.spotify.com/playlist/x", "found": 1,
+                "not_found": [], "cover_set": False}
+
+    monkeypatch.setattr(spotify_service, "create_playlist_from_songs", fake_create)
+    assert client.post("/api/v1/books/1/playlist").status_code == 200
+    assert captured["cover"] is None
 
 
 def test_dedupe_songs_unit():

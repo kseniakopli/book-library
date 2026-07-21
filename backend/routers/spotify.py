@@ -15,6 +15,7 @@ from deps import get_book_or_404, get_lang
 from events import log_event
 from i18n import msg
 from models import AISelection, Book
+from services.cover_art import build_cover
 
 router = APIRouter(tags=["spotify"])
 
@@ -39,17 +40,35 @@ def _collect_songs(session: Session, book_id: int) -> list[dict]:
     return spotify_service.dedupe_songs(songs)
 
 
+def _book_cover(session: Session, book_id: int) -> str | None:
+    """base64-JPEG обложки плейлиста из символа паспорта (20.07).
+    Паспорта нет или растеризация не удалась — вернём None, плейлист
+    создастся с обычной мозаикой обложек треков."""
+    design = session.exec(
+        select(AISelection).where(
+            AISelection.book_id == book_id,
+            AISelection.category == "design",
+        )
+    ).first()
+    return build_cover(design.payload) if design else None
+
+
 def _create_and_save(session: Session, book, lang: str) -> dict:
     songs = _collect_songs(session, book.id)
     if not songs:
         raise HTTPException(status_code=400, detail=msg("no_music_for_playlist", lang))
     result = spotify_service.create_playlist_from_songs(
-        f"nocturne · {book.title}", songs
+        f"nocturne · {book.title}", songs, cover=_book_cover(session, book.id)
     )
     book.spotify_playlist_url = result["url"]
     session.add(book)
     session.commit()
-    log_event(EVENT_PLAYLIST_CREATED, book.id, detail={"found": result["found"]})
+    log_event(EVENT_PLAYLIST_CREATED, book.id, detail={
+        "found": result["found"],
+        "cover_set": result.get("cover_set", False),
+        # какие треки не нашлись — видно, где промахивается поиск (з.80)
+        "not_found": result["not_found"],
+    })
     return {
         "status": "created",
         "playlist_url": result["url"],
