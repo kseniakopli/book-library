@@ -4,7 +4,9 @@
 import json
 import logging
 import os
+import random
 import re
+import time
 import urllib.parse
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -150,17 +152,56 @@ def _matches(item: dict, title: str, artist: str) -> bool:
     )
 
 
+def _search_request(headers: dict, query: str, attempts: int = 4) -> list:
+    """Один поиск в Spotify с обработкой отказов.
+
+    Инцидент 20.07: плейлист собирался наполовину — терялись даже очевидные
+    треки. Причина: ответ разбирался как `.json().get("tracks", …)` БЕЗ проверки
+    статуса. На пачке из ~60 песен (по два запроса на каждую) Spotify отвечает
+    429 Too Many Requests, в теле нет ключа `tracks` — и трек молча считался
+    ненайденным. Теперь: уважаем Retry-After, ретраим 429 и 5xx, остальное
+    логируем."""
+    for attempt in range(attempts):
+        try:
+            response = requests.get(
+                "https://api.spotify.com/v1/search",
+                headers=headers,
+                params={"q": query, "type": "track", "limit": SEARCH_LIMIT},
+                timeout=TIMEOUT,
+            )
+        except requests.RequestException as e:
+            log.warning("поиск трека: сеть недоступна (%s)", e)
+            time.sleep(1 + attempt)
+            continue
+
+        if response.status_code == 200:
+            return response.json().get("tracks", {}).get("items", [])
+
+        if response.status_code == 429:
+            # Spotify говорит, сколько ждать; иначе — растущая пауза
+            wait = int(response.headers.get("Retry-After", 2 + attempt * 2))
+            log.warning("поиск трека: лимит Spotify, ждём %s с", wait)
+            time.sleep(min(wait, 30) + random.uniform(0, 0.5))
+            continue
+
+        if 500 <= response.status_code < 600:
+            time.sleep(1 + attempt)
+            continue
+
+        log.warning(
+            "поиск трека: Spotify ответил %s (%s)",
+            response.status_code, response.text[:150],
+        )
+        return []
+    log.warning("поиск трека: исчерпаны попытки для запроса %r", query)
+    return []
+
+
 def _search_track(headers: dict, title: str, artist: str):
     """Поиск трека: строгий запрос по полям, затем свободный.
     Кандидаты проверяются `_matches` — непохожие отбрасываются."""
     for q in (f"track:{title} artist:{artist}", f"{artist} {title}"):
-        found = requests.get(
-            "https://api.spotify.com/v1/search",
-            headers=headers,
-            params={"q": q, "type": "track", "limit": SEARCH_LIMIT},
-            timeout=TIMEOUT,
-        ).json().get("tracks", {}).get("items", [])
-        for item in found:
+        for item in _search_request(headers, q):
             if _matches(item, title, artist):
                 return item["uri"]
     return None

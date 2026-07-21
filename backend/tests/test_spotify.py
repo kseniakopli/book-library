@@ -169,33 +169,72 @@ def test_matches_rejects_foreign_track():
     )
 
 
+class FakeResponse:
+    """Ответ Spotify: статус проверяется, поэтому мок должен его отдавать."""
+
+    def __init__(self, items=(), status_code=200, headers=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.text = ""
+        self._items = list(items)
+
+    def json(self):
+        return {"tracks": {"items": self._items}}
+
+
 def test_search_track_skips_mismatched_candidates(monkeypatch):
     """Первый кандидат чужой — берём следующего подходящего, а не первого подряд."""
-    class FakeResponse:
-        @staticmethod
-        def json():
-            return {"tracks": {"items": [
-                _track("1Train", "A$AP Rocky"),
-                _track("The Deer's Cry", "Arvo Pärt"),
-            ]}}
-
     monkeypatch.setattr(
-        spotify_service.requests, "get", lambda *a, **kw: FakeResponse()
+        spotify_service.requests, "get",
+        lambda *a, **kw: FakeResponse([
+            _track("1Train", "A$AP Rocky"),
+            _track("The Deer's Cry", "Arvo Pärt"),
+        ]),
     )
     uri = spotify_service._search_track({}, "The Deer's Cry", "Arvo Pärt")
     assert uri == "uri:The Deer's Cry"
 
 
 def test_search_track_returns_none_when_nothing_matches(monkeypatch):
-    class FakeResponse:
-        @staticmethod
-        def json():
-            return {"tracks": {"items": [_track("1Train", "A$AP Rocky")]}}
-
     monkeypatch.setattr(
-        spotify_service.requests, "get", lambda *a, **kw: FakeResponse()
+        spotify_service.requests, "get",
+        lambda *a, **kw: FakeResponse([_track("1Train", "A$AP Rocky")]),
     )
     assert spotify_service._search_track({}, "Выдуманный трек", "Никто") is None
+
+
+def test_search_retries_on_rate_limit(monkeypatch):
+    """429 не должен превращаться в «трек не найден» (инцидент 20.07):
+    ждём Retry-After и повторяем."""
+    calls = {"n": 0}
+
+    def fake_get(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return FakeResponse(status_code=429, headers={"Retry-After": "0"})
+        return FakeResponse([_track("Sea", "This Mortal Coil")])
+
+    monkeypatch.setattr(spotify_service.requests, "get", fake_get)
+    monkeypatch.setattr(spotify_service.time, "sleep", lambda *_: None)
+
+    assert spotify_service._search_track({}, "Sea", "This Mortal Coil") == "uri:Sea"
+    assert calls["n"] == 2       # первая попытка + повтор после паузы
+
+
+def test_search_survives_server_error(monkeypatch):
+    """5xx — тоже повод повторить, а не молча потерять трек."""
+    calls = {"n": 0}
+
+    def fake_get(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return FakeResponse(status_code=503)
+        return FakeResponse([_track("Loon", "Múm")])
+
+    monkeypatch.setattr(spotify_service.requests, "get", fake_get)
+    monkeypatch.setattr(spotify_service.time, "sleep", lambda *_: None)
+
+    assert spotify_service._search_track({}, "Loon", "Múm") == "uri:Loon"
 
 
 # --- обложка плейлиста из символа-экслибриса (20.07) ---
