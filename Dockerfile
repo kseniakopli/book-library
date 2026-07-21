@@ -18,8 +18,15 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
-COPY backend/requirements.txt ./backend/requirements.txt
-RUN pip install --no-cache-dir -r backend/requirements.txt
+# libcairo2 нужен pycairo (обложки плейлистов) — на Linux колёс нет,
+# пакет собирается из исходников
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libcairo2-dev gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt backend/requirements-cover.txt ./backend/
+RUN pip install --no-cache-dir -r backend/requirements.txt \
+    && pip install --no-cache-dir -r backend/requirements-cover.txt
 
 COPY backend/ ./backend/
 # main.py ищет фронтенд в ../frontend/dist относительно backend/

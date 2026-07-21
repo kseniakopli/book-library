@@ -31,6 +31,13 @@ python scripts/backup_db.py
 | `find_covers.py` / `apply_covers.py` | Поиск недостающих обложек через Google Books и применение найденного к базе |
 | `fix_openlibrary_covers.py` | Чистка битых обложек с OpenLibrary |
 
+## Необязательные зависимости
+
+Обложка Spotify-плейлиста (символ книги) требует
+`pip install -r requirements-cover.txt` — на Linux ещё и системный Cairo
+(`apt-get install libcairo2-dev`). Без них всё работает, только плейлист
+получает стандартную мозаику обложек треков.
+
 ## Прежде чем запускать то, что меняет базу
 
 ```

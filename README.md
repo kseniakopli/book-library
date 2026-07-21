@@ -78,6 +78,9 @@ venv\Scripts\activate        # Windows
 
 cd backend
 pip install -r requirements.txt
+# optional: playlist covers rendered from the book's symbol
+# (needs system Cairo on Linux: apt-get install libcairo2-dev)
+pip install -r requirements-cover.txt
 
 # Private files (both gitignored):
 copy prompt_config.example.py prompt_config.py   # then edit your prompts
