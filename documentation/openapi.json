@@ -411,10 +411,51 @@
         "type": "object"
       },
       "SeriesBookIn": {
+        "description": "Привязка книги к циклу: либо существующая книга (`book_id`), либо новая\nпо названию — тогда заводим запись в КАТАЛОГЕ, не кладя на полку. Так в цикле\nпоявляются будущие книги («что дальше»): они есть в каталоге, но не у читателя.\n`cover_url`/`external_id` приходят из поиска (Google Books) — по ним книга\nполучает обложку и фоновое обогащение.",
         "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
           "book_id": {
-            "title": "Book Id",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Book Id"
+          },
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Url"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
           },
           "series_index": {
             "anyOf": [
@@ -426,11 +467,19 @@
               }
             ],
             "title": "Series Index"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
           }
         },
-        "required": [
-          "book_id"
-        ],
         "title": "SeriesBookIn",
         "type": "object"
       },
@@ -1518,7 +1567,7 @@
         ]
       },
       "post": {
-        "description": "Создать цикл. Сразу кладём его на полку пользователя со статусом.",
+        "description": "Создать цикл. Сразу кладём его на полку пользователя со статусом.\nЦикл — общая сущность → создание только admin (з.90а).",
         "operationId": "create_series_api_v1_series_post",
         "parameters": [
           {
@@ -1570,7 +1619,7 @@
     },
     "/api/v1/series/{series_id}": {
       "delete": {
-        "description": "Удалить цикл. Книги остаются в каталоге — просто теряют привязку.",
+        "description": "Удалить цикл. Книги остаются в каталоге — просто теряют привязку.\nЦикл общий → удаление только admin (з.90а).",
         "operationId": "delete_series_api_v1_series__series_id__delete",
         "parameters": [
           {
@@ -1667,7 +1716,7 @@
         ]
       },
       "patch": {
-        "description": "Правка цикла и/или смена статуса (кнопки «Читаю» / «Прочитан» / «Брошен»).",
+        "description": "Правка цикла и/или смена статуса.\n\nРазделение прав (з.90а): цикл — ОБЩАЯ сущность (как книга), поэтому правка\nназвания/автора/описания меняет её для всех → только admin. А статус\n(«Читаю» / «Прочитан» / «Брошен») — личное действие читателя, доступен всем.",
         "operationId": "update_series_api_v1_series__series_id__patch",
         "parameters": [
           {
@@ -1728,7 +1777,7 @@
     },
     "/api/v1/series/{series_id}/books": {
       "post": {
-        "description": "Привязать книгу к циклу (со страницы цикла).\nКнига может отсутствовать на полке пользователя — тогда в цикле она\nпоказывается как «что дальше».",
+        "description": "Привязать книгу к циклу (со страницы цикла).\nКнига может отсутствовать на полке пользователя — тогда в цикле она\nпоказывается как «что дальше».\nСостав цикла — общие данные → только admin (з.90а).",
         "operationId": "add_book_to_series_api_v1_series__series_id__books_post",
         "parameters": [
           {
@@ -1841,6 +1890,57 @@
           }
         },
         "summary": "Remove Book From Series",
+        "tags": [
+          "series"
+        ]
+      }
+    },
+    "/api/v1/series/{series_id}/design": {
+      "post": {
+        "description": "Сгенерировать экслибрис цикла (задача 89). Тратит токены → только admin,\nпо кнопке. Опирается на описание цикла — поэтому имеет смысл сначала его\nзаполнить.\nСессию держим КОРОТКО: между чтением и записью идёт долгий AI-вызов.",
+        "operationId": "generate_design_api_v1_series__series_id__design_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "title": "Series Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Design",
         "tags": [
           "series"
         ]
