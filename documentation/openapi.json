@@ -368,6 +368,35 @@
         "title": "BookUpdate",
         "type": "object"
       },
+      "FeedbackIn": {
+        "properties": {
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "verdict": {
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "verdict"
+        ],
+        "title": "FeedbackIn",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1123,6 +1152,84 @@
         "summary": "Playlist Qr",
         "tags": [
           "spotify"
+        ]
+      }
+    },
+    "/api/v1/feedback": {
+      "get": {
+        "description": "Все оценки пользователя как {ref: verdict} — фронт рисует состояние кнопок\nодним запросом, не спрашивая по каждой подборке отдельно.",
+        "operationId": "list_feedback_api_v1_feedback_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Feedback",
+        "tags": [
+          "feedback"
+        ]
+      },
+      "post": {
+        "description": "Поставить/сменить/снять оценку. Повторный тот же вердикт = снять (toggle):\nдва состояния кнопки 👍 — включена и выключена. Возвращает актуальный вердикт\n(или null, если сняли).",
+        "operationId": "set_feedback_api_v1_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Feedback",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/feedback/summary": {
+      "get": {
+        "description": "Acceptance rate по провайдерам: сколько 👍/👎 у Claude и у ChatGPT.\nСчитаем только записи с известным source (у атмосферы и рекомендаций он есть).",
+        "operationId": "feedback_summary_api_v1_feedback_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Feedback Summary",
+        "tags": [
+          "feedback"
         ]
       }
     },

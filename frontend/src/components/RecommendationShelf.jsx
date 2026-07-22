@@ -7,6 +7,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { SkeletonRows } from "./Skeleton";
+import FeedbackButtons from "./FeedbackButtons";
+
+// стабильный ключ совета: без регистра и лишних пробелов — как дедуп на бэкенде
+const recRef = (item) =>
+  `recommendation:${item.title.trim().toLowerCase()}|${item.author
+    .trim()
+    .toLowerCase()}`;
 
 function RecommendationShelf() {
   const queryClient = useQueryClient();
@@ -93,6 +100,8 @@ function RecommendationShelf() {
                 <p className="rec-reason">{item.reason}</p>
                 {/* кто посоветовал: советы приходят от обеих моделей */}
                 {item.source && <span className="rec-source">{item.source}</span>}
+                {/* 👍/👎 — сигнал вкуса для будущих рекомендаций (задача 26) */}
+                <FeedbackButtons refKey={recRef(item)} source={item.source} />
               </div>
               <button
                 className="btn-ghost rec-add"

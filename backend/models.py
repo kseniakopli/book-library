@@ -93,6 +93,25 @@ class Recommendation(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+# --- Обратная связь по AI-подборкам (задача 26): 👍/👎 на атмосферу и советы.
+# Копится у нас (не отправляется провайдерам — API моделей без памяти) для двух
+# целей: (1) acceptance rate Claude vs ChatGPT; (2) «профиль вкуса» в промпт
+# будущих генераций. `ref` — стабильный ключ цели оценки:
+#   атмосфера   → "atmosphere:{book_id}:{category}:{source}"
+#   рекомендация→ "recommendation:{norm_title}|{norm_author}"
+# `source` дублируем отдельным полем — для сводки по провайдерам без разбора ref.
+# UNIQUE(user_id, ref): у пользователя одна оценка на цель (меняется/снимается) ---
+class Feedback(SQLModel, table=True):
+    __table_args__ = (UniqueConstraint("user_id", "ref", name="uq_feedback_user_ref"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    ref: str = Field(index=True)
+    source: Optional[str] = None            # Claude / ChatGPT (для сводки)
+    verdict: str                            # "up" / "down"
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # --- Каталог для поиска: наполняется из внешних источников, кэш для автоподсказки ---
 class Catalog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

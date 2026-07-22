@@ -18,6 +18,7 @@ from logging_setup import request_id_var, setup_logging
 from routers import (
     atmosphere,
     books,
+    feedback,
     imports,
     recommendations,
     search,
@@ -54,6 +55,7 @@ app.include_router(imports.router, prefix=API_V1)     # импорт CSV и back
 app.include_router(recommendations.router, prefix=API_V1)  # этап 8: советы книг
 app.include_router(spotify.router, prefix=API_V1)     # плейлисты и QR
 app.include_router(stats.router, prefix=API_V1)       # задачи 24/63: статистика
+app.include_router(feedback.router, prefix=API_V1)    # задача 26: 👍/👎 по подборкам
 # /callback — без префикса: адрес зарегистрирован в кабинете Spotify
 app.include_router(spotify.callback_router)
 

@@ -71,6 +71,11 @@ export const getStats = () => request("/stats");
 export const generateInsights = () =>
   request("/stats/insights", { method: "POST" });
 
+// Обратная связь по AI-подборкам (задача 26): 👍/👎 на атмосферу и советы
+export const getFeedback = () => request("/feedback");
+export const setFeedback = ({ ref, verdict, source }) =>
+  request("/feedback", json("POST", { ref, verdict, source }));
+
 // Атмосфера: единые эндпоинты для всех категорий (music, design, food, aroma).
 // GET и POST возвращают одинаковый формат: { book_id, category, selections: [...] }
 export const getAtmosphere = (id, category) =>

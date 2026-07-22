@@ -1,6 +1,6 @@
 // Панель «Атмосфера»: одна кнопка наполняет все категории, вкладки переключаются.
 import { test, expect } from "vitest";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderApp } from "./utils";
 
@@ -31,4 +31,28 @@ test("подбор атмосферы наполняет все категори
   expect(
     screen.getByRole("button", { name: "Обновить атмосферу" }),
   ).toBeInTheDocument();
+});
+
+test("оценка подборки: 👍 включается и снимается (задача 26)", async () => {
+  renderApp("/books/1");
+  await screen.findByRole("heading", { name: "Волшебная гора" });
+  await userEvent.click(
+    screen.getByRole("button", { name: "Подобрать атмосферу" }),
+  );
+  await screen.findByText("Song A");
+
+  const like = await screen.findByRole("button", { name: "Понравилось" });
+  expect(like).toHaveAttribute("aria-pressed", "false");
+
+  // клик → оценка ставится (кэш обновляется асинхронно — ждём перерисовку)
+  await userEvent.click(like);
+  await waitFor(() =>
+    expect(like).toHaveAttribute("aria-pressed", "true"),
+  );
+
+  // повторный клик снимает оценку (toggle)
+  await userEvent.click(like);
+  await waitFor(() =>
+    expect(like).toHaveAttribute("aria-pressed", "false"),
+  );
 });

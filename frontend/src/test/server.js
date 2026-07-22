@@ -44,11 +44,12 @@ function initialBooks() {
   ];
 }
 
-export const db = { books: initialBooks(), recommendations: [] };
+export const db = { books: initialBooks(), recommendations: [], feedback: {} };
 
 export function resetDb() {
   db.books = initialBooks();
   db.recommendations = [];
+  db.feedback = {};
 }
 
 function findBook(params) {
@@ -216,6 +217,21 @@ export const handlers = [
       ],
     }),
   ),
+
+  // Обратная связь по подборкам (задача 26): stateful — воспроизводим toggle
+  // бэкенда (повтор того же вердикта снимает оценку)
+  http.get("/api/v1/feedback", () =>
+    HttpResponse.json({ feedback: { ...db.feedback } }),
+  ),
+  http.post("/api/v1/feedback", async ({ request }) => {
+    const { ref, verdict } = await request.json();
+    if (db.feedback[ref] === verdict) {
+      delete db.feedback[ref]; // тот же вердикт повторно → снять
+      return HttpResponse.json({ ref, verdict: null });
+    }
+    db.feedback[ref] = verdict;
+    return HttpResponse.json({ ref, verdict });
+  }),
 
   // Атмосфера: единый формат для всех категорий (music, design, ...)
   http.get("/api/v1/books/:id/atmosphere/:category", ({ params }) =>

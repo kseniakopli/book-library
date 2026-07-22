@@ -10,4 +10,5 @@ export const keys = {
   pendingCount: ["pending-count"],      // задача 56б: поллинг фонового обогащения
   recommendations: ["recommendations"], // этап 8: советы новых книг
   stats: ["stats"],                     // задачи 24/63: статистика чтения
+  feedback: ["feedback"],               // задача 26: 👍/👎 по AI-подборкам
 };

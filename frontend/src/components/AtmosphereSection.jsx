@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { SkeletonRows } from "./Skeleton";
+import FeedbackButtons from "./FeedbackButtons";
 
 const CATEGORIES = [
   { id: "music", label: "Музыка" },
@@ -180,7 +181,14 @@ function AtmosphereSection({ bookId }) {
 
           {active && (
             <>
-              <p className="atmosphere-explanation">{active.explanation}</p>
+              <div className="atmosphere-explanation-row">
+                <p className="atmosphere-explanation">{active.explanation}</p>
+                {/* оценка подборки этой категории от этого источника */}
+                <FeedbackButtons
+                  refKey={`atmosphere:${bookId}:${activeCategory}:${active.source}`}
+                  source={active.source}
+                />
+              </div>
               {renderPayload(activeCategory, active.payload)}
             </>
           )}

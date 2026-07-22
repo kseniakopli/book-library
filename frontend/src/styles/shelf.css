@@ -137,6 +137,10 @@
   font-size: 12px;
   color: var(--muted);
 }
+/* оценка совета (задача 26) — рядом с меткой источника */
+.rec-text .feedback {
+  margin-top: 8px;
+}
 .rec-add {
   grid-area: add;
   justify-self: start;
