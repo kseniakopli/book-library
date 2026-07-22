@@ -29,8 +29,16 @@ Landing page & waitlist: **https://nocturne-library.netlify.app**
   - *design passport*: dark + light palettes, font pair, an SVG ex-libris symbol and a
     short statement explaining it — generated automatically in the background when a book
     is added. Palettes are applied only after a WCAG contrast check.
+- **Book cycles** — a separate shelf for series: where you stopped, what comes next, and a
+  progress count. Books you don't own yet live in the catalog without a shelf entry, so a
+  cycle can show future volumes. Each cycle gets its own AI ex-libris, drawn from the
+  description you write.
+- **Feedback that feeds back** — 👍/👎 on any AI selection. Model APIs are stateless and
+  can't be taught, so the "taste memory" is kept locally and injected into later prompts:
+  what you liked, what you didn't, which books you rejected.
 - **Recommendations** — suggests *new* books (not in the library) based on books rated ≥7,
-  each with a personal "why this one" reason. Generated on demand to control token spend.
+  each with a personal "why this one" reason, from both models. Generated on demand to
+  control token spend.
 - **Reading stats** — totals, pages, rating distribution, monthly chart, top authors and
   genres; all numbers are computed by the backend, and AI only interprets the ready-made
   summary (so it has nothing to hallucinate with).
@@ -125,6 +133,11 @@ OAuth `/callback`, which is registered externally):
 | GET/POST | `/api/v1/recommendations` | Read stored / generate new book recommendations |
 | GET | `/api/v1/stats` | Reading statistics (computed server-side) |
 | POST | `/api/v1/stats/insights` | AI commentary on the stats summary |
+| GET/POST | `/api/v1/series` | Book cycles: list with progress / create |
+| GET/PATCH/DELETE | `/api/v1/series/{id}` | Read / edit & set status / delete a cycle |
+| POST | `/api/v1/series/{id}/design` | Generate the cycle's ex-libris |
+| POST/DELETE | `/api/v1/series/{id}/books` | Attach / detach a book |
+| GET/POST | `/api/v1/feedback` | 👍/👎 on AI picks; `/feedback/summary` — acceptance rate |
 | GET | `/api/v1/search?q=` | Book search: local catalog cache + Google Books |
 | POST | `/api/v1/import` | CSV import (limits: 2 MB, 2000 rows) |
 

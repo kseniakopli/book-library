@@ -12,8 +12,11 @@ flowchart LR
         R2[routers/atmosphere<br/>AI categories]
         R3[routers/search]
         R4[routers/imports<br/>CSV + backfill]
+        R5[routers/series<br/>book cycles]
+        R6[routers/feedback<br/>👍/👎 on AI picks]
         S1[services/enrichment]
         S2[services/ai]
+        S3[services/taste<br/>taste profile → prompts]
         EV[events.py<br/>append-only log]
     end
     DB[(SQLite / Postgres<br/>via DATABASE_URL)]
@@ -24,12 +27,14 @@ flowchart LR
     UI -->|"/books, /search, /import (Vite proxy in dev)"| Backend
     R1 --> S1
     R2 --> S2
+    R2 --> S3
+    R5 --> S2
     S1 --> GB
     R3 --> GB
     S2 --> AI1
     S2 --> AI2
-    R1 & R2 & R3 & R4 --> DB
-    R1 & R2 & R3 & R4 --> EV
+    R1 & R2 & R3 & R4 & R5 & R6 --> DB
+    R1 & R2 & R3 & R4 & R5 --> EV
 ```
 
 - **Frontend** never talks to external services directly; all traffic goes through the API.
@@ -119,3 +124,7 @@ as a plain diff.
 | Structured JSON logs + request id (`X-Request-ID`) | needed before publishing: filterable logs, one id ties a complaint to log lines | log shipping is set up |
 | In-memory rate limiter instead of slowapi/Redis | one instance in production; a plain counter is enough and adds no dependency | scaling beyond one instance |
 | Basic Auth (shared password) for the test deploy | real auth (stage 9) is a bigger task; this closes the service and the AI budget today | stage 9 lands |
+| Series split into shared `series` + personal `userseries` | repeats the book/userbook split: a cycle exists objectively, the reading status does not | — |
+| Books outside the shelf are plain catalog rows | a cycle needs "what's next" without inventing a placeholder entity; search finds them anyway | — |
+| Series data entered by hand, never by AI | a survey found zero series data in Google Books and OpenLibrary; models invent volume numbers confidently | a reliable source appears |
+| Feedback stored locally and injected into prompts | model APIs are stateless and cannot be taught our 👍/👎; the "taste memory" has to live on our side | profile outgrows a prompt (→ embeddings) |
