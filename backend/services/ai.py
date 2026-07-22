@@ -162,14 +162,16 @@ def _record_metric(entry: dict) -> None:
 
 # --- Обобщённые вызовы провайдеров (7.1): промпт и модель — параметры ---
 
-# Модели Claude под задачу (см. docs, таблица моделей 22.07):
+# Модель Claude (см. docs, таблица моделей 22.07):
 # - reasoning-модели с «adaptive thinking» (Sonnet 5, Opus, Fable) НЕ принимают
-#   temperature — вернут 400. Держим их там, где важно качество рассуждения.
-# - Haiku 4.5 — единственная без adaptive thinking: принимает temperature,
-#   втрое дешевле и быстрее Sonnet. Идеальна для творческого подбора атмосферы,
-#   где нужен не глубокий reasoning, а разнообразие.
-MODEL_REASONING = "claude-sonnet-5"    # дизайн, рекомендации, инсайты
-MODEL_CREATIVE = "claude-haiku-4-5"    # музыка, еда, ароматы (с temperature)
+#   temperature — вернут 400. Зато хорошо понимают книгу.
+# - Haiku 4.5 — единственная без adaptive thinking: принимает temperature, но
+#   слабее в понимании (22.07: французскую книгу записала в русскую кухню).
+# Везде используем Sonnet: точность привязки к сюжету важнее «разброса», а
+# разнообразие Claude добираем промптом. Haiku-константа оставлена на случай
+# задач, где скорость/цена важнее понимания.
+MODEL_REASONING = "claude-sonnet-5"
+MODEL_CREATIVE = "claude-haiku-4-5"    # пока не используется — см. выше
 
 
 async def ask_claude(
@@ -272,12 +274,13 @@ def make_two_source_generator(
     temperature — общий рычаг разнообразия (для музыки выше, см. generate_music)."""
     async def generate(title: str, author: str, lang: str = "ru") -> dict:
         prompt = _with_style(build_prompt(title, author, lang))
-        # Атмосфера — на Haiku с температурой (разнообразие), оба провайдера
+        # Claude — на Sonnet (MODEL_REASONING, дефолт): понимание книги важнее
+        # разнообразия. Haiku с температурой пробовали (22.07) — он давал разброс,
+        # но путал сюжет (записал французскую книгу в русскую кухню). У Sonnet
+        # температуры нет (reasoning-модель), разнообразие — через промпт.
+        # temperature применяем только к OpenAI: он и точен, и разнообразен.
         claude_result, openai_result = await asyncio.gather(
-            safe_ask(
-                ask_claude(prompt, result_model, temperature=temperature, model=MODEL_CREATIVE),
-                fallback_factory,
-            ),
+            safe_ask(ask_claude(prompt, result_model), fallback_factory),
             safe_ask(ask_openai(prompt, result_model, temperature=temperature), fallback_factory),
         )
         return {SOURCE_CLAUDE: claude_result, SOURCE_CHATGPT: openai_result}
