@@ -214,7 +214,7 @@ def _no_user_token(monkeypatch):
     )
 
 
-def test_resolve_songs_marks_invented_tracks(monkeypatch):
+def test_resolve_songs_marks_invented_tracks(client, monkeypatch):
     """Выдуманный трек не должен попасть в сервис: у Ólafur Arnalds нет
     «Familiar Ground» — Spotify отдаёт другие его вещи, значит None."""
     _no_user_token(monkeypatch)
@@ -232,7 +232,7 @@ def test_resolve_songs_marks_invented_tracks(monkeypatch):
     assert len(resolved) == 2             # результат выровнен по входу
 
 
-def test_resolve_songs_uses_canonical_names(monkeypatch):
+def test_resolve_songs_uses_canonical_names(client, monkeypatch):
     """У найденных треков названия и исполнители — как в Spotify."""
     _no_user_token(monkeypatch)
     monkeypatch.setattr(
@@ -246,12 +246,53 @@ def test_resolve_songs_uses_canonical_names(monkeypatch):
     assert resolved[0]["artist"] == "Molchat Doma"
 
 
-def test_resolve_songs_skipped_without_credentials(monkeypatch):
+def test_resolve_songs_skipped_without_credentials(client, monkeypatch):
     """Нет ключей Spotify — подборка сохраняется как есть (лучше, чем пустая)."""
     monkeypatch.setattr(spotify_service, "has_token", lambda: False)
     monkeypatch.setattr(spotify_service, "_client_credentials_token", lambda: None)
     songs = [{"title": "Что угодно", "artist": "Кто угодно"}]
     assert spotify_service.resolve_songs(songs) == songs
+
+
+# --- кэш резолва треков (задача 82, часть 1) ---
+
+def test_resolve_songs_caches_and_reuses(client, monkeypatch):
+    """Второй резолв того же трека берётся из кэша — в Spotify не ходим повторно.
+    (client-фикстура нужна для таблицы TrackCache в in-memory БД.)"""
+    _no_user_token(monkeypatch)
+    calls = {"n": 0}
+
+    def fake_get(*a, **kw):
+        calls["n"] += 1
+        return FakeResponse([_track("Sea", "This Mortal Coil")])
+
+    monkeypatch.setattr(spotify_service.requests, "get", fake_get)
+
+    first = spotify_service.resolve_songs([{"title": "Sea", "artist": "This Mortal Coil"}])
+    assert first[0]["uri"] == "uri:Sea"
+    calls_after_first = calls["n"]
+    assert calls_after_first > 0
+
+    second = spotify_service.resolve_songs([{"title": "Sea", "artist": "This Mortal Coil"}])
+    assert second[0]["uri"] == "uri:Sea"
+    assert calls["n"] == calls_after_first        # в Spotify не ходили — кэш
+
+
+def test_resolve_songs_caches_negative(client, monkeypatch):
+    """«Не найдено» тоже кэшируется: выдумка не должна долбить Spotify каждый раз."""
+    _no_user_token(monkeypatch)
+    calls = {"n": 0}
+
+    def fake_get(*a, **kw):
+        calls["n"] += 1
+        return FakeResponse([])       # ничего не нашлось
+
+    monkeypatch.setattr(spotify_service.requests, "get", fake_get)
+
+    assert spotify_service.resolve_songs([{"title": "Нет такого", "artist": "Никто"}]) == [None]
+    calls_after_first = calls["n"]
+    assert spotify_service.resolve_songs([{"title": "Нет такого", "artist": "Никто"}]) == [None]
+    assert calls["n"] == calls_after_first        # отрицательный результат из кэша
 
 
 def test_search_retries_on_rate_limit(monkeypatch):

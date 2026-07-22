@@ -112,6 +112,22 @@ class Feedback(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+# --- Кэш резолва треков в Spotify (задача 82, часть 1). Каждый трек резолвится
+# ОДИН раз на всю систему: атмосферные подборки сильно пересекаются, а квота
+# Spotify — на приложение (инцидент 21.07 — бан). Кэшируем и «не найдено»
+# (found=False): выдуманные моделью треки иначе долбили бы Spotify каждый раз.
+# query_key — нормализованный «артист|название» из запроса модели (не канон);
+# при found=True title/artist/uri — канонические из Spotify ---
+class TrackCache(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    query_key: str = Field(index=True, unique=True)
+    found: bool = False
+    title: Optional[str] = None       # канонические (если found)
+    artist: Optional[str] = None
+    uri: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # --- Каталог для поиска: наполняется из внешних источников, кэш для автоподсказки ---
 class Catalog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

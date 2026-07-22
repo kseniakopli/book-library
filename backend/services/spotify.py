@@ -14,6 +14,10 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
+from sqlmodel import Session, col, select
+
+import database
+from models import TrackCache
 
 log = logging.getLogger("nocturne")
 
@@ -317,40 +321,92 @@ def upload_cover(playlist_id: str, jpeg_base64: str) -> bool:
     return False
 
 
+def _cache_key(song: dict) -> str:
+    """Ключ кэша: нормализованный «артист|название» из запроса модели.
+    По нему ищем ранее зарезолвленное — атмосферные подборки сильно пересекаются."""
+    artist = (song.get("artist") or "").strip().lower()
+    title = (song.get("title") or "").strip().lower()
+    return f"{artist}|{title}"
+
+
+def _card(row) -> dict:
+    return {"title": row.title, "artist": row.artist, "uri": row.uri}
+
+
 def resolve_songs(songs: list[dict], workers: int = 6) -> list[dict | None]:
     """Один проход поиска. Результат ВЫРОВНЕН по входному списку: на месте
     каждого трека либо карточка `{title, artist, uri}` с каноническими данными
     Spotify, либо None (такого трека нет).
 
-    Одного прохода хватает и для сохранения атмосферы, и для наполнения
-    плейлиста — идея Ксении (20.07). Раньше Spotify опрашивался дважды:
-    при проверке атмосферы и потом при создании плейлиста.
+    Задача 82 (часть 1): перед запросом к Spotify смотрим в кэш `TrackCache` —
+    каждый трек резолвится один раз на всю систему (квота Spotify — на приложение).
+    Кэшируем и «не найдено», чтобы выдумки моделей не долбили Spotify повторно.
+    БД-операции — вне потоков (SQLite + threads не дружат); в Spotify параллельно
+    ходим только за промахами кэша.
 
-    Ищем в несколько потоков: последовательный проход по ~24 трекам занимал
-    больше десяти секунд. Нет ключей — возвращаем входные данные как есть
-    (лучше непроверенная атмосфера, чем пустая)."""
-    # Spotify забанил на время (см. in_cooldown) — не трогаем его, оставляем
-    # подборку как есть: атмосфера сохранится непроверенной, но сервер не висит
-    if in_cooldown():
-        return [dict(song) for song in songs]
+    Одного прохода хватает и для атмосферы, и для плейлиста (идея Ксении, 20.07).
+    Нет ключей / Spotify в куладауне — промахи возвращаем как есть
+    (лучше непроверенная атмосфера, чем пустая); в кэш их НЕ пишем."""
+    keys = [_cache_key(s) for s in songs]
 
-    token = _access_token() if has_token() else _client_credentials_token()
-    if token is None:
-        return [dict(song) for song in songs]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    def resolve(song: dict) -> dict | None:
-        item = find_track(headers, song.get("title", ""), song.get("artist", ""))
-        if item is None:
-            return None
-        return {
-            "title": item["name"],
-            "artist": ", ".join(a["name"] for a in item.get("artists", [])),
-            "uri": item["uri"],
+    # 1) читаем кэш одним запросом
+    with Session(database.engine) as session:
+        cached = {
+            row.query_key: row
+            for row in session.exec(
+                select(TrackCache).where(col(TrackCache.query_key).in_(keys))
+            ).all()
         }
 
+    results: list[dict | None] = [None] * len(songs)
+    misses = []   # (индекс, song, key) — чего нет в кэше
+    for i, (song, key) in enumerate(zip(songs, keys)):
+        row = cached.get(key)
+        if row is not None:
+            results[i] = _card(row) if row.found else None
+        else:
+            misses.append((i, song, key))
+
+    if not misses:
+        return results
+
+    # Spotify недоступен — промахи оставляем непроверенными, кэш не портим
+    token = None if in_cooldown() else (
+        _access_token() if has_token() else _client_credentials_token()
+    )
+    if token is None:
+        for i, song, _ in misses:
+            results[i] = dict(song)
+        return results
+
+    # 2) промахи ищем в Spotify (параллельно)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    def resolve(item):
+        i, song, key = item
+        found = find_track(headers, song.get("title", ""), song.get("artist", ""))
+        return i, key, found
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(resolve, songs))
+        resolved = list(pool.map(resolve, misses))
+
+    # 3) записываем результаты в кэш (в т.ч. отрицательные) одним коммитом
+    with Session(database.engine) as session:
+        for i, key, item in resolved:
+            if item is not None:
+                card = {
+                    "title": item["name"],
+                    "artist": ", ".join(a["name"] for a in item.get("artists", [])),
+                    "uri": item["uri"],
+                }
+                results[i] = card
+                session.add(TrackCache(query_key=key, found=True, **card))
+            else:
+                results[i] = None
+                session.add(TrackCache(query_key=key, found=False))
+        session.commit()
+
+    return results
 
 
 MAX_URIS_PER_REQUEST = 100   # ограничение Spotify на один запрос
