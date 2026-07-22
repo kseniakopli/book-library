@@ -25,9 +25,12 @@ python scripts/backup_db.py
 | `backfill_passports.py` | Пакетная генерация паспортов оформления через Anthropic Batch API (вдвое дешевле) |
 | `verify_music.py` | Чистка сохранённых подборок от несуществующих треков (`--dry-run` / `--book N`) |
 | `clear_atmosphere.py` | Удаление сохранённой атмосферы, чтобы сгенерировать заново (по умолчанию — только музыка) |
-| `check_track_search.py` | Диагностика поиска трека в Spotify: кто найден, кто отклонён и почему |
+| `smoke_external.py` | **Дымовой прогон перед релизом (з.83):** живой Spotify (токен+поиск+формат ответа) и Google Books. Ловит изменения контракта, которые моки не видят |
+| `spotify_status.py` | Быстрая проверка «снят ли бан Spotify» (один поиск, показывает Retry-After) |
+| `check_track_search.py` | Детальная диагностика поиска трека: кто найден, кто отклонён и почему |
 | `backfill_atmosphere.py` | Восстановление музыки/угощений/ароматов у книг, где они пропали (инцидент 18.07) |
 | `regenerate_food.py` | Массовая перегенерация еды (или `--category aroma/music`) у книг, где она уже есть — после смены промпта/модели. `--dry-run`, `--limit N`, `--book ID` |
+| `reverify_music.py` | Перепроверка музыки, сохранённой при бане Spotify (з.85): резолв треков + плейлист, когда Spotify снова доступен. `--dry-run` |
 | `backfill_read_dates.py` | Разовый перенос дат прочтения из CSV-выгрузки LiveLib |
 | `find_covers.py` / `apply_covers.py` | Поиск недостающих обложек через Google Books и применение найденного к базе |
 | `fix_openlibrary_covers.py` | Чистка битых обложек с OpenLibrary |

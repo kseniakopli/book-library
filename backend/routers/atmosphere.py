@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 import database
+import services.spotify as spotify_service
 from deps import get_book_or_404, get_lang, require_admin
 from events import log_event
 from i18n import msg
@@ -56,8 +57,12 @@ async def generate_atmosphere(
     if cfg.get("postprocess"):
         results = await cfg["postprocess"](results, book_id, title)
 
+    # задача 85: музыка, сохранённая при бане Spotify, помечается непроверенной —
+    # скрипт reverify_music перепроверит её позже. Прочие категории всегда verified.
+    verified = spotify_service.available() if category == "music" else True
+
     # 3) сохраняем — пустой результат не затирает готовую подборку (задача 74)
-    response = replace_selections(book_id, category, cfg, results)
+    response = replace_selections(book_id, category, cfg, results, verified=verified)
     log_event(cfg["event"], book_id, detail={
         "trigger": "manual",
         "ai_calls": take_ai_metrics(),

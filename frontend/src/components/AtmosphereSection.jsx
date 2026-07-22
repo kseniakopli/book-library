@@ -179,6 +179,15 @@ function AtmosphereSection({ bookId }) {
             ))}
           </div>
 
+          {/* задача 85: музыка сохранена при недоступном Spotify — треки не
+              проверены, плейлиста нет; соберётся при следующей генерации */}
+          {activeCategory === "music" && current.data?.verified === false && (
+            <p className="muted">
+              Spotify был недоступен — треки не проверены и плейлист не собран.
+              Нажмите «Обновить атмосферу», когда Spotify снова заработает.
+            </p>
+          )}
+
           {active && (
             <>
               <div className="atmosphere-explanation-row">

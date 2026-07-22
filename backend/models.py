@@ -74,6 +74,10 @@ class AISelection(SQLModel, table=True):
     source: str                       # Claude / ChatGPT
     payload: str                      # JSON-строка со списком (например, песен)
     explanation: str = ""             # пояснение от AI
+    # Задача 85: для music — прошла ли подборка резолв в Spotify. False = сохранена
+    # при бане Spotify (треки не проверены, плейлиста нет); скрипт reverify_music
+    # перепроверит, когда Spotify отпустит. Для остальных категорий всегда True.
+    verified: bool = True
     created_at: datetime = Field(default_factory=datetime.now)
 
 # --- Рекомендации (этап 8): книги, которых у пользователя ещё НЕТ.

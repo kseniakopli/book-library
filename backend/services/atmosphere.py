@@ -187,6 +187,8 @@ def selections_response(book_id: int, category: str, rows: list) -> dict:
     return {
         "book_id": book_id,
         "category": category,
+        # задача 85: музыка непроверена, если хоть одна строка сохранена при бане
+        "verified": all(row.verified for row in rows) if rows else True,
         "selections": [
             {
                 "source": row.source,
@@ -198,11 +200,14 @@ def selections_response(book_id: int, category: str, rows: list) -> dict:
     }
 
 
-def replace_selections(book_id: int, category: str, cfg: dict, results: dict) -> dict:
+def replace_selections(
+    book_id: int, category: str, cfg: dict, results: dict, verified: bool = True
+) -> dict:
     """Сохранить результаты генерации, заменив прежние подборки категории —
     ПОИСТОЧНИКОВО. Защита (задача 74): если новый результат источника пуст
     (AI не ответил), старую подборку НЕ трогаем — иначе неудачная перегенерация
-    стирала бы готовую атмосферу, как это и случилось при миграции 18.07."""
+    стирала бы готовую атмосферу, как это и случилось при миграции 18.07.
+    `verified` (задача 85): False для музыки, сохранённой при бане Spotify."""
     with Session(database.engine) as session:
         existing = {
             row.source: row
@@ -225,6 +230,7 @@ def replace_selections(book_id: int, category: str, cfg: dict, results: dict) ->
                 source=source,
                 payload=payload,
                 explanation=cfg["explanation"](result),
+                verified=verified,
             ))
         session.commit()
 

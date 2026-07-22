@@ -33,6 +33,26 @@ def test_generate_music_two_sources(client, monkeypatch):
     assert sources == {"Claude", "ChatGPT"}
 
 
+def test_music_marked_unverified_when_spotify_unavailable(client, monkeypatch):
+    """Задача 85: Spotify недоступен (бан/нет ключей) → музыка помечается
+    непроверенной (verified=False), чтобы reverify_music её потом догнал."""
+    import services.spotify as spotify_service
+
+    _mock_music(monkeypatch)
+    monkeypatch.setattr(spotify_service, "available", lambda: False)
+    r = client.post("/api/v1/books/1/atmosphere/music")
+    assert r.json()["verified"] is False
+
+
+def test_music_verified_when_spotify_available(client, monkeypatch):
+    import services.spotify as spotify_service
+
+    _mock_music(monkeypatch)
+    monkeypatch.setattr(spotify_service, "available", lambda: True)
+    r = client.post("/api/v1/books/1/atmosphere/music")
+    assert r.json()["verified"] is True
+
+
 def test_generated_music_is_persisted(client, monkeypatch):
     _mock_music(monkeypatch)
     client.post("/api/v1/books/1/atmosphere/music")

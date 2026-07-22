@@ -278,6 +278,7 @@ export const handlers = [
     return HttpResponse.json({
       book_id: Number(params.id),
       category: params.category,
+      verified: true, // задача 85: в тестах Spotify «доступен»
       selections: ["Claude", "ChatGPT"].map((source) => ({
         source,
         payload: fixtures[params.category] ?? [],
