@@ -258,10 +258,14 @@ def make_two_source_generator(
 
 FAILED_TEXT = "(не удалось получить ответ)"
 
-# Музыка — с повышенной температурой: против «одинаковых атмосферных» подборок
-# (Sigur Rós / Massive Attack в каждой книге). Выдумки, которые даёт высокая
-# температура, отсеет резолв в Spotify (services/atmosphere.verify_music_results).
+# Повышенная температура против «одинаковых подборок» (mode collapse: модель
+# тянет одни и те же безопасные варианты в каждую книгу — Sigur Rós в музыке,
+# «мясо с корнеплодами» в еде). Дизайн/инсайты не трогаем: там разнообразие вредно.
+# Музыка выше еды: выдумки в музыке всё равно отсеет резолв в Spotify
+# (services/atmosphere.verify_music_results), а у еды фильтра нет — не гоним.
 MUSIC_TEMPERATURE = 1.0
+FOOD_TEMPERATURE = 0.9
+AROMA_TEMPERATURE = 0.9
 
 generate_music = make_two_source_generator(
     build_music_prompt, MusicResult,
@@ -271,10 +275,12 @@ generate_music = make_two_source_generator(
 generate_food = make_two_source_generator(
     build_food_prompt, FoodResult,
     lambda: FoodResult(items=[], explanation=FAILED_TEXT),
+    temperature=FOOD_TEMPERATURE,
 )
 generate_aroma = make_two_source_generator(
     build_aroma_prompt, AromaResult,
     lambda: AromaResult(items=[], explanation=FAILED_TEXT),
+    temperature=AROMA_TEMPERATURE,
 )
 
 
