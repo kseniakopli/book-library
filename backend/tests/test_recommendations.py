@@ -7,7 +7,7 @@ from routers import recommendations as rec_routes
 from services.ai import RecommendationItem, RecommendationsResult
 
 
-def _fake_generate(favorites, exclude, count=5, lang="ru"):
+def _fake_generate(favorites, exclude, count=5, lang="ru", disliked=None):
     """Мгновенный «AI» от ДВУХ источников (контракт с 20.07):
     - Claude: новая книга + книга, которая уже на полке (дедуп её отбросит);
     - ChatGPT: своя новая книга + повтор совета Claude (дедуп между источниками)."""
@@ -99,6 +99,26 @@ def test_regeneration_replaces_set(client, monkeypatch):
     with Session(database.engine) as session:
         rows = session.exec(select(Recommendation)).all()
     assert len(rows) == 2                            # набор заменён, не задвоен
+
+
+def test_disliked_reaches_generation(client, monkeypatch):
+    """Задача 26 ч.4: советы с 👎 доезжают до промпта как «уже отклонённое»."""
+    captured = {}
+
+    def spy(favorites, exclude, count=5, lang="ru", disliked=None):
+        captured["disliked"] = disliked
+        return _fake_generate(favorites, exclude, count, lang)
+
+    monkeypatch.setattr(rec_routes, "generate_recommendations", spy)
+    monkeypatch.setattr(rec_routes, "search_books", lambda q, max_results=3: [])
+    _make_favorite(client)
+
+    client.post("/api/v1/feedback", json={
+        "ref": "recommendation:тень ветра|сафон", "verdict": "down", "source": "Claude",
+    })
+    client.post("/api/v1/recommendations")
+
+    assert captured["disliked"] == ["тень ветра — сафон"]
 
 
 def test_generate_requires_admin(client, monkeypatch):

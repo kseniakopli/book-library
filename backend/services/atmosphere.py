@@ -29,8 +29,10 @@ from services.ai import (
     take_ai_metrics,
 )
 import services.spotify as spotify_service
+from deps import CURRENT_USER_ID
 from services.cover_art import build_cover
 from services.spotify import resolve_songs
+from services.taste import atmosphere_taste
 
 
 async def _generate_design_selections(
@@ -193,12 +195,16 @@ def build_book_context(session: Session, book_id: int, category: str) -> dict:
     except (TypeError, ValueError):
         genres = ""
 
-    return {
+    context = {
         "description": (book.description or "")[:MAX_DESCRIPTION],
         "genres": genres,
         "year": book.published_year,
         "avoid": _overused_items(session, category, exclude_book_id=book_id),
     }
+    # задача 26 ч.4: «память вкуса» — что читателю заходило и не заходило
+    # в этой категории. У моделей памяти нет, поэтому подкладываем её сами.
+    context.update(atmosphere_taste(session, CURRENT_USER_ID, category))
+    return context
 
 
 def _overused_items(session: Session, category: str, exclude_book_id: int) -> list[str]:

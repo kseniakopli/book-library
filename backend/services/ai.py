@@ -350,7 +350,11 @@ class RecommendationsResult(BaseModel):
 
 
 async def generate_recommendations(
-    favorites: list[str], exclude: list[str], count: int = 5, lang: str = "ru"
+    favorites: list[str],
+    exclude: list[str],
+    count: int = 5,
+    lang: str = "ru",
+    disliked: list[str] | None = None,
 ) -> dict:
     """Этап 8: рекомендации новых книг по высоко оценённым — от ОБОИХ моделей
     (20.07), как в атмосфере: интереснее сравнивать, и вкусы у них разные.
@@ -358,7 +362,15 @@ async def generate_recommendations(
     (модель просят не повторять; дедуп между источниками — в роутере).
     Контракт как у генераторов атмосферы: {источник: RecommendationsResult}.
     Один провайдер упал — второй всё равно даст советы (safe_ask)."""
-    prompt = _with_style(build_recommendations_prompt(favorites, exclude, count, lang))
+    # disliked (з.26 ч.4) передаём, только если промпт его принимает —
+    # приватный prompt_config.py мог остаться со старой сигнатурой
+    try:
+        raw_prompt = build_recommendations_prompt(
+            favorites, exclude, count, lang, disliked or []
+        )
+    except TypeError:
+        raw_prompt = build_recommendations_prompt(favorites, exclude, count, lang)
+    prompt = _with_style(raw_prompt)
     empty = lambda: RecommendationsResult(items=[])   # noqa: E731
     claude_result, openai_result = await asyncio.gather(
         safe_ask(ask_claude(prompt, RecommendationsResult), empty),

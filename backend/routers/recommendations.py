@@ -24,6 +24,7 @@ from services.ai import (
     start_ai_metrics,
     take_ai_metrics,
 )
+from services.taste import disliked_recommendations
 
 router = APIRouter(tags=["recommendations"])
 
@@ -95,6 +96,8 @@ async def generate(lang: str = Depends(get_lang)):
         ).all()
         exclude = [f"{t} — {a}" for t, a in shelf]
         known = {_norm(t, a) for t, a in shelf}
+        # задача 26 ч.4: советы, помеченные 👎 — «такое не заходит»
+        disliked = disliked_recommendations(session, CURRENT_USER_ID)
 
     if not favorites:
         # нечего анализировать — честно говорим, токены не тратим
@@ -102,7 +105,8 @@ async def generate(lang: str = Depends(get_lang)):
 
     start_ai_metrics()   # задача 80: латентность и токены — в событие
     # 20.07: спрашиваем ОБЕ модели, по COUNT советов у каждой
-    results = await generate_recommendations(favorites, exclude, COUNT, lang)
+    # 22.07: + disliked — обратная петля фидбека (з.26 ч.4)
+    results = await generate_recommendations(favorites, exclude, COUNT, lang, disliked)
 
     # 3) дедуп: (а) книги с полки — модель могла не заметить список исключений;
     #    (б) советы, совпавшие у обеих моделей — показываем один раз.
