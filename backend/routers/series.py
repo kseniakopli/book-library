@@ -79,7 +79,9 @@ def create_series(
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
 ):
-    """Создать цикл. Сразу кладём его на полку пользователя со статусом."""
+    """Создать цикл. Сразу кладём его на полку пользователя со статусом.
+    Цикл — общая сущность → создание только admin (з.90а)."""
+    require_admin(session, lang)
     name = data.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail=msg("series_name_required", lang))
@@ -116,8 +118,18 @@ def update_series(
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
 ):
-    """Правка цикла и/или смена статуса (кнопки «Читаю» / «Прочитан» / «Брошен»)."""
+    """Правка цикла и/или смена статуса.
+
+    Разделение прав (з.90а): цикл — ОБЩАЯ сущность (как книга), поэтому правка
+    названия/автора/описания меняет её для всех → только admin. А статус
+    («Читаю» / «Прочитан» / «Брошен») — личное действие читателя, доступен всем."""
     series = _get_series_or_404(session, series_id, lang)
+
+    edits_shared = any(
+        value is not None for value in (data.name, data.author, data.description)
+    )
+    if edits_shared:
+        require_admin(session, lang)
 
     if data.name is not None:
         name = data.name.strip()
@@ -145,8 +157,10 @@ def delete_series(
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
 ):
-    """Удалить цикл. Книги остаются в каталоге — просто теряют привязку."""
+    """Удалить цикл. Книги остаются в каталоге — просто теряют привязку.
+    Цикл общий → удаление только admin (з.90а)."""
     series = _get_series_or_404(session, series_id, lang)
+    require_admin(session, lang)
     for book in session.exec(select(Book).where(Book.series_id == series_id)).all():
         book.series_id = None
         book.series_index = None
@@ -194,8 +208,10 @@ def add_book_to_series(
 ):
     """Привязать книгу к циклу (со страницы цикла).
     Книга может отсутствовать на полке пользователя — тогда в цикле она
-    показывается как «что дальше»."""
+    показывается как «что дальше».
+    Состав цикла — общие данные → только admin (з.90а)."""
     _get_series_or_404(session, series_id, lang)
+    require_admin(session, lang)
 
     if data.book_id is not None:
         book = get_book_or_404(session, data.book_id, lang)
@@ -232,6 +248,7 @@ def remove_book_from_series(
     session: Session = Depends(get_session),
 ):
     series = _get_series_or_404(session, series_id, lang)
+    require_admin(session, lang)          # состав цикла общий (з.90а)
     book = get_book_or_404(session, book_id, lang)
     if book.series_id == series_id:
         book.series_id = None

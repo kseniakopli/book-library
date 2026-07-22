@@ -225,5 +225,54 @@ def test_delete_series_keeps_books(client):
     assert client.get("/api/v1/books/1").status_code == 200
 
 
+# --- права (з.90а): общие данные цикла — admin, личный статус — всем ---
+
+def _make_regular_user():
+    from sqlmodel import Session as S
+
+    from models import User
+
+    with S(database.engine) as session:
+        user = session.get(User, 1)
+        user.is_admin = False
+        session.add(user)
+        session.commit()
+
+
+def test_shared_edits_require_admin(client):
+    """Название/автор/описание — общие данные цикла: правит только admin."""
+    series = _create_series(client)
+    _make_regular_user()
+
+    assert client.patch(
+        f"/api/v1/series/{series['id']}", json={"name": "Другое имя"}
+    ).status_code == 403
+    assert client.patch(
+        f"/api/v1/series/{series['id']}", json={"description": "текст"}
+    ).status_code == 403
+
+
+def test_status_change_allowed_for_everyone(client):
+    """А статус — личное действие читателя, доступно и не-админу."""
+    series = _create_series(client)
+    _make_regular_user()
+
+    r = client.patch(f"/api/v1/series/{series['id']}", json={"status": "read"})
+    assert r.status_code == 200
+    assert r.json()["status"] == "read"
+
+
+def test_series_structure_requires_admin(client):
+    """Создание, состав и удаление цикла — тоже общие данные."""
+    series = _create_series(client)
+    _make_regular_user()
+
+    assert client.post("/api/v1/series", json={"name": "Новый"}).status_code == 403
+    assert client.post(
+        f"/api/v1/series/{series['id']}/books", json={"book_id": 1}
+    ).status_code == 403
+    assert client.delete(f"/api/v1/series/{series['id']}").status_code == 403
+
+
 def test_empty_name_rejected(client):
     assert client.post("/api/v1/series", json={"name": "  "}).status_code == 400
