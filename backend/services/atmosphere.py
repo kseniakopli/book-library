@@ -33,9 +33,13 @@ from services.cover_art import build_cover
 from services.spotify import resolve_songs
 
 
-async def _generate_design_selections(title: str, author: str, lang: str = "ru") -> dict:
-    """Приводим паспорт к общему контракту генераторов: {источник: модель}."""
-    result = await generate_design(title, author, lang)
+async def _generate_design_selections(
+    title: str, author: str, lang: str = "ru", context: dict | None = None
+) -> dict:
+    """Приводим паспорт к общему контракту генераторов: {источник: модель}.
+    Контекст книги (аннотация/жанры) помогает и здесь: символ и палитра
+    по реальному сюжету точнее, чем по одному названию."""
+    result = await generate_design(title, author, lang, context)
     return {SOURCE_CLAUDE: result}
 
 
@@ -163,6 +167,71 @@ CATEGORIES = {
 }
 
 
+MAX_DESCRIPTION = 1200   # символов аннотации в промпт (хватает, не раздувает)
+AVOID_LIMIT = 25         # столько «уже использованных» пунктов показываем модели
+AVOID_MIN_BOOKS = 3      # пункт попадает в список, если встречался у стольких книг
+
+
+def build_book_context(session: Session, book_id: int, category: str) -> dict:
+    """Фактический контекст книги для промпта (22.07).
+
+    Зачем: модель знает не каждую книгу и для малоизвестных **угадывает по
+    названию** — «Капля духов в открытую рану» превратилась у Claude в арабский
+    Дубай, хотя книга о московском парфюмерном мире. Аннотация из Google Books
+    у нас уже есть — просто не доезжала до промпта.
+
+    `avoid` борется с mode collapse: генерации независимы, и модель не знает,
+    что бефстроганов с сельдью она уже советовала в каждой русской книге.
+    Показываем ей самое затасканное по библиотеке — с просьбой не повторяться."""
+    book = session.get(Book, book_id)
+    if book is None:
+        return {}
+
+    genres = ""
+    try:
+        genres = ", ".join((json.loads(book.categories) or [])[:3])
+    except (TypeError, ValueError):
+        genres = ""
+
+    return {
+        "description": (book.description or "")[:MAX_DESCRIPTION],
+        "genres": genres,
+        "year": book.published_year,
+        "avoid": _overused_items(session, category, exclude_book_id=book_id),
+    }
+
+
+def _overused_items(session: Session, category: str, exclude_book_id: int) -> list[str]:
+    """Названия, которые уже примелькались в этой категории по всей библиотеке
+    (встречаются у AVOID_MIN_BOOKS+ книг). Для музыки — «Исполнитель — Трек»."""
+    if category not in ("music", "food", "aroma"):
+        return []
+
+    rows = session.exec(
+        select(AISelection).where(
+            AISelection.category == category,
+            AISelection.book_id != exclude_book_id,
+        )
+    ).all()
+
+    books_by_item: dict[str, set[int]] = {}
+    for row in rows:
+        try:
+            items = json.loads(row.payload)
+        except (TypeError, ValueError):
+            continue
+        for item in items:
+            if category == "music":
+                name = f"{item.get('artist', '')} — {item.get('title', '')}".strip(" —")
+            else:
+                name = (item.get("title") or "").strip()
+            if name:
+                books_by_item.setdefault(name.lower(), set()).add(row.book_id)
+
+    ranked = sorted(books_by_item.items(), key=lambda kv: len(kv[1]), reverse=True)
+    return [name for name, books in ranked if len(books) >= AVOID_MIN_BOOKS][:AVOID_LIMIT]
+
+
 def payload_empty(payload_json: str) -> bool:
     """Пустой результат (AI не ответил → safe_ask вернул фолбэк с пустым списком):
     payload — это `[]`. Для дизайна payload — объект, он пустым не считается."""
@@ -251,10 +320,11 @@ async def generate_design_in_background(book_id: int, lang: str = "ru") -> None:
         if read_selections(session, book_id, "design"):
             return
         title, author = book.title, book.author
+        context = build_book_context(session, book_id, "design")
 
     start_ai_metrics()   # задача 80: латентность и токены — в событие
     try:
-        results = await cfg["generate"](title, author, lang)
+        results = await cfg["generate"](title, author, lang, context)
         if cfg.get("postprocess"):
             results = await cfg["postprocess"](results, book_id, title)
     except Exception as e:

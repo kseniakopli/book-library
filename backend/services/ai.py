@@ -266,14 +266,35 @@ async def safe_ask(coro, fallback_factory):
         return fallback_factory()
 
 
+def _build_with_context(build_prompt, title, author, lang, context):
+    """Вызвать функцию промпта, передав контекст книги (описание, жанры, год,
+    «уже использованное») — если она его принимает.
+
+    Зачем: с 22.07 в промпты передаётся фактический контекст книги, иначе для
+    малоизвестных книг модель угадывает по названию («Капля духов» → Дубай).
+    Но prompt_config.py приватный: у пользователя может остаться старая
+    сигнатура (title, author, lang). Пробуем с контекстом, при TypeError —
+    зовём по-старому, чтобы ничего не сломалось."""
+    if context:
+        try:
+            return build_prompt(title, author, lang, context)
+        except TypeError:
+            pass
+    return build_prompt(title, author, lang)
+
+
 def make_two_source_generator(
     build_prompt, result_model, fallback_factory, temperature: float | None = None
 ):
     """Генератор категории «спросить оба AI параллельно» (music, food, aroma).
     Новая категория = промпт + модель результата + эта фабрика.
     temperature — общий рычаг разнообразия (для музыки выше, см. generate_music)."""
-    async def generate(title: str, author: str, lang: str = "ru") -> dict:
-        prompt = _with_style(build_prompt(title, author, lang))
+    async def generate(
+        title: str, author: str, lang: str = "ru", context: dict | None = None
+    ) -> dict:
+        prompt = _with_style(
+            _build_with_context(build_prompt, title, author, lang, context)
+        )
         # Claude — на Sonnet (MODEL_REASONING, дефолт): понимание книги важнее
         # разнообразия. Haiku с температурой пробовали (22.07) — он давал разброс,
         # но путал сюжет (записал французскую книгу в русскую кухню). У Sonnet
@@ -386,11 +407,13 @@ async def map_csv_columns(
     )
 
 
-async def generate_design(title: str, author: str, lang: str = "ru") -> DesignResult:
+async def generate_design(
+    title: str, author: str, lang: str = "ru", context: dict | None = None
+) -> DesignResult:
     """Дизайн-паспорт (палитра, шрифты, символ) — одним источником (Claude).
     max_tokens с запасом: SVG-символ бывает многословным."""
     return await ask_claude(
-        _with_style(build_design_prompt(title, author, lang)),
+        _with_style(_build_with_context(build_design_prompt, title, author, lang, context)),
         DesignResult,
         max_tokens=8000,
     )

@@ -33,6 +33,35 @@ def test_generate_music_two_sources(client, monkeypatch):
     assert sources == {"Claude", "ChatGPT"}
 
 
+def test_context_passed_to_prompt(client, monkeypatch):
+    """22.07: в генерацию уходит фактический контекст книги — аннотация и жанры,
+    иначе модель угадывает сюжет по названию (инцидент «Капля духов» → Дубай)."""
+    from sqlmodel import Session
+
+    import database
+    from models import Book
+
+    with Session(database.engine) as session:
+        book = session.get(Book, 1)
+        book.description = "История о парфюмерном мире Москвы"
+        book.categories = '["Fiction"]'
+        session.add(book)
+        session.commit()
+
+    captured = {}
+
+    async def spy(title, author, lang="ru", context=None):
+        captured["context"] = context
+        return await fake_generate_music(title, author, lang)
+
+    monkeypatch.setitem(atmosphere_routes.CATEGORIES["music"], "generate", spy)
+    client.post("/api/v1/books/1/atmosphere/music")
+
+    assert "парфюмерном мире Москвы" in captured["context"]["description"]
+    assert captured["context"]["genres"] == "Fiction"
+    assert "avoid" in captured["context"]
+
+
 def test_music_marked_unverified_when_spotify_unavailable(client, monkeypatch):
     """Задача 85: Spotify недоступен (бан/нет ключей) → музыка помечается
     непроверенной (verified=False), чтобы reverify_music её потом догнал."""
@@ -79,7 +108,7 @@ def test_failed_regeneration_keeps_old(client, monkeypatch):
     _mock_music(monkeypatch)
     client.post("/api/v1/books/1/atmosphere/music")   # успешно: Song A / Song B
 
-    async def all_empty(title, author, lang="ru"):
+    async def all_empty(title, author, lang="ru", context=None):
         return {
             "Claude": MusicResult(songs=[], explanation="(не удалось)"),
             "ChatGPT": MusicResult(songs=[], explanation="(не удалось)"),
@@ -98,7 +127,7 @@ def test_first_generation_all_empty_writes_nothing(client, monkeypatch):
     пустые строки — остаётся «пусто», а не два пустых варианта."""
     from services.ai import MusicResult
 
-    async def all_empty(title, author, lang="ru"):
+    async def all_empty(title, author, lang="ru", context=None):
         return {
             "Claude": MusicResult(songs=[], explanation="(не удалось)"),
             "ChatGPT": MusicResult(songs=[], explanation="(не удалось)"),

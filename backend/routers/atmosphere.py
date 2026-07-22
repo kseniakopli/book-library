@@ -12,6 +12,7 @@ from i18n import msg
 from services.ai import start_ai_metrics, take_ai_metrics
 from services.atmosphere import (
     CATEGORIES,          # ре-экспорт: на него ссылаются тесты и разовые скрипты
+    build_book_context,
     read_selections,
     replace_selections,
     selections_response,
@@ -48,10 +49,14 @@ async def generate_atmosphere(
         book = get_book_or_404(session, book_id, lang)
         require_admin(session, lang)
         title, author = book.title, book.author
+        # 22.07: фактический контекст книги (аннотация, жанры, год) + «уже
+        # затасканное» по библиотеке — иначе модель угадывает по названию
+        # и повторяет один и тот же бефстроганов в каждой русской книге
+        context = build_book_context(session, book_id, category)
 
     # 2) реальные AI-вызовы (токены тратятся здесь); метрики — в событие (з.80)
     start_ai_metrics()
-    results = await cfg["generate"](title, author, lang)
+    results = await cfg["generate"](title, author, lang, context)
     # 2а) постобработка категории: для музыки — один проход поиска в Spotify
     # (выдуманные треки отсеиваются) и сразу сборка/обновление плейлиста (20.07)
     if cfg.get("postprocess"):

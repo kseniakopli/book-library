@@ -42,8 +42,10 @@ def client_fixture():
 
 # --- Фейки внешних сервисов (без сети и без токенов) ---
 
-async def fake_generate_music(title, author, lang="ru"):
-    """Мгновенный «AI»: две подборки с разным содержимым."""
+async def fake_generate_music(title, author, lang="ru", context=None):
+    """Мгновенный «AI»: две подборки с разным содержимым.
+    `context` (22.07) — фактический контекст книги; фейку не нужен, но принимаем,
+    чтобы сигнатура совпадала с реальными генераторами."""
     return {
         "Claude": MusicResult(
             songs=[Song(title="Song A", artist="Artist A")],
@@ -56,7 +58,7 @@ async def fake_generate_music(title, author, lang="ru"):
     }
 
 
-async def fake_generate_design(title, author, lang="ru"):
+async def fake_generate_design(title, author, lang="ru", context=None):
     """Мгновенный «паспорт оформления» — уже в контракте {источник: модель}."""
     return {
         "Claude": DesignResult(
@@ -147,7 +149,7 @@ def fake_search_books(query, max_results=8):
         {"title": "Собачье сердце", "author": "Булгаков",
          "cover_url": None, "external_id": "ext2"},
     ]
-async def fake_generate_food(title, author, lang="ru"):
+async def fake_generate_food(title, author, lang="ru", context=None):
     return {
         "Claude": FoodResult(
             items=[AtmosphereItem(title="Глинтвейн", description="Тёплый и пряный")],
@@ -160,7 +162,7 @@ async def fake_generate_food(title, author, lang="ru"):
     }
 
 
-async def fake_generate_aroma(title, author, lang="ru"):
+async def fake_generate_aroma(title, author, lang="ru", context=None):
     return {
         "Claude": AromaResult(
             items=[AtmosphereItem(title="Сандал", description="Дымный, тёплый")],
