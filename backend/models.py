@@ -35,6 +35,12 @@ class Book(SQLModel, table=True):
     # Атмосфера/оформление (AISelection) и плейлист генерируются один раз на книгу
     # и переиспользуются всеми, кто её добавил (решение 18.07)
     spotify_playlist_url: Optional[str] = None   # постоянная ссылка на плейлист (этап 10.2)
+    # Задача 89: принадлежность циклу — свойство самой книги (объективное),
+    # поэтому здесь, а не в UserBook. Заполняется вручную со страницы цикла.
+    series_id: Optional[int] = Field(
+        default=None, foreign_key="series.id", index=True, ondelete="SET NULL"
+    )
+    series_index: Optional[int] = None            # номер книги в цикле (1, 2, 3…)
 
 
 # --- Полка пользователя: одна строка = одна книга у одного пользователя.
@@ -114,6 +120,34 @@ class Feedback(SQLModel, table=True):
     source: Optional[str] = None            # Claude / ChatGPT (для сводки)
     verdict: str                            # "up" / "down"
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+# --- Циклы книг (задача 89). Разделение как у книг: `Series` — общий каталог
+# (цикл существует объективно, независимо от читателя), `UserSeries` — личный
+# статус. Книги цикла, которых нет на полке, — это обычные записи `Book` без
+# `UserBook`: они находятся поиском и показывают «что читать дальше».
+# Разведка 22.07: ни Google Books, ни OpenLibrary серий не отдают — заполняется
+# вручную (`scripts/explore_series.py`, подробности в задаче 89) ---
+class Series(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)               # «Неаполитанский квартет»
+    author: Optional[str] = None                # автор цикла (для карточки)
+    description: Optional[str] = None
+    # Паспорт оформления цикла (экслибрис + палитры), JSON как у книги
+    design: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class UserSeries(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("user_id", "series_id", name="uq_userseries_user_series"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="user.id", index=True)
+    series_id: int = Field(foreign_key="series.id", index=True, ondelete="CASCADE")
+    status: str = Field(default="reading")      # reading / read / dropped
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: Optional[datetime] = None
 
 
 # --- Кэш резолва треков в Spotify (задача 82, часть 1). Каждый трек резолвится

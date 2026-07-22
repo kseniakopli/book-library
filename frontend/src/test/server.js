@@ -218,6 +218,9 @@ export const handlers = [
     }),
   ),
 
+  // Циклы книг (задача 89): в тестах пустая полка
+  http.get("/api/v1/series", () => HttpResponse.json({ series: [] })),
+
   // Обратная связь по подборкам (задача 26): stateful — воспроизводим toggle
   // бэкенда (повтор того же вердикта снимает оценку)
   http.get("/api/v1/feedback", () =>

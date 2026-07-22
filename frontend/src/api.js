@@ -71,6 +71,23 @@ export const getStats = () => request("/stats");
 export const generateInsights = () =>
   request("/stats/insights", { method: "POST" });
 
+// Циклы книг (задача 89): полка циклов, страница цикла, привязка книг
+export const getSeries = () => request("/series");
+export const getSeriesOne = (id) => request(`/series/${id}`);
+export const createSeries = (body) => request("/series", json("POST", body));
+export const updateSeries = ({ id, ...body }) =>
+  request(`/series/${id}`, json("PATCH", body));
+export const deleteSeries = (id) =>
+  request(`/series/${id}`, { method: "DELETE" });
+// book_id — привязать существующую; title/author — завести будущую книгу цикла
+export const addBookToSeries = ({ id, ...body }) =>
+  request(`/series/${id}/books`, json("POST", body));
+export const removeBookFromSeries = ({ id, bookId }) =>
+  request(`/series/${id}/books/${bookId}`, { method: "DELETE" });
+// экслибрис цикла: генерируется по названию и описанию (тратит токены)
+export const generateSeriesDesign = (id) =>
+  request(`/series/${id}/design`, { method: "POST" });
+
 // Обратная связь по AI-подборкам (задача 26): 👍/👎 на атмосферу и советы
 export const getFeedback = () => request("/feedback");
 export const setFeedback = ({ ref, verdict, source }) =>

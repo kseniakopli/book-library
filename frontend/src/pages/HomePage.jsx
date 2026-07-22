@@ -17,6 +17,7 @@ import LibraryHeader from "../components/LibraryHeader";
 import Onboarding from "../components/Onboarding";
 import RecommendationShelf from "../components/RecommendationShelf";
 import SearchModal from "../components/SearchModal";
+import SeriesShelf from "../components/SeriesShelf";
 import Shelf from "../components/Shelf";
 
 function HomePage() {
@@ -177,6 +178,8 @@ function HomePage() {
             {...shelfCards}
             {...shelfProps("Хочу прочитать")}
           />
+          {/* задача 89: полка циклов — между книгами и рекомендациями */}
+          <SeriesShelf />
           <RecommendationShelf />
         </>
       )}

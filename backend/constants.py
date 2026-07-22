@@ -8,6 +8,14 @@ STATUS_READING = "reading"
 STATUS_READ = "read"
 ALLOWED_STATUSES = {STATUS_WANT, STATUS_READING, STATUS_READ}
 
+# --- статусы цикла книг (задача 89) ---
+SERIES_READING = "reading"      # читаю
+SERIES_READ = "read"            # прочитан
+SERIES_DROPPED = "dropped"      # перестала читать
+ALLOWED_SERIES_STATUSES = {SERIES_READING, SERIES_READ, SERIES_DROPPED}
+# Порядок на полке: читаю → прочитано → перестала читать (решение Ксении 22.07)
+SERIES_STATUS_ORDER = {SERIES_READING: 0, SERIES_READ: 1, SERIES_DROPPED: 2}
+
 # --- статусы фонового обогащения ---
 ENRICH_PENDING = "pending"
 ENRICH_READY = "ready"

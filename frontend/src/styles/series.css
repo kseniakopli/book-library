@@ -1,0 +1,387 @@
+/* ===== Циклы книг (задача 89) =====
+   Элемент полки — цикл, а не книга: карточка крупнее книжной, поэтому
+   в ряд их помещается меньше (решение Ксении 22.07). */
+
+/* --- полка циклов на главной --- */
+.series-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* крупнее книжных карточек → меньше в ряду */
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+.series-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 16px;
+  align-items: center;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+.series-card:hover {
+  border-color: var(--accent);
+}
+
+.series-symbol {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.series-symbol img {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+}
+.series-symbol-empty {
+  color: var(--muted);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.series-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.series-name {
+  font-family: var(--serif);
+  font-size: 19px;
+}
+.series-author {
+  color: var(--muted);
+  font-size: 14px;
+}
+.series-progress {
+  color: var(--muted);
+  font-size: 14px;
+}
+.series-next {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.series-status {
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.series-status-reading {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* форма создания цикла */
+.series-create {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.series-create input {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+/* --- страница цикла --- */
+.series-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.series-controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.series-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.series-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.series-symbol-large {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.series-symbol-large img {
+  width: 70%;
+  height: 70%;
+  object-fit: contain;
+}
+.series-symbol-large .series-symbol-empty {
+  font-size: 64px;
+}
+
+.series-title {
+  font-family: var(--serif);
+  font-size: 28px;
+  margin: 8px 0 0;
+  line-height: 1.2;
+}
+.series-description {
+  line-height: 1.6;
+}
+.series-status-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+/* экслибрис цикла: кнопка генерации и пояснение символа */
+.series-design-btn {
+  align-self: flex-start;
+}
+.series-statement {
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* правка цикла (название/автор/описание — вход для генерации символа) */
+.series-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.series-edit textarea {
+  font: inherit;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.series-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+.series-edit-btn {
+  align-self: flex-start;
+}
+
+/* дерево книг цикла */
+.series-books-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.series-books-head h2 {
+  font-family: var(--serif);
+  font-size: 22px;
+  margin: 0;
+}
+
+.series-index-input {
+  flex: 0 0 70px;
+}
+.series-add-hint {
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+/* поиск книги для цикла: каталог → Google → вручную */
+.series-search {
+  margin-bottom: 16px;
+}
+.series-search-row {
+  display: flex;
+  gap: 8px;
+}
+.series-search-row input:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.series-search-results {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.series-search-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.series-search-results li:last-child .series-search-item {
+  border-bottom: none;
+}
+.series-search-item:hover {
+  background: var(--surface);
+}
+.series-search-cover {
+  width: 36px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.series-search-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.series-search-cover-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+.series-search-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.series-search-title {
+  font-size: 15px;
+}
+.series-search-author {
+  color: var(--muted);
+  font-size: 13px;
+}
+.series-search-source {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.series-search-manual {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.series-search-manual input {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.series-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.series-tree-item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto 28px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+/* книги, которых нет в библиотеке — приглушены: это «что дальше» */
+.series-tree-absent {
+  opacity: 0.65;
+}
+.series-tree-index {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+.series-tree-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.series-tree-title {
+  font-size: 16px;
+}
+a.series-tree-title {
+  color: var(--text);
+  text-decoration: none;
+}
+a.series-tree-title:hover {
+  color: var(--accent);
+}
+.series-tree-author {
+  color: var(--muted);
+  font-size: 13px;
+}
+.series-tree-status {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.series-tree-remove {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.series-tree-remove:hover {
+  color: var(--danger, #d98a7e);
+}
+
+/* мобильный: колонки в столбик */
+@media (max-width: 760px) {
+  .series-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .series-symbol-large {
+    max-width: 180px;
+  }
+  .series-list {
+    grid-template-columns: 1fr;
+  }
+}

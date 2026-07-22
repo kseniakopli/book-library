@@ -21,6 +21,7 @@ from prompt_config import (
     build_insights_prompt,
     build_music_prompt,
     build_recommendations_prompt,
+    build_series_design_prompt,
 )
 
 
@@ -416,6 +417,19 @@ async def map_csv_columns(
         build_csv_mapping_prompt(headers, sample_rows, lang),
         CsvMapping,
         max_tokens=500,
+    )
+
+
+async def generate_series_design(
+    name: str, author: str | None = None, description: str | None = None,
+    lang: str = "ru",
+) -> DesignResult:
+    """Задача 89: паспорт оформления цикла — та же схема, что у книги
+    (палитры + шрифты + символ), но по описанию цикла целиком."""
+    return await ask_claude(
+        _with_style(build_series_design_prompt(name, author, description, lang)),
+        DesignResult,
+        max_tokens=8000,
     )
 
 

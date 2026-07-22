@@ -28,6 +28,7 @@ python scripts/backup_db.py
 | `smoke_external.py` | **Дымовой прогон перед релизом (з.83):** живой Spotify (токен+поиск+формат ответа) и Google Books. Ловит изменения контракта, которые моки не видят |
 | `spotify_status.py` | Быстрая проверка «снят ли бан Spotify» (один поиск, показывает Retry-After) |
 | `check_track_search.py` | Детальная диагностика поиска трека: кто найден, кто отклонён и почему |
+| `explore_series.py` | Разведка данных о циклах (з.89): что о серии знают Google Books (`raw_metadata`) и OpenLibrary. `--openlibrary`, `--author <часть фамилии>` |
 | `backfill_atmosphere.py` | Восстановление музыки/угощений/ароматов у книг, где они пропали (инцидент 18.07) |
 | `regenerate_food.py` | Массовая перегенерация еды (или `--category aroma/music`) у книг, где она уже есть — после смены промпта/модели. `--dry-run`, `--limit N`, `--book ID` |
 | `reverify_music.py` | Перепроверка музыки, сохранённой при бане Spotify (з.85): резолв треков + плейлист, когда Spotify снова доступен. `--dry-run` |

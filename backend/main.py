@@ -22,6 +22,7 @@ from routers import (
     imports,
     recommendations,
     search,
+    series,
     spotify,
     stats,
 )
@@ -56,6 +57,7 @@ app.include_router(recommendations.router, prefix=API_V1)  # этап 8: сов�
 app.include_router(spotify.router, prefix=API_V1)     # плейлисты и QR
 app.include_router(stats.router, prefix=API_V1)       # задачи 24/63: статистика
 app.include_router(feedback.router, prefix=API_V1)    # задача 26: 👍/👎 по подборкам
+app.include_router(series.router, prefix=API_V1)      # задача 89: циклы книг
 # /callback — без префикса: адрес зарегистрирован в кабинете Spotify
 app.include_router(spotify.callback_router)
 

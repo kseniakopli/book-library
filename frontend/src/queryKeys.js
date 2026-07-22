@@ -11,4 +11,6 @@ export const keys = {
   recommendations: ["recommendations"], // этап 8: советы новых книг
   stats: ["stats"],                     // задачи 24/63: статистика чтения
   feedback: ["feedback"],               // задача 26: 👍/👎 по AI-подборкам
+  series: ["series"],                   // задача 89: полка циклов
+  seriesOne: (id) => ["series", Number(id)],
 };

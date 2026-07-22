@@ -14,6 +14,8 @@ const EveningPage = lazy(() => import("./pages/EveningPage"));
 // Статистика (задачи 24/63) тянет recharts — самый тяжёлый пакет в проекте.
 // Отдельный чанк: главная страница от него не толстеет.
 const StatsPage = lazy(() => import("./pages/StatsPage"));
+// Циклы (задача 89) — отдельный экран, открывается не каждую сессию
+const SeriesPage = lazy(() => import("./pages/SeriesPage"));
 
 function App() {
   // Применяем сохранённую тему на уровне App: он смонтирован всегда,
@@ -29,6 +31,7 @@ function App() {
           <Route path="/books/:id/card" element={<CardPage />} />
           <Route path="/books/:id/evening" element={<EveningPage />} />
           <Route path="/stats" element={<StatsPage />} />
+          <Route path="/series/:id" element={<SeriesPage />} />
         </Routes>
       </Suspense>
     </div>
