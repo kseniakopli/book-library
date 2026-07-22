@@ -162,22 +162,46 @@ def _record_metric(entry: dict) -> None:
 
 # --- Обобщённые вызовы провайдеров (7.1): промпт и модель — параметры ---
 
+# Модели Claude под задачу (см. docs, таблица моделей 22.07):
+# - reasoning-модели с «adaptive thinking» (Sonnet 5, Opus, Fable) НЕ принимают
+#   temperature — вернут 400. Держим их там, где важно качество рассуждения.
+# - Haiku 4.5 — единственная без adaptive thinking: принимает temperature,
+#   втрое дешевле и быстрее Sonnet. Идеальна для творческого подбора атмосферы,
+#   где нужен не глубокий reasoning, а разнообразие.
+MODEL_REASONING = "claude-sonnet-5"    # дизайн, рекомендации, инсайты
+MODEL_CREATIVE = "claude-haiku-4-5"    # музыка, еда, ароматы (с temperature)
+
+
 async def ask_claude(
-    prompt: str, output_model, max_tokens: int = 8000, temperature: float | None = None
+    prompt: str,
+    output_model,
+    max_tokens: int = 8000,
+    temperature: float | None = None,
+    model: str = MODEL_REASONING,
 ):
     start = perf_counter()
-    # temperature задаётся не всегда: для музыки повыше — против «одинаковых
-    # атмосферных» подборок (mode collapse: модель тянет клише вроде
-    # Sigur Rós / Massive Attack в каждую книгу). Для дизайна/инсайтов не трогаем.
     extra = {} if temperature is None else {"temperature": temperature}
     try:
-        message = await claude_client.messages.parse(
-            model="claude-sonnet-5",
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-            output_format=output_model,
-            **extra,
-        )
+        try:
+            message = await claude_client.messages.parse(
+                model=model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                output_format=output_model,
+                **extra,
+            )
+        except anthropic.BadRequestError as e:
+            # Модель могла не принять temperature (reasoning-модели её отвергают,
+            # инцидент 22.07). Не роняем генерацию — повторяем без temperature.
+            if extra and "temperature" in str(e).lower():
+                message = await claude_client.messages.parse(
+                    model=model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                    output_format=output_model,
+                )
+            else:
+                raise
     except Exception as e:
         _record_metric({
             "provider": SOURCE_CLAUDE,
@@ -248,8 +272,12 @@ def make_two_source_generator(
     temperature — общий рычаг разнообразия (для музыки выше, см. generate_music)."""
     async def generate(title: str, author: str, lang: str = "ru") -> dict:
         prompt = _with_style(build_prompt(title, author, lang))
+        # Атмосфера — на Haiku с температурой (разнообразие), оба провайдера
         claude_result, openai_result = await asyncio.gather(
-            safe_ask(ask_claude(prompt, result_model, temperature=temperature), fallback_factory),
+            safe_ask(
+                ask_claude(prompt, result_model, temperature=temperature, model=MODEL_CREATIVE),
+                fallback_factory,
+            ),
             safe_ask(ask_openai(prompt, result_model, temperature=temperature), fallback_factory),
         )
         return {SOURCE_CLAUDE: claude_result, SOURCE_CHATGPT: openai_result}
@@ -260,7 +288,9 @@ FAILED_TEXT = "(не удалось получить ответ)"
 
 # Повышенная температура против «одинаковых подборок» (mode collapse: модель
 # тянет одни и те же безопасные варианты в каждую книгу — Sigur Rós в музыке,
-# «мясо с корнеплодами» в еде). Дизайн/инсайты не трогаем: там разнообразие вредно.
+# «мясо с корнеплодами» в еде). Работает на обоих провайдерах: Claude здесь —
+# Haiku (MODEL_CREATIVE), он temperature принимает. Дизайн/инсайты/рекомендации
+# остаются на Sonnet без температуры — там разнообразие вредно.
 # Музыка выше еды: выдумки в музыке всё равно отсеет резолв в Spotify
 # (services/atmosphere.verify_music_results), а у еды фильтра нет — не гоним.
 MUSIC_TEMPERATURE = 1.0
