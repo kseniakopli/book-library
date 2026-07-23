@@ -107,9 +107,10 @@ function HomePage() {
     queryFn: () => api.searchBooks(trimmed),
     enabled: trimmed.length >= 3,
   });
-  const catalogHits = (catalogSearch.data?.results ?? []).filter(
-    (r) => !r.on_shelf,
-  );
+  const offShelf = (catalogSearch.data?.results ?? []).filter((r) => !r.on_shelf);
+  // разделяем по источнику: наша база (library/catalog) и Google Books
+  const inBaseHits = offShelf.filter((r) => r.source !== "google");
+  const googleHits = offShelf.filter((r) => r.source === "google");
 
   const addToShelf = useMutation({
     mutationFn: (item) =>
@@ -180,37 +181,41 @@ function HomePage() {
             </div>
           )}
 
-          {/* задача 90: книги из каталога, которых нет на полке — с кнопкой добавить */}
-          {catalogHits.length > 0 && (
-            <div className="catalog-hits">
-              <h3 className="catalog-hits-title">
-                Есть в базе, но не на вашей полке
-              </h3>
-              <ul className="catalog-hit-list">
-                {catalogHits.map((item, i) => (
-                  <li className="catalog-hit" key={`${item.title}-${i}`}>
-                    <span className="catalog-hit-text">
-                      <span className="catalog-hit-title">{item.title}</span>
-                      <span className="catalog-hit-author">{item.author}</span>
-                    </span>
-                    <button
-                      className="btn-ghost"
-                      onClick={() => addToShelf.mutate(item)}
-                      disabled={addToShelf.isPending}
-                    >
-                      + На полку
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {/* задача 90: книги, которых нет на полке — раздельно по источнику */}
+          {[
+            { title: "Есть в базе, но не на вашей полке", items: inBaseHits },
+            { title: "Найдено в Google Books", items: googleHits },
+          ].map(
+            ({ title, items }) =>
+              items.length > 0 && (
+                <div className="catalog-hits" key={title}>
+                  <h3 className="catalog-hits-title">{title}</h3>
+                  <ul className="catalog-hit-list">
+                    {items.map((item, i) => (
+                      <li className="catalog-hit" key={`${item.title}-${i}`}>
+                        <span className="catalog-hit-text">
+                          <span className="catalog-hit-title">{item.title}</span>
+                          <span className="catalog-hit-author">{item.author}</span>
+                        </span>
+                        <button
+                          className="btn-ghost"
+                          onClick={() => addToShelf.mutate(item)}
+                          disabled={addToShelf.isPending}
+                        >
+                          + На полку
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ),
           )}
 
           {catalogSearch.isFetching && filtered.length === 0 && (
             <p className="muted">Ищу в каталоге…</p>
           )}
           {filtered.length === 0 &&
-            catalogHits.length === 0 &&
+            offShelf.length === 0 &&
             !catalogSearch.isFetching && (
               <p className="muted">Ничего не найдено.</p>
             )}
