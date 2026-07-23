@@ -12,13 +12,20 @@
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 16px;
 }
+/* все карточки ряда одной высоты: элемент списка тянется на всю ячейку grid,
+   а кнопка — на всю высоту элемента (разное число строк текста не ломает ряд) */
+.series-list > li {
+  display: flex;
+}
 
 .series-card {
   width: 100%;
   display: grid;
   grid-template-columns: 72px 1fr auto;
   gap: 16px;
-  align-items: center;
+  /* содержимое и статус — к верху, чтобы название было на одной линии
+     во всех карточках независимо от их высоты */
+  align-items: start;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -64,6 +71,8 @@
 .series-name {
   font-family: var(--serif);
   font-size: 19px;
+  /* длинное название переносится по словам, а не наезжает на статус */
+  overflow-wrap: anywhere;
 }
 .series-author {
   color: var(--muted);
@@ -85,6 +94,10 @@
   border-radius: 999px;
   padding: 3px 10px;
   white-space: nowrap;
+  /* статус на одной линии с названием, а не по центру карточки */
+  margin-top: 2px;
+  /* не даём пилюле прилипать к длинному названию */
+  margin-left: 10px;
 }
 .series-status-reading {
   color: var(--accent);
