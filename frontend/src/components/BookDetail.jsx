@@ -1,6 +1,7 @@
 // Страница книги: композиция блоков. Логика паспорта — в хуке useBookDesign,
 // действия/статусы/плейлист — в отдельных компонентах (ревью 19.07).
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
@@ -145,6 +146,14 @@ function BookDetail({ book, onBack, onDeleted }) {
                 </div>
               )}
               {design && <p className="detail-statement">{design.statement}</p>}
+
+              {/* задача 90б: принадлежность циклу — ссылка на страницу цикла */}
+              {book.series_id && (
+                <Link className="detail-series" to={`/series/${book.series_id}`}>
+                  Цикл «{book.series_name}»
+                  {book.series_index != null && ` · книга ${book.series_index}`}
+                </Link>
+              )}
 
               <BookStatusRow
                 book={book}

@@ -274,5 +274,23 @@ def test_series_structure_requires_admin(client):
     assert client.delete(f"/api/v1/series/{series['id']}").status_code == 403
 
 
+def test_book_carries_series_info(client):
+    """Задача 90б: GET книги отдаёт цикл, номер и название — для блока в карточке."""
+    series = _create_series(client, name="Дублинский отдел")
+    client.post(f"/api/v1/series/{series['id']}/books",
+                json={"book_id": 1, "series_index": 2})
+
+    book = client.get("/api/v1/books/1").json()
+    assert book["series_id"] == series["id"]
+    assert book["series_index"] == 2
+    assert book["series_name"] == "Дублинский отдел"
+
+
+def test_book_without_series_has_null_fields(client):
+    book = client.get("/api/v1/books/1").json()
+    assert book["series_id"] is None
+    assert book["series_name"] is None
+
+
 def test_empty_name_rejected(client):
     assert client.post("/api/v1/series", json={"name": "  "}).status_code == 400

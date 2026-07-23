@@ -117,7 +117,8 @@
   margin-bottom: 6px;
 }
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   font-family: inherit;
   font-size: 15px;
@@ -129,6 +130,20 @@
 }
 .field textarea {
   resize: vertical; /* правка описания (задача 3): тянуть можно только вниз */
+}
+
+/* задача 90в: цикл + номер в один ряд */
+.field-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.field-grow {
+  flex: 1;
+}
+.field-index {
+  flex: 0 0 80px;
+  margin-bottom: 14px;
 }
 
 .search-input {

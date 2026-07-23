@@ -82,9 +82,14 @@ class BookRead(BaseModel):
     spotify_playlist_url: Optional[str] = None
     updated_at: Optional[datetime] = None
     read_at: Optional[datetime] = None
+    # Задача 89/90б: принадлежность циклу — для блока на странице книги.
+    # series_name подставляется в роутере (нужен JOIN на Series).
+    series_id: Optional[int] = None
+    series_index: Optional[int] = None
+    series_name: Optional[str] = None
 
     @classmethod
-    def from_pair(cls, book, user_book) -> "BookRead":
+    def from_pair(cls, book, user_book, series_name: Optional[str] = None) -> "BookRead":
         """Склейка ответа: общие поля книги + личные поля полки.
         Контракт остаётся плоским — фронт читает как до разделения таблиц."""
         return cls(
@@ -107,4 +112,7 @@ class BookRead(BaseModel):
             spotify_playlist_url=book.spotify_playlist_url,
             updated_at=user_book.updated_at,
             read_at=user_book.read_at,
+            series_id=book.series_id,
+            series_index=book.series_index,
+            series_name=series_name,
         )

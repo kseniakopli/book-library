@@ -122,6 +122,22 @@
   margin: 12px 0 20px;
 }
 
+/* задача 90б: ссылка на цикл в карточке книги */
+.detail-series {
+  display: inline-block;
+  margin: 4px 0 12px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.detail-series:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .status-row {
   display: flex;
   flex-wrap: wrap;

@@ -27,7 +27,7 @@ from deps import (
 )
 from events import log_event
 from google_books import fetch_book_info
-from models import Book, UserBook
+from models import Book, Series, UserBook
 from schemas import BookCreate, BookRead, BookUpdate
 from services.atmosphere import generate_design_in_background, read_design_summary
 from services.enrichment import apply_enrichment, enrich_in_background
@@ -96,7 +96,12 @@ def get_book(
 ):
     book = get_book_or_404(session, book_id, lang)
     user_book = get_userbook_or_404(session, book_id, lang)
-    return BookRead.from_pair(book, user_book)
+    # имя цикла — только для одиночной книги (в списке не грузим, лишний JOIN)
+    series_name = None
+    if book.series_id is not None:
+        series = session.get(Series, book.series_id)
+        series_name = series.name if series else None
+    return BookRead.from_pair(book, user_book, series_name)
 
 
 @router.post("/books", response_model=BookRead)

@@ -113,8 +113,46 @@ function SeriesPage() {
         </button>
       </div>
 
+      {/* шапка над колонками: название, автор, прогресс, статусы */}
+      <header className="series-header">
+        <div className="series-header-text">
+          {editing ? (
+            <input
+              className="series-title-input"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="Название цикла"
+            />
+          ) : (
+            <h1 className="series-title">{series.name}</h1>
+          )}
+          {!editing && series.author && (
+            <p className="series-author">{series.author}</p>
+          )}
+          <p className="series-progress">
+            Прочитано {progress.read} из {progress.total}
+            {progress.on_shelf < progress.total && (
+              <> · на полке {progress.on_shelf}</>
+            )}
+          </p>
+        </div>
+        <div className="series-status-row" role="group" aria-label="Статус цикла">
+          {STATUSES.map((s) => (
+            <button
+              key={s.id}
+              className={"pill " + (series.status === s.id ? "pill-active" : "")}
+              onClick={() => setStatus.mutate(s.id)}
+              disabled={setStatus.isPending}
+              aria-pressed={series.status === s.id}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </header>
+
       <div className="series-layout">
-        {/* левая колонка: экслибрис, описание, статусы */}
+        {/* левая колонка: экслибрис, описание, редактирование */}
         <aside className="series-aside">
           <div className="series-symbol-large" aria-hidden="true">
             {symbolUri ? (
@@ -156,17 +194,12 @@ function SeriesPage() {
               }}
             >
               <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Название цикла"
-              />
-              <input
                 value={form.author}
                 onChange={(e) => setForm({ ...form, author: e.target.value })}
                 placeholder="Автор"
               />
               <textarea
-                rows={5}
+                rows={6}
                 value={form.description}
                 onChange={(e) =>
                   setForm({ ...form, description: e.target.value })
@@ -188,8 +221,6 @@ function SeriesPage() {
             </form>
           ) : (
             <>
-              <h1 className="series-title">{series.name}</h1>
-              {series.author && <p className="series-author">{series.author}</p>}
               {series.description ? (
                 <p className="series-description">{series.description}</p>
               ) : (
@@ -213,29 +244,6 @@ function SeriesPage() {
               </button>
             </>
           )}
-
-          <p className="series-progress">
-            Прочитано {progress.read} из {progress.total}
-            {progress.on_shelf < progress.total && (
-              <> · на полке {progress.on_shelf}</>
-            )}
-          </p>
-
-          <div className="series-status-row" role="group" aria-label="Статус цикла">
-            {STATUSES.map((s) => (
-              <button
-                key={s.id}
-                className={
-                  "pill " + (series.status === s.id ? "pill-active" : "")
-                }
-                onClick={() => setStatus.mutate(s.id)}
-                disabled={setStatus.isPending}
-                aria-pressed={series.status === s.id}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
         </aside>
 
         {/* правая колонка: дерево книг цикла */}
