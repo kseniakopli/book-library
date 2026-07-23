@@ -606,6 +606,30 @@
         "title": "SeriesUpdate",
         "type": "object"
       },
+      "TrackRemoveIn": {
+        "description": "Какой трек убрать: источник (вкладка) + канонические название и исполнитель.",
+        "properties": {
+          "artist": {
+            "title": "Artist",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "title",
+          "artist"
+        ],
+        "title": "TrackRemoveIn",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -1077,6 +1101,67 @@
         "summary": "Update Book",
         "tags": [
           "books"
+        ]
+      }
+    },
+    "/api/v1/books/{book_id}/atmosphere/music/tracks": {
+      "delete": {
+        "description": "Точечное удаление трека. Подборка общая для книги, поэтому право то же,\nчто у перегенерации, — только admin. Spotify-плейлист пересобирается\nиз оставшихся треков (внутри remove_music_track).",
+        "operationId": "delete_music_track_api_v1_books__book_id__atmosphere_music_tracks_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "title": "Book Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackRemoveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Music Track",
+        "tags": [
+          "atmosphere"
         ]
       }
     },

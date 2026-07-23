@@ -99,3 +99,6 @@ export const getAtmosphere = (id, category) =>
   request(`/books/${id}/atmosphere/${category}`);
 export const generateAtmosphere = (id, category) =>
   request(`/books/${id}/atmosphere/${category}`, { method: "POST" });
+// Точечное удаление трека (admin): бэкенд обновит и Spotify-плейлист
+export const removeTrack = ({ id, source, title, artist }) =>
+  request(`/books/${id}/atmosphere/music/tracks`, json("DELETE", { source, title, artist }));

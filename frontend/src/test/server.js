@@ -249,6 +249,24 @@ export const handlers = [
     return HttpResponse.json({ ref, verdict });
   }),
 
+  // Точечное удаление трека (admin): бэкенд отдаёт подборку уже без него
+  http.delete(
+    "/api/v1/books/:id/atmosphere/music/tracks",
+    async ({ params, request }) => {
+      const { source } = await request.json();
+      return HttpResponse.json({
+        book_id: Number(params.id),
+        category: "music",
+        verified: true,
+        selections: ["Claude", "ChatGPT"].map((s) => ({
+          source: s,
+          payload: s === source ? [] : [{ title: "Song A", artist: "Artist A" }],
+          explanation: `${s} explanation`,
+        })),
+      });
+    },
+  ),
+
   // Атмосфера: единый формат для всех категорий (music, design, ...)
   http.get("/api/v1/books/:id/atmosphere/:category", ({ params }) =>
     HttpResponse.json({

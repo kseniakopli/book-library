@@ -148,6 +148,66 @@ def test_generate_music_invalid_lang(client, monkeypatch):
     assert client.post("/api/v1/books/1/atmosphere/music?lang=fr").status_code == 400
 
 
+# --- точечное удаление трека (admin) ---
+
+def _seed_music(client, monkeypatch):
+    """Сгенерировать музыку фейком: Claude — Song A, ChatGPT — Song B."""
+    import services.spotify as spotify_service
+
+    _mock_music(monkeypatch)
+    # Spotify в тестах не трогаем: и генерация, и пересборка плейлиста мимо него
+    monkeypatch.setattr(spotify_service, "available", lambda: False)
+    client.post("/api/v1/books/1/atmosphere/music")
+
+
+def test_remove_track_from_one_source(client, monkeypatch):
+    _seed_music(client, monkeypatch)
+    r = client.request(
+        "DELETE", "/api/v1/books/1/atmosphere/music/tracks",
+        json={"source": "Claude", "title": "Song A", "artist": "Artist A"},
+    )
+    assert r.status_code == 200
+    claude = next(s for s in r.json()["selections"] if s["source"] == "Claude")
+    assert claude["payload"] == []                    # трек удалён
+    chatgpt = next(s for s in r.json()["selections"] if s["source"] == "ChatGPT")
+    assert chatgpt["payload"][0]["title"] == "Song B"  # чужой источник не задет
+    # удаление сохранилось
+    assert client.get("/api/v1/books/1/atmosphere/music").json() == r.json()
+
+
+def test_remove_track_not_found(client, monkeypatch):
+    _seed_music(client, monkeypatch)
+    r = client.request(
+        "DELETE", "/api/v1/books/1/atmosphere/music/tracks",
+        json={"source": "Claude", "title": "Нет такого", "artist": "Никто"},
+    )
+    assert r.status_code == 404
+
+
+def test_remove_track_requires_admin(client, monkeypatch):
+    from models import User
+
+    _seed_music(client, monkeypatch)
+    with Session(database.engine) as session:
+        user = session.get(User, 1)
+        user.is_admin = False
+        session.add(user)
+        session.commit()
+    r = client.request(
+        "DELETE", "/api/v1/books/1/atmosphere/music/tracks",
+        json={"source": "Claude", "title": "Song A", "artist": "Artist A"},
+    )
+    assert r.status_code == 403
+
+
+def test_remove_track_book_not_found(client):
+    r = client.request(
+        "DELETE", "/api/v1/books/999/atmosphere/music/tracks",
+        json={"source": "Claude", "title": "Song A", "artist": "Artist A"},
+    )
+    assert r.status_code == 404
+
+
 # --- паспорт оформления ---
 
 def test_generate_and_get_design(client, monkeypatch):

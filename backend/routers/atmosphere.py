@@ -2,10 +2,12 @@
 # Доменная логика (CATEGORIES, сохранение подборок, фоновая генерация паспорта)
 # живёт в services/atmosphere.py — ревью 19.07, задачи 78/79.
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlmodel import Session
 
 import database
 import services.spotify as spotify_service
+from constants import EVENT_TRACK_REMOVED
 from deps import get_book_or_404, get_lang, require_admin
 from events import log_event
 from i18n import msg
@@ -14,6 +16,7 @@ from services.atmosphere import (
     CATEGORIES,          # ре-экспорт: на него ссылаются тесты и разовые скрипты
     build_book_context,
     read_selections,
+    remove_music_track,
     replace_selections,
     selections_response,
 )
@@ -26,6 +29,33 @@ def _get_category(category: str, lang: str) -> dict:
     if cfg is None:
         raise HTTPException(status_code=404, detail=msg("bad_category", lang))
     return cfg
+
+
+class TrackRemoveIn(BaseModel):
+    """Какой трек убрать: источник (вкладка) + канонические название и исполнитель."""
+    source: str
+    title: str
+    artist: str
+
+
+@router.delete("/books/{book_id}/atmosphere/music/tracks")
+async def delete_music_track(
+    book_id: int, track: TrackRemoveIn, lang: str = Depends(get_lang)
+):
+    """Точечное удаление трека. Подборка общая для книги, поэтому право то же,
+    что у перегенерации, — только admin. Spotify-плейлист пересобирается
+    из оставшихся треков (внутри remove_music_track)."""
+    with Session(database.engine) as session:
+        get_book_or_404(session, book_id, lang)
+        require_admin(session, lang)
+
+    response = await remove_music_track(book_id, track.source, track.title, track.artist)
+    if response is None:
+        raise HTTPException(status_code=404, detail=msg("track_not_found", lang))
+    log_event(EVENT_TRACK_REMOVED, book_id, detail={
+        "source": track.source, "title": track.title, "artist": track.artist,
+    })
+    return response
 
 
 @router.get("/books/{book_id}/atmosphere/{category}")

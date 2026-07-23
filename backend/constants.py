@@ -35,6 +35,7 @@ EVENT_ENRICHED = "enriched"
 EVENT_SEARCH = "search"
 EVENT_IMPORT = "import"
 EVENT_AI_MUSIC = "ai_music_generated"
+EVENT_TRACK_REMOVED = "track_removed"  # точечное удаление трека админом
 EVENT_AI_DESIGN = "ai_design_generated"
 EVENT_AI_FOOD = "ai_food_generated"
 EVENT_AI_AROMA = "ai_aroma_generated"

@@ -15,7 +15,9 @@ const CATEGORIES = [
 const CATEGORY_IDS = CATEGORIES.map((c) => c.id);
 
 // payload зависит от категории: музыка — {title, artist}, остальные — {title, description}
-function renderPayload(category, payload) {
+// onRemoveTrack — точечное удаление трека (admin-действие; UI-скрытие для
+// не-админов отложено до авторизации вместе с остальными admin-кнопками, з.31)
+function renderPayload(category, payload, onRemoveTrack) {
   if (category === "music") {
     return (
       <ol className="songs">
@@ -23,6 +25,16 @@ function renderPayload(category, payload) {
           <li className="song" key={i}>
             <span className="song-title">{song.title}</span>
             <span className="song-artist">{song.artist}</span>
+            {onRemoveTrack && (
+              <button
+                className="song-remove"
+                onClick={() => onRemoveTrack(song)}
+                aria-label={`Удалить трек ${song.title}`}
+                title="Удалить трек из подборки и плейлиста"
+              >
+                ✕
+              </button>
+            )}
           </li>
         ))}
       </ol>
@@ -77,6 +89,16 @@ function AtmosphereSection({ bookId }) {
       // вместе с музыкой бэкенд собирает Spotify-плейлист (20.07) — перечитываем
       // книгу, чтобы кнопка сменилась на «Открыть плейлист»
       queryClient.invalidateQueries({ queryKey: keys.book(bookId) });
+    },
+  });
+
+  // Удаление одного трека: точечно дешевле, чем перегенерация всей музыки.
+  // Бэкенд убирает трек из подборки и пересобирает Spotify-плейлист.
+  const removeTrack = useMutation({
+    mutationFn: ({ title, artist }) =>
+      api.removeTrack({ id: bookId, source: activeSource, title, artist }),
+    onSuccess: (fresh) => {
+      queryClient.setQueryData(keys.atmosphere(bookId, "music"), fresh);
     },
   });
 
@@ -198,7 +220,18 @@ function AtmosphereSection({ bookId }) {
                   source={active.source}
                 />
               </div>
-              {renderPayload(activeCategory, active.payload)}
+              {removeTrack.isError && (
+                <p className="error">
+                  Не удалось удалить трек: {removeTrack.error.message}
+                </p>
+              )}
+              {renderPayload(
+                activeCategory,
+                active.payload,
+                activeCategory === "music"
+                  ? (song) => !removeTrack.isPending && removeTrack.mutate(song)
+                  : undefined,
+              )}
             </>
           )}
         </>

@@ -133,6 +133,70 @@ async def _sync_playlist(book_id: int, title: str, uris: list[str]) -> None:
         print(f"Плейлист для книги {book_id} не собрался:", e)
 
 
+async def remove_music_track(
+    book_id: int, source: str, title: str, artist: str
+) -> dict | None:
+    """Точечное удаление трека из подборки (23.07, admin).
+
+    Зачем: даже существующий в Spotify трек может не подходить книге по духу —
+    дешевле выкинуть один, чем перегенерировать всю музыку (токены + лотерея).
+    Трек убирается из payload ОДНОГО источника (вкладки независимы); плейлист
+    пересобирается из оставшихся треков обоих источников — он их объединение.
+    Возвращает обновлённый ответ категории или None (источник/трек не найден)."""
+    with Session(database.engine) as session:
+        row = next(
+            (r for r in read_selections(session, book_id, "music")
+             if r.source == source),
+            None,
+        )
+        if row is None:
+            return None
+        try:
+            songs = json.loads(row.payload)
+        except (TypeError, ValueError):
+            return None
+        kept = [
+            s for s in songs
+            if not (s.get("title") == title and s.get("artist") == artist)
+        ]
+        if len(kept) == len(songs):
+            return None
+        row.payload = json.dumps(kept, ensure_ascii=False)
+        session.add(row)
+        session.commit()
+
+        rows = read_selections(session, book_id, "music")
+        remaining = []
+        for r in rows:
+            try:
+                remaining.extend(json.loads(r.payload))
+            except (TypeError, ValueError):
+                continue
+        book = session.get(Book, book_id)
+        book_title = book.title if book else ""
+        response = selections_response(book_id, "music", rows)
+
+    await _rebuild_playlist(book_id, book_title, remaining)
+    return response
+
+
+async def _rebuild_playlist(book_id: int, title: str, songs: list[dict]) -> None:
+    """Пересобрать плейлист из уже сохранённых (канонических) треков.
+    Резолв идёт через TrackCache — все эти треки уже резолвились при генерации,
+    так что походов в Spotify почти нет. Spotify недоступен — тихо выходим:
+    подборка уже обновлена, плейлист догонится при следующей генерации.
+    Если треков не осталось — плейлист не опустошаем (редкий случай; замена
+    пустым списком через /items невозможна, и старый QR полезнее пустого)."""
+    if not songs or not spotify_service.available():
+        return
+    unique = list({
+        (s.get("title", ""), s.get("artist", "")): s for s in songs
+    }.values())
+    resolved = await asyncio.to_thread(resolve_songs, unique)
+    uris = [item["uri"] for item in resolved if item and item.get("uri")]
+    await _sync_playlist(book_id, title, uris)
+
+
 CATEGORIES = {
     "music": {
         "generate": generate_music,

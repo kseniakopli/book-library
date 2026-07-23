@@ -40,6 +40,8 @@ MESSAGES = {
                              "en": "This book is already in your library"},
     "admin_only":           {"ru": "Правка книги и перегенерация доступны только администратору",
                              "en": "Editing a book and regeneration are available to admins only"},
+    "track_not_found":      {"ru": "Трек не найден в подборке",
+                             "en": "Track not found in the selection"},
 }
 
 

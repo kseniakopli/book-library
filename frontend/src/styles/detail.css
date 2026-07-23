@@ -261,6 +261,20 @@
 .song-artist {
   color: var(--muted);
   text-align: right;
+  margin-left: auto;   /* исполнитель прижат вправо, крестик — за ним */
+}
+/* Точечное удаление трека (admin) */
+.song-remove {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  font-size: 14px;
+}
+.song-remove:hover {
+  color: var(--text);
 }
 /* Символ-экслибрис из паспорта (этап 7) */
 .detail-title-row {

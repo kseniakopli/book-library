@@ -33,6 +33,23 @@ test("подбор атмосферы наполняет все категори
   ).toBeInTheDocument();
 });
 
+test("крестик у трека удаляет его из подборки (admin)", async () => {
+  renderApp("/books/1");
+  await screen.findByRole("heading", { name: "Волшебная гора" });
+  await userEvent.click(
+    screen.getByRole("button", { name: "Подобрать атмосферу" }),
+  );
+  await screen.findByText("Song A");
+
+  await userEvent.click(
+    screen.getByRole("button", { name: "Удалить трек Song A" }),
+  );
+  // MSW отдаёт подборку Claude без трека — кэш музыки обновился
+  await waitFor(() =>
+    expect(screen.queryByText("Song A")).not.toBeInTheDocument(),
+  );
+});
+
 test("оценка подборки: 👍 включается и снимается (задача 26)", async () => {
   renderApp("/books/1");
   await screen.findByRole("heading", { name: "Волшебная гора" });
