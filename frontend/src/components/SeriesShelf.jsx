@@ -1,7 +1,7 @@
 // Полка циклов (задача 89). Элемент полки — цикл, а не книга: карточки крупнее
 // книжных, поэтому их помещается меньше. Порядок задаёт бэкенд:
 // читаю → прочитано → перестала читать.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
@@ -22,12 +22,34 @@ function SeriesShelf() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [author, setAuthor] = useState("");
+  const trackRef = useRef(null);
+  // активность стрелок: гаснут, когда листать в эту сторону нечего
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const updateArrows = () => {
+    const el = trackRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 1);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  };
+
+  // листание: прокручиваем ряд на ~одну карточку (циклов может быть много)
+  const scroll = (dir) => {
+    const track = trackRef.current;
+    if (track) track.scrollBy({ left: dir * 360, behavior: "smooth" });
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: keys.series,
     queryFn: api.getSeries,
   });
   const items = data?.series ?? [];
+
+  // пересчитать активность стрелок, когда список загрузился/изменился
+  useEffect(() => {
+    updateArrows();
+  }, [items.length]);
 
   const create = useMutation({
     mutationFn: () => api.createSeries({ name, author }),
@@ -93,13 +115,22 @@ function SeriesShelf() {
       )}
 
       {items.length > 0 && (
-        <ul className="series-list">
-          {items.map((s) => (
-            <li key={s.id}>
-              <button
-                className="series-card"
-                onClick={() => navigate(`/series/${s.id}`)}
-              >
+        <div className="series-shelf-body">
+          <button
+            className="shelf-arrow"
+            onClick={() => scroll(-1)}
+            disabled={!canLeft}
+            aria-label="Назад"
+          >
+            ‹
+          </button>
+          <ul className="series-list" ref={trackRef} onScroll={updateArrows}>
+            {items.map((s) => (
+              <li key={s.id}>
+                <button
+                  className="series-card"
+                  onClick={() => navigate(`/series/${s.id}`)}
+                >
                 <span className="series-symbol" aria-hidden="true">
                   {s.design?.symbol_svg ? (
                     <img src={centeredSvgDataUri(s.design.symbol_svg)} alt="" />
@@ -109,7 +140,12 @@ function SeriesShelf() {
                   )}
                 </span>
                 <span className="series-body">
-                  <span className="series-name">{s.name}</span>
+                  <span className="series-name-row">
+                    <span className="series-name">{s.name}</span>
+                    <span className={`series-status series-status-${s.status}`}>
+                      {STATUS_LABEL[s.status] ?? s.status}
+                    </span>
+                  </span>
                   {s.author && <span className="series-author">{s.author}</span>}
                   <span className="series-progress">
                     Прочитано {s.progress.read} из {s.progress.total}
@@ -120,13 +156,19 @@ function SeriesShelf() {
                     </span>
                   )}
                 </span>
-                <span className={`series-status series-status-${s.status}`}>
-                  {STATUS_LABEL[s.status] ?? s.status}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button
+            className="shelf-arrow"
+            onClick={() => scroll(1)}
+            disabled={!canRight}
+            aria-label="Вперёд"
+          >
+            ›
+          </button>
+        </div>
       )}
     </section>
   );

@@ -3,34 +3,73 @@
    в ряд их помещается меньше (решение Ксении 22.07). */
 
 /* --- полка циклов на главной --- */
+/* полка циклов: горизонтальный ряд с листанием (циклов может быть много).
+   Ряд занимает всю ширину секции — выровнен с заголовком и другими разделами;
+   стрелки — поверх краёв (position: absolute), не сдвигают и не режут карточки. */
+.series-shelf-body {
+  position: relative;
+}
 .series-list {
   list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  /* крупнее книжных карточек → меньше в ряду */
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  padding: 4px 0;   /* карточки по краю секции — выровнены с другими разделами */
+  display: flex;
   gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  /* скрываем полосу прокрутки — листаем стрелками/свайпом */
+  scrollbar-width: none;
 }
-/* все карточки ряда одной высоты: элемент списка тянется на всю ячейку grid,
-   а кнопка — на всю высоту элемента (разное число строк текста не ломает ряд) */
+/* стрелки в отступах страницы — вид как у книжных полок (без фона/тени) */
+.series-shelf-body .shelf-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+/* стрелки — в отступы страницы (.app padding 20px), чтобы карточки
+   начинались ровно по краю секции, как рекомендации ниже */
+.series-shelf-body .shelf-arrow:first-child {
+  left: -44px;
+}
+.series-shelf-body .shelf-arrow:last-child {
+  right: -44px;
+}
+/* на узком экране отступа страницы не хватает — прячем стрелки, остаётся свайп */
+@media (max-width: 1180px) {
+  .series-shelf-body .shelf-arrow {
+    display: none;
+  }
+}
+.series-list::-webkit-scrollbar {
+  display: none;
+}
+/* карточки крупнее книжных и фиксированной ширины → в ряд их немного,
+   остальные листаются */
 .series-list > li {
   display: flex;
+  flex: 0 0 340px;
+  scroll-snap-align: start;
+}
+@media (max-width: 560px) {
+  .series-list > li {
+    flex-basis: 82%; /* на телефоне — карточка почти во всю ширину, свайп */
+  }
 }
 
 .series-card {
   width: 100%;
   display: grid;
-  grid-template-columns: 72px 1fr auto;
-  gap: 16px;
-  /* содержимое и статус — к верху, чтобы название было на одной линии
-     во всех карточках независимо от их высоты */
+  /* две колонки: символ + текст. Статус переехал в строку с названием,
+     чтобы не отнимать ширину у текста (иначе название рвётся по буквам) */
+  grid-template-columns: 60px 1fr;
+  gap: 14px;
   align-items: start;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 18px;
+  padding: 16px;
   cursor: pointer;
   font: inherit;
   color: inherit;
@@ -41,8 +80,8 @@
 }
 
 .series-symbol {
-  width: 72px;
-  height: 72px;
+  width: 60px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,11 +107,19 @@
   gap: 3px;
   min-width: 0;
 }
+/* название + статус в одной строке: название тянется, статус не сжимается */
+.series-name-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
 .series-name {
   font-family: var(--serif);
-  font-size: 19px;
-  /* длинное название переносится по словам, а не наезжает на статус */
-  overflow-wrap: anywhere;
+  font-size: 18px;
+  line-height: 1.25;
+  /* переносим по словам (без разрыва слов посреди) */
+  overflow-wrap: break-word;
 }
 .series-author {
   color: var(--muted);
@@ -88,16 +135,14 @@
 }
 
 .series-status {
+  flex: none;
   font-size: 12px;
   color: var(--muted);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 3px 10px;
   white-space: nowrap;
-  /* статус на одной линии с названием, а не по центру карточки */
   margin-top: 2px;
-  /* не даём пилюле прилипать к длинному названию */
-  margin-left: 10px;
 }
 .series-status-reading {
   color: var(--accent);
