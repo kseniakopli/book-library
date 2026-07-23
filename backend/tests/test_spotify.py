@@ -295,6 +295,30 @@ def test_resolve_songs_caches_negative(client, monkeypatch):
     assert calls["n"] == calls_after_first        # отрицательный результат из кэша
 
 
+def test_unreliable_result_not_cached(client, monkeypatch):
+    """Инцидент 22.07: если Spotify НЕ ответил (429/5xx исчерпаны), результат
+    не кэшируется как «не найдено» — иначе реальный трек (Woodkid — Run Boy Run)
+    навсегда бы отбрасывался."""
+    _no_user_token(monkeypatch)
+    monkeypatch.setattr(spotify_service.time, "sleep", lambda *_: None)
+
+    # Spotify всё время отдаёт 5xx — достоверного ответа нет
+    monkeypatch.setattr(
+        spotify_service.requests, "get",
+        lambda *a, **kw: FakeResponse(status_code=503),
+    )
+    song = {"title": "Run Boy Run", "artist": "Woodkid"}
+    # трек остаётся непроверенным (как есть), НЕ None
+    assert spotify_service.resolve_songs([song]) == [song]
+
+    from models import TrackCache
+    from sqlmodel import Session, select
+
+    import database
+    with Session(database.engine) as session:
+        assert session.exec(select(TrackCache)).all() == []   # ничего не закэшировано
+
+
 def test_search_retries_on_rate_limit(monkeypatch):
     """429 не должен превращаться в «трек не найден» (инцидент 20.07):
     ждём Retry-After и повторяем."""

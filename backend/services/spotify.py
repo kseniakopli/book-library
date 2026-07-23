@@ -214,12 +214,16 @@ def _enter_cooldown(seconds: float) -> None:
 # ============================================================
 
 
-def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
+def _search_request(headers: dict, query: str, attempts: int = 3) -> list | None:
     """Один поиск в Spotify. Уважает Retry-After, ретраит 429/5xx.
 
-    Если сервис в куладауне (см. выше) — сразу пусто, без запроса."""
+    ⚠ Различаем «Spotify ответил» и «не смогли спросить» (инцидент 22.07 —
+    ложные негативы в кэше):
+      - список (возможно пустой) — Spotify достоверно ответил (200);
+      - None — спросить не удалось (куладаун, исчерпанные 429/5xx, сеть).
+    Вызывающая сторона по None НЕ кэширует «не найдено»."""
     if in_cooldown():
-        return []
+        return None
     for attempt in range(attempts):
         try:
             response = requests.get(
@@ -241,7 +245,7 @@ def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
             if wait > COOLDOWN_THRESHOLD:
                 # долгий бан: не ждём и не повторяем — уходим в куладаун
                 _enter_cooldown(wait)
-                return []
+                return None
             log.warning("поиск трека: лимит Spotify, ждём %s с", wait)
             time.sleep(min(wait, MAX_WAIT) + random.uniform(0, 0.5))
             continue
@@ -254,26 +258,39 @@ def _search_request(headers: dict, query: str, attempts: int = 3) -> list:
             "поиск трека: Spotify ответил %s (%s)",
             response.status_code, response.text[:150],
         )
-        return []
+        return []      # 4xx (кроме 429): Spotify ответил — это достоверное «нет»
     log.warning("поиск трека: исчерпаны попытки для запроса %r", query)
-    return []
+    return None        # не смогли спросить — НЕ кэшируем как «не найдено»
 
 
-def find_track(headers: dict, title: str, artist: str) -> dict | None:
-    """Карточка трека из Spotify или None. Строго: название И исполнитель должны
-    совпасть (`_matches`) — подстановок «другой вещи того же автора» здесь нет.
-    Выдуманные моделью треки отсеиваются ДО сохранения атмосферы (resolve_songs),
-    так что на этом шаге терять уже нечего."""
+# Отличаем «Spotify достоверно не нашёл» от «спросить не удалось» — второе НЕ
+# кэшируется как «не найдено» (инцидент 22.07: ложные негативы от сбоев Spotify).
+UNRELIABLE = object()
+
+
+def find_track(headers: dict, title: str, artist: str):
+    """Ищет трек. Возвращает:
+      - карточку трека (dict) — найден и совпал по названию+исполнителю;
+      - None — Spotify достоверно ответил, но подходящего нет;
+      - UNRELIABLE — спросить не удалось (куладаун/лимит/сеть), результат неясен.
+    Строго: `_matches` (никаких подстановок), выдумки отсекаются на входе."""
+    any_reliable = False
     for q in (f"track:{title} artist:{artist}", f"{artist} {title}"):
-        for item in _search_request(headers, q):
+        items = _search_request(headers, q)
+        if items is None:
+            continue                       # недостоверно — пробуем второй запрос
+        any_reliable = True
+        for item in items:
             if _matches(item, title, artist):
                 return item
-    return None
+    return None if any_reliable else UNRELIABLE
 
 
 def _search_track(headers: dict, title: str, artist: str) -> str | None:
     item = find_track(headers, title, artist)
-    return item["uri"] if item else None
+    if item is UNRELIABLE or item is None:
+        return None
+    return item["uri"]
 
 
 # --- Проверка треков ПЕРЕД сохранением атмосферы (20.07) ---
@@ -423,9 +440,15 @@ def resolve_songs(songs: list[dict], workers: int = 6) -> list[dict | None]:
     with ThreadPoolExecutor(max_workers=workers) as pool:
         resolved = list(pool.map(resolve, misses))
 
-    # 3) записываем результаты в кэш (в т.ч. отрицательные) одним коммитом
+    # 3) записываем результаты в кэш (в т.ч. отрицательные) одним коммитом.
+    #    UNRELIABLE (Spotify не ответил) НЕ кэшируем — иначе временный сбой
+    #    навсегда пометил бы существующий трек как «не найден» (инцидент 22.07).
+    miss_song = {i: song for i, song, _ in misses}
     with Session(database.engine) as session:
         for i, key, item in resolved:
+            if item is UNRELIABLE:
+                results[i] = dict(miss_song[i])   # непроверено, оставляем как есть
+                continue
             if item is not None:
                 card = {
                     "title": item["name"],
