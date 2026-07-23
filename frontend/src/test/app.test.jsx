@@ -28,6 +28,23 @@ test("фильтр по библиотеке сужает список", async (
   expect(screen.queryByText("Дом огней")).not.toBeInTheDocument();
 });
 
+test("поиск на главной находит книги из каталога не на полке (задача 90)", async () => {
+  renderApp();
+  await screen.findByText("Волшебная гора");
+  await userEvent.type(
+    screen.getByPlaceholderText("Поиск по библиотеке…"),
+    "тайное",
+  );
+  // книга из каталога (не на полке) — с кнопкой добавить
+  expect(await screen.findByText("Тайное место")).toBeInTheDocument();
+  expect(
+    screen.getByText("Есть в базе, но не на вашей полке"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "+ На полку" }),
+  ).toBeInTheDocument();
+});
+
 test("клик по книге открывает её страницу, «К библиотеке» возвращает", async () => {
   renderApp();
   await userEvent.click(

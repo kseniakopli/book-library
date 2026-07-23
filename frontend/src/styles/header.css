@@ -87,3 +87,44 @@
   border-radius: 10px;
   margin-bottom: 28px;
 }
+
+/* задача 90: книги из каталога в результатах поиска (не на полке) */
+.catalog-hits {
+  margin-top: 24px;
+}
+.catalog-hits-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+.catalog-hit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.catalog-hit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.catalog-hit-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.catalog-hit-title {
+  font-size: 15px;
+}
+.catalog-hit-author {
+  color: var(--muted);
+  font-size: 13px;
+}

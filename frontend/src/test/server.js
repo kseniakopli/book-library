@@ -136,6 +136,19 @@ export const handlers = [
           on_shelf: true,
         },
       ];
+    } else if (q.includes("тайное")) {
+      // задача 90: книга в каталоге, но НЕ на полке (добавлена в цикл)
+      results = [
+        {
+          title: "Тайное место",
+          author: "Тана Френч",
+          cover_url: null,
+          external_id: null,
+          book_id: 42,
+          source: "library",
+          on_shelf: false,
+        },
+      ];
     }
     return HttpResponse.json({ results });
   }),
