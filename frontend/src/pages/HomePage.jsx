@@ -108,9 +108,11 @@ function HomePage() {
     enabled: trimmed.length >= 3,
   });
   const offShelf = (catalogSearch.data?.results ?? []).filter((r) => !r.on_shelf);
-  // разделяем по источнику: наша база (library/catalog) и Google Books
-  const inBaseHits = offShelf.filter((r) => r.source !== "google");
-  const googleHits = offShelf.filter((r) => r.source === "google");
+  // «база» — только реальные записи Book (source library). catalog — это кэш
+  // прошлых поисков в Google (таблица Catalog), то есть тоже Google Books,
+  // а не наши данные; относим его к Google-группе.
+  const inBaseHits = offShelf.filter((r) => r.source === "library");
+  const googleHits = offShelf.filter((r) => r.source !== "library");
 
   const addToShelf = useMutation({
     mutationFn: (item) =>
