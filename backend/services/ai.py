@@ -49,7 +49,7 @@ class Song(BaseModel):
 
 
 class MusicAnalysis(BaseModel):
-    """Рабочий анализ книги ПЕРЕД подбором треков.
+    """Рабочий анализ книги ПЕРЕД подбором треков (reasoning-as-schema).
 
     Зачем поле: при structured output модель обязана сразу заполнить схему и
     пропускает «мысленный анализ» из промпта — прыгает прямо к спискам треков,
@@ -57,11 +57,30 @@ class MusicAnalysis(BaseModel):
     В structured output порядок полей = порядок генерации. Поэтому analysis
     объявлен ПЕРВЫМ: модель сначала обязана назвать интонацию и прилагательные,
     а треки подбирает уже под них. Пользователю это поле не показываем —
-    в payload идут только songs (см. atmosphere.CATEGORIES)."""
+    в payload идут только songs (см. atmosphere.CATEGORIES).
+    Тот же приём — у еды (FoodAnalysis) и ароматов (AromaAnalysis)."""
 
     tone: list[str] = []          # прилагательные интонации: ироничная, уютная, осенняя…
     dominant_factor: str = ""     # какой из факторов книги главный (интонация/арка/мир…)
     era_code: str = ""            # музыкальный код эпохи, если она выражена; иначе пусто
+
+
+class FoodAnalysis(BaseModel):
+    """Анализ перед подбором угощений — см. докстринг MusicAnalysis.
+    В промпте еды шаг «сначала определи кухню» уже был, но со structured
+    output модель его пропускала; теперь кухня — обязательное поле."""
+
+    tone: list[str] = []          # прилагательные интонации вечера
+    cuisine: str = ""             # кухня какой страны/региона и эпохи — опора подбора
+    dominant_factor: str = ""     # что в книге главное для стола (мир/среда героев/сезон…)
+
+
+class AromaAnalysis(BaseModel):
+    """Анализ перед подбором ароматов — см. докстринг MusicAnalysis."""
+
+    tone: list[str] = []          # прилагательные интонации
+    setting: str = ""             # среда/локации книги: лес, море, старая библиотека…
+    dominant_factor: str = ""     # что задаёт запах книги (место/сезон/быт героев…)
 
 
 class MusicResult(BaseModel):
@@ -77,11 +96,13 @@ class AtmosphereItem(BaseModel):
 
 
 class FoodResult(BaseModel):
+    analysis: FoodAnalysis = Field(default_factory=FoodAnalysis)
     items: list[AtmosphereItem]
     explanation: str
 
 
 class AromaResult(BaseModel):
+    analysis: AromaAnalysis = Field(default_factory=AromaAnalysis)
     items: list[AtmosphereItem]
     explanation: str
 
