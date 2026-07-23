@@ -5,6 +5,9 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // визуальные тесты — в своём конфиге (playwright-visual.config.js): им нужны
+  // моки API, а не живой бэкенд. Сюда не подхватываем.
+  testIgnore: /visual\.spec\.js/,
   timeout: 30000,
   expect: { timeout: 5000 },
   fullyParallel: false,
