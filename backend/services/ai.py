@@ -6,7 +6,7 @@ import contextvars
 import re
 from time import perf_counter
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
 import anthropic
 from openai import AsyncOpenAI
@@ -48,7 +48,24 @@ class Song(BaseModel):
     artist: str
 
 
+class MusicAnalysis(BaseModel):
+    """Рабочий анализ книги ПЕРЕД подбором треков.
+
+    Зачем поле: при structured output модель обязана сразу заполнить схему и
+    пропускает «мысленный анализ» из промпта — прыгает прямо к спискам треков,
+    угадывая тон по жанру (ироничное городское фэнтези → эпик-дарк-фолк).
+    В structured output порядок полей = порядок генерации. Поэтому analysis
+    объявлен ПЕРВЫМ: модель сначала обязана назвать интонацию и прилагательные,
+    а треки подбирает уже под них. Пользователю это поле не показываем —
+    в payload идут только songs (см. atmosphere.CATEGORIES)."""
+
+    tone: list[str] = []          # прилагательные интонации: ироничная, уютная, осенняя…
+    dominant_factor: str = ""     # какой из факторов книги главный (интонация/арка/мир…)
+    era_code: str = ""            # музыкальный код эпохи, если она выражена; иначе пусто
+
+
 class MusicResult(BaseModel):
+    analysis: MusicAnalysis = Field(default_factory=MusicAnalysis)
     songs: list[Song]
     explanation: str
 
@@ -316,9 +333,13 @@ FAILED_TEXT = "(не удалось получить ответ)"
 # «мясо с корнеплодами» в еде). Работает на обоих провайдерах: Claude здесь —
 # Haiku (MODEL_CREATIVE), он temperature принимает. Дизайн/инсайты/рекомендации
 # остаются на Sonnet без температуры — там разнообразие вредно.
-# Музыка выше еды: выдумки в музыке всё равно отсеет резолв в Spotify
-# (services/atmosphere.verify_music_results), а у еды фильтра нет — не гоним.
-MUSIC_TEMPERATURE = 1.0
+# Музыке раньше давали 1.0 (максимум разнообразия против mode collapse), но при
+# такой температуре OpenAI начал выдумывать несуществующие треки — резолв отсекал
+# половину плейлиста. Разнообразие теперь держит промпт (анализ интонации +
+# прилагательные + запрет заезженного канона), а не температура, поэтому её
+# опустили до 0.7: меньше выдумок, отсеивать почти нечего. Только для OpenAI —
+# Claude (Sonnet, reasoning) температуру не принимает.
+MUSIC_TEMPERATURE = 0.7
 FOOD_TEMPERATURE = 0.9
 AROMA_TEMPERATURE = 0.9
 
