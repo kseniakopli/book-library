@@ -50,6 +50,7 @@
   display: flex;
   flex: 0 0 340px;
   scroll-snap-align: start;
+  min-width: 0; /* та же защита от распирания min-content, что у .shelf-swipe-item */
 }
 @media (max-width: 560px) {
   .series-list > li {
@@ -75,8 +76,11 @@
   color: inherit;
   transition: border-color 0.15s;
 }
-.series-card:hover {
-  border-color: var(--accent);
+/* только с мышью: на таче hover залипает после касания (см. book-card.css) */
+@media (hover: hover) {
+  .series-card:hover {
+    border-color: var(--accent);
+  }
 }
 
 .series-symbol {

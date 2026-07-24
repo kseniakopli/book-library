@@ -13,10 +13,14 @@
     box-shadow 0.15s ease,
     border-color 0.15s ease;
 }
-.book:hover {
-  border-color: var(--accent);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+/* Только устройства с настоящим hover (мышь): на тачскрине :hover «залипает»
+   после касания — карточка оставалась приподнятой с акцентной рамкой (24.07) */
+@media (hover: hover) {
+  .book:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .book,
