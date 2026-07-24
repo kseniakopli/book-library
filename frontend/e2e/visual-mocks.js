@@ -95,6 +95,18 @@ export async function setupVisualMocks(page) {
 
   await page.route(/\/api\/v1\//, (route) => {
     const url = route.request().url();
+    // Задача 70: полки грузятся по /books?status=... и читают X-Total-Count —
+    // мок фильтрует по статусу и отдаёт заголовок, как настоящий бэкенд
+    const booksList = url.match(/\/api\/v1\/books\?(.*)$/);
+    if (booksList) {
+      const params = new URLSearchParams(booksList[1]);
+      const status = params.get("status");
+      const items = status ? BOOKS.filter((b) => b.status === status) : BOOKS;
+      return route.fulfill({
+        json: items,
+        headers: { "X-Total-Count": String(items.length) },
+      });
+    }
     for (const [pattern, body] of ROUTES) {
       if (pattern.test(url)) {
         return route.fulfill({ json: body });

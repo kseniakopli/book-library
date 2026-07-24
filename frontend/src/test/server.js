@@ -59,8 +59,36 @@ function findBook(params) {
 const notFound = () =>
   HttpResponse.json({ detail: "Книга не найдена" }, { status: 404 });
 
+// Задача 70: сортировка полок как на бэкенде (SHELF_ORDER в routers/books.py)
+const SHELF_SORT = { read: "read_at", want: "created_at", reading: "updated_at" };
+
 export const handlers = [
-  http.get("/api/v1/books", () => HttpResponse.json(db.books)),
+  // Задача 70: /books понимает status/limit/offset, сортирует полку и отдаёт
+  // общее число заголовком X-Total-Count — как настоящий бэкенд
+  http.get("/api/v1/books", ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get("status");
+    const offset = Number(url.searchParams.get("offset") ?? 0);
+    const limit = url.searchParams.get("limit");
+
+    let items = status
+      ? db.books.filter((b) => b.status === status)
+      : [...db.books];
+    const field = SHELF_SORT[status];
+    if (field) {
+      items = [...items].sort((a, b) =>
+        (b[field] ?? "").localeCompare(a[field] ?? ""),
+      );
+    }
+    const total = items.length;
+    items = items.slice(
+      offset,
+      limit != null ? offset + Number(limit) : undefined,
+    );
+    return HttpResponse.json(items, {
+      headers: { "X-Total-Count": String(total) },
+    });
+  }),
 
   // задача 56б: счётчик фонового обогащения (в тестах фон мгновенный)
   http.get("/api/v1/books/pending-count", () =>
@@ -127,6 +155,10 @@ export const handlers = [
       // локальный каталог: книга уже в системе и на полке пользователя
       results = [
         {
+          // задача 70: полочные совпадения рисуются карточками —
+          // сервер отдаёт и статус с оценкой
+          status: "read",
+          rating: 9,
           title: "Волшебная гора",
           author: "Томас Манн",
           cover_url: null,

@@ -4,6 +4,8 @@
 export const keys = {
   books: ["books"],
   book: (id) => ["books", Number(id)],
+  // задача 70: полка постранично; префикс "books" — общая инвалидация задевает и её
+  shelf: (status) => ["books", "shelf", status],
   search: (term) => ["search", term],
   atmosphere: (id, category) => ["atmosphere", Number(id), category],
   designSummary: ["design-summary"],   // символы+палитры для символьного режима полки

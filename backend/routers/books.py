@@ -2,10 +2,10 @@
 # Доменная логика полки — в services/shelf.py, атмосферы — в services/atmosphere.py,
 # склейка ответа — BookRead.from_pair (ревью 19.07).
 # Сессия приходит зависимостью get_session (задача 77).
-from fastapi import APIRouter, BackgroundTasks, Depends
-from sqlalchemy import func
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
+from sqlalchemy import func, nullslast
 from sqlalchemy.orm import defer
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from constants import (
     ENRICH_PENDING,
@@ -41,24 +41,55 @@ from services.shelf import (
 router = APIRouter(tags=["books"])
 
 
+# Задача 70: сортировка полок на бэкенде (раньше жила в useShelves на фронте —
+# работало только потому, что грузились все книги разом).
+# «Прочитано» — по дате прочтения ↓, «Хочу прочитать» — по дате добавления ↓,
+# «Читаю» — по последнему обновлению ↓ (started_at появится в задаче 27).
+SHELF_ORDER = {
+    "read": UserBook.read_at,
+    "want": UserBook.created_at,
+    "reading": UserBook.updated_at,
+}
+
+
 @router.get("/books", response_model=list[BookRead])
 def list_books(
+    response: Response,
     status: str | None = None,
     limit: int | None = None,
     offset: int = 0,
     session: Session = Depends(get_session),
 ):
     """Полка текущего пользователя: JOIN userbook → book.
-    Задача 70: фильтр по статусу + limit/offset (под ленивую загрузку полок).
+    Задача 70: фильтр по статусу + limit/offset + сортировка полки + общее число
+    в заголовке `X-Total-Count` (фронт рисует «1–5 из N», не загружая все книги).
+    Заголовок, а не конверт {items, total}: тело остаётся list[BookRead] —
+    существующие клиенты и тесты не замечают изменения.
     Задача 52: raw_metadata (тяжёлый JSON) в список не грузим."""
     query = (
         select(Book, UserBook)
         .join(UserBook, UserBook.book_id == Book.id)
         .where(UserBook.user_id == CURRENT_USER_ID)
     )
+    count_query = (
+        select(func.count())
+        .select_from(UserBook)
+        .where(UserBook.user_id == CURRENT_USER_ID)
+    )
     if status is not None:
         query = query.where(UserBook.status == status)
-    query = query.options(defer(Book.raw_metadata)).order_by(Book.id).offset(offset)
+        count_query = count_query.where(UserBook.status == status)
+    response.headers["X-Total-Count"] = str(session.exec(count_query).one())
+
+    order_field = SHELF_ORDER.get(status)
+    if order_field is not None:
+        # nullslast: книги без даты — в конец (как сортировал фронт);
+        # Book.id вторым ключом — стабильный порядок между страницами
+        query = query.order_by(nullslast(col(order_field).desc()), Book.id)
+    else:
+        query = query.order_by(Book.id)
+
+    query = query.options(defer(Book.raw_metadata)).offset(offset)
     if limit is not None:
         query = query.limit(limit)
     return [BookRead.from_pair(b, ub) for b, ub in session.exec(query).all()]

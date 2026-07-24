@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import BookCard from "./BookCard";
 
 // Раскладка полки по ширине экрана: сколько карточек в ряду (десктоп — стрелки)
@@ -21,9 +21,14 @@ function useShelfLayout() {
 
 // Полка управляемая: позиция листания (start) хранится у родителя (HomePage),
 // поэтому не сбрасывается при возврате из карточки книги.
+// Задача 70 (ленивая загрузка): books — только ЗАГРУЖЕННЫЕ книги, total — сколько
+// всего на полке; когда листание упирается в край загруженного, зовём onLoadMore.
 function Shelf({
   title,
   books = [],
+  total = books.length,
+  hasMore = false,
+  onLoadMore,
   onSelect,
   placeholder,
   start = 0,
@@ -33,6 +38,31 @@ function Shelf({
   theme = "light",
 }) {
   const { pageSize, isMobile } = useShelfLayout();
+
+  // все вычисления и эффекты — ДО ранних return (правила хуков)
+  const maxStart = Math.max(0, total - pageSize);
+  const safeStart = Math.min(start, maxStart);   // на случай смены pageSize при ресайзе
+
+  // Мобильный свайп: невидимый «хвост» в конце ленты; доехал до него —
+  // догружаем следующую страницу (IntersectionObserver, root = сама лента)
+  const swipeRef = useRef(null);
+  const moreRef = useRef(null);
+  useEffect(() => {
+    if (!isMobile || !hasMore || !moreRef.current || !onLoadMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => entries.some((e) => e.isIntersecting) && onLoadMore(),
+      { root: swipeRef.current, rootMargin: "200px" },
+    );
+    observer.observe(moreRef.current);
+    return () => observer.disconnect();
+  }, [isMobile, hasMore, onLoadMore, books.length]);
+
+  // Десктоп: сохранённая позиция листания (sessionStorage) после F5 может
+  // указывать за край загруженного — догружаем страницы, пока не доедем
+  useEffect(() => {
+    if (isMobile || !hasMore || !onLoadMore) return;
+    if (safeStart + pageSize > books.length) onLoadMore();
+  }, [isMobile, hasMore, onLoadMore, safeStart, pageSize, books.length]);
 
   if (placeholder) {
     return (
@@ -57,16 +87,16 @@ function Shelf({
   }
 
   // Задача 51: на телефоне — свайп (нативная горизонтальная прокрутка со
-  // scroll-snap) вместо стрелок; показываем все книги полки одним рядом.
+  // scroll-snap) вместо стрелок; книги догружаются по мере прокрутки (задача 70).
   if (isMobile) {
     return (
       <section className="shelf">
         <div className="shelf-head">
           <h2 className="shelf-title">
-            {title} <span className="shelf-count">{books.length}</span>
+            {title} <span className="shelf-count">{total}</span>
           </h2>
         </div>
-        <div className="shelf-swipe">
+        <div className="shelf-swipe" ref={swipeRef}>
           {books.map((book) => (
             <div className="shelf-swipe-item" key={book.id}>
               <BookCard
@@ -78,19 +108,23 @@ function Shelf({
               />
             </div>
           ))}
+          {hasMore && (
+            <div className="shelf-swipe-more" ref={moreRef} aria-hidden="true" />
+          )}
         </div>
       </section>
     );
   }
 
-  const maxStart = Math.max(0, books.length - pageSize);
-  const safeStart = Math.min(start, maxStart);   // на случай смены pageSize при ресайзе
   const canPrev = safeStart > 0;
-  const canNext = safeStart + pageSize < books.length;
+  const canNext = safeStart + pageSize < total;
   const visible = books.slice(safeStart, safeStart + pageSize);
 
   const move = (delta) => {
     const next = Math.min(Math.max(safeStart + delta, 0), maxStart);
+    // упёрлись в край загруженного, а на полке есть ещё — догружаем страницу;
+    // React Query дозаполнит кэш, и slice ниже дорисует карточки сам
+    if (next + pageSize > books.length && hasMore && onLoadMore) onLoadMore();
     if (onStart) onStart(next);
   };
 
@@ -98,12 +132,11 @@ function Shelf({
     <section className="shelf">
       <div className="shelf-head">
         <h2 className="shelf-title">
-          {title} <span className="shelf-count">{books.length}</span>
+          {title} <span className="shelf-count">{total}</span>
         </h2>
-        {books.length > pageSize && (
+        {total > pageSize && (
           <span className="shelf-range">
-            {safeStart + 1}–{Math.min(safeStart + pageSize, books.length)} из{" "}
-            {books.length}
+            {safeStart + 1}–{Math.min(safeStart + pageSize, total)} из {total}
           </span>
         )}
       </div>

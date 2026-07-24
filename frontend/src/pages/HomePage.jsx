@@ -1,6 +1,7 @@
 // Главная: шапка, поиск по библиотеке, полки. Логика вынесена в хуки
-// (useShelves / useCsvImport / useStickyHeader / useShelfPositions),
+// (useShelfPages / useCsvImport / useStickyHeader / useShelfPositions),
 // шапка — в LibraryHeader (ревью 19.07). Здесь остались состав и состояния экрана.
+// Задача 70: полки грузятся постранично, поиск — целиком серверный.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +10,7 @@ import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
 import { useDisplayMode } from "../hooks/useDisplayMode";
 import { useStickyHeader } from "../hooks/useStickyHeader";
-import { useShelves } from "../hooks/useShelves";
+import { useShelfPages } from "../hooks/useShelfPages";
 import { useCsvImport } from "../hooks/useCsvImport";
 import { useShelfPositions } from "../hooks/useShelfPositions";
 import BookCard from "../components/BookCard";
@@ -34,17 +35,24 @@ function HomePage() {
   const [showModal, setShowModal] = useState(false);
   const addButtonRef = useRef(null);
 
-  // Список книг: кэш keys.books (без собственного поллинга — задача 56б)
+  // Задача 70: каждая полка грузится постранично своим запросом (по статусу);
+  // сортировка и общее число — на бэкенде. Инвалидация по префиксу keys.books
+  // задевает и эти ключи (["books", "shelf", ...]).
   const queryClient = useQueryClient();
-  const {
-    data: books = [],
-    isLoading: loading,
-    isError: booksError,
-    refetch: refetchBooks,
-  } = useQuery({
-    queryKey: keys.books,
-    queryFn: api.getBooks,
-  });
+  const reading = useShelfPages("reading");
+  const read = useShelfPages("read");
+  const want = useShelfPages("want");
+  const shelvesList = [reading, read, want];
+  // не дёргаем следующую страницу, пока грузится текущая (сенсор свайпа
+  // может сработать несколько раз подряд)
+  const loadMore = (shelf) => () =>
+    !shelf.isFetchingNextPage && shelf.fetchNextPage();
+
+  const books = shelvesList.flatMap((s) => s.books);   // загруженная часть библиотеки
+  const totalBooks = shelvesList.reduce((n, s) => n + s.total, 0);
+  const loading = shelvesList.some((s) => s.isLoading);
+  const booksError = shelvesList.some((s) => s.isError);
+  const refetchBooks = () => shelvesList.forEach((s) => s.refetch());
 
   // Задача 56б: пока в списке есть pending-книги, поллим ЛЁГКИЙ счётчик
   // (одно число), а не весь список. Счётчик уменьшился — значит, какие-то
@@ -79,8 +87,6 @@ function HomePage() {
     return map;
   }, [designData]);
 
-  const shelves = useShelves(books);
-
   // общие пропсы полок — чтобы не повторять их у каждой
   const shelfCards = { symbolMode, designs, theme };
 
@@ -91,23 +97,29 @@ function HomePage() {
     addButtonRef.current?.focus();   // вернуть фокус туда, откуда открывали
   }
 
+  // Задача 70: поиск целиком СЕРВЕРНЫЙ (/search ищет по каталогу и помечает
+  // полочные книги). Клиентский фильтр убран: фронт видит не всю библиотеку,
+  // и фильтр по загруженному молча терял бы книги с неподгруженных страниц.
   const trimmed = filter.trim().toLowerCase();
-  const filtered = trimmed
-    ? books.filter(
-        (b) =>
-          b.title.toLowerCase().includes(trimmed) ||
-          b.author.toLowerCase().includes(trimmed),
-      )
-    : null;
-
-  // задача 90: поиск на главной ищет и по КАТАЛОГУ — книги, которых нет на полке
-  // (например, добавленные в цикл как «что дальше»), можно найти и положить к себе
+  const searching = trimmed.length >= 3;
   const catalogSearch = useQuery({
     queryKey: keys.search(trimmed),
     queryFn: () => api.searchBooks(trimmed),
-    enabled: trimmed.length >= 3,
+    enabled: searching,
   });
-  const offShelf = (catalogSearch.data?.results ?? []).filter((r) => !r.on_shelf);
+  const searchResults = catalogSearch.data?.results ?? [];
+  // совпадения на полке — рисуем карточками книг (форма BookCard)
+  const shelfHits = searchResults
+    .filter((r) => r.on_shelf)
+    .map((r) => ({
+      id: r.book_id,
+      title: r.title,
+      author: r.author,
+      cover_url: r.cover_url,
+      status: r.status,
+      rating: r.rating,
+    }));
+  const offShelf = searchResults.filter((r) => !r.on_shelf);
   // «база» — только реальные записи Book (source library). catalog — это кэш
   // прошлых поисков в Google (таблица Catalog), то есть тоже Google Books,
   // а не наши данные; относим его к Google-группе.
@@ -162,15 +174,18 @@ function HomePage() {
             Повторить
           </button>
         </p>
-      ) : books.length === 0 ? (
+      ) : totalBooks === 0 ? (
         // задача 21: библиотека пуста — онбординг вместо пустых полок
         <Onboarding onAddBook={() => setShowModal(true)} />
-      ) : filtered ? (
+      ) : trimmed && !searching ? (
+        // поиск серверный и начинается с 3 символов (как в модалке добавления)
+        <p className="muted">Введите минимум 3 символа для поиска.</p>
+      ) : searching ? (
         <>
           {/* совпадения на полке */}
-          {filtered.length > 0 && (
+          {shelfHits.length > 0 && (
             <div className="grid">
-              {filtered.map((book) => (
+              {shelfHits.map((book) => (
                 <BookCard
                   key={book.id}
                   book={book}
@@ -213,14 +228,12 @@ function HomePage() {
               ),
           )}
 
-          {catalogSearch.isFetching && filtered.length === 0 && (
+          {catalogSearch.isFetching && searchResults.length === 0 && (
             <p className="muted">Ищу в каталоге…</p>
           )}
-          {filtered.length === 0 &&
-            offShelf.length === 0 &&
-            !catalogSearch.isFetching && (
-              <p className="muted">Ничего не найдено.</p>
-            )}
+          {searchResults.length === 0 && !catalogSearch.isFetching && (
+            <p className="muted">Ничего не найдено.</p>
+          )}
           {addToShelf.isError && (
             <p className="error">
               Не удалось добавить: {addToShelf.error.message}
@@ -230,10 +243,13 @@ function HomePage() {
       ) : (
         <>
           {/* «Читаю» — только если такие книги есть */}
-          {shelves.reading.length > 0 && (
+          {reading.total > 0 && (
             <Shelf
               title="Читаю"
-              books={shelves.reading}
+              books={reading.books}
+              total={reading.total}
+              hasMore={reading.hasNextPage}
+              onLoadMore={loadMore(reading)}
               onSelect={openBook}
               {...shelfCards}
               {...shelfProps("Читаю")}
@@ -241,14 +257,20 @@ function HomePage() {
           )}
           <Shelf
             title="Прочитано"
-            books={shelves.read}
+            books={read.books}
+            total={read.total}
+            hasMore={read.hasNextPage}
+            onLoadMore={loadMore(read)}
             onSelect={openBook}
             {...shelfCards}
             {...shelfProps("Прочитано")}
           />
           <Shelf
             title="Хочу прочитать"
-            books={shelves.want}
+            books={want.books}
+            total={want.total}
+            hasMore={want.hasNextPage}
+            onLoadMore={loadMore(want)}
             onSelect={openBook}
             {...shelfCards}
             {...shelfProps("Хочу прочитать")}

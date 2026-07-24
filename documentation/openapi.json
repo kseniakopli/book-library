@@ -681,7 +681,7 @@
   "paths": {
     "/api/v1/books": {
       "get": {
-        "description": "Полка текущего пользователя: JOIN userbook → book.\nЗадача 70: фильтр по статусу + limit/offset (под ленивую загрузку полок).\nЗадача 52: raw_metadata (тяжёлый JSON) в список не грузим.",
+        "description": "Полка текущего пользователя: JOIN userbook → book.\nЗадача 70: фильтр по статусу + limit/offset + сортировка полки + общее число\nв заголовке `X-Total-Count` (фронт рисует «1–5 из N», не загружая все книги).\nЗаголовок, а не конверт {items, total}: тело остаётся list[BookRead] —\nсуществующие клиенты и тесты не замечают изменения.\nЗадача 52: raw_metadata (тяжёлый JSON) в список не грузим.",
         "operationId": "list_books_api_v1_books_get",
         "parameters": [
           {

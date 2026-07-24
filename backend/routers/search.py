@@ -39,12 +39,15 @@ def search(q: str):
         session.exec(delete(Catalog).where(col(Catalog.created_at) < cutoff))
         session.commit()
 
-        # какие книги уже на полке пользователя — пометим, чтобы не предлагать дважды
-        shelf_ids = set(
-            session.exec(
-                select(UserBook.book_id).where(UserBook.user_id == CURRENT_USER_ID)
+        # какие книги уже на полке пользователя — пометим, чтобы не предлагать
+        # дважды. Вся запись полки, не только id (задача 70): полочные совпадения
+        # рисуются карточками книг, им нужны статус и оценка.
+        shelf = {
+            ub.book_id: ub
+            for ub in session.exec(
+                select(UserBook).where(UserBook.user_id == CURRENT_USER_ID)
             ).all()
-        )
+        }
 
         # 1) ЛОКАЛЬНЫЙ каталог Book — книги, которые система уже знает.
         # defer(raw_metadata): тяжёлый JSON для поиска не нужен (задача 52)
@@ -60,7 +63,10 @@ def search(q: str):
                 "book_id": b.id,          # добавление переиспользует книгу (без генерации)
                 "external_id": None,
                 "source": "library",
-                "on_shelf": b.id in shelf_ids,
+                "on_shelf": b.id in shelf,
+                # поля полки — для карточки в результатах поиска (задача 70)
+                "status": shelf[b.id].status if b.id in shelf else None,
+                "rating": shelf[b.id].rating if b.id in shelf else None,
             }
             for b in local
         ]

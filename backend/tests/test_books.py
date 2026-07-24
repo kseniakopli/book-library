@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 
 import database
 from conftest import fake_book_info
-from models import Book
+from models import Book, UserBook
 
 
 # --- статусы и оценки ---
@@ -211,6 +211,60 @@ def test_list_books_filter_by_status(client, monkeypatch):
     assert all(b["status"] == "want" for b in want)
     # limit/offset применяются вместе с фильтром
     assert len(client.get("/api/v1/books?status=want&limit=1").json()) <= 1
+
+
+def test_read_shelf_sorted_and_total_header(client, monkeypatch):
+    """Задача 70: «Прочитано» сортируется по read_at ↓ на бэкенде (фронт видит
+    только страницу и сам отсортировать не может), книги без даты — в конце;
+    общее число полки приходит заголовком X-Total-Count."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+
+    client.post("/api/v1/books", json={
+        "title": "Старая", "author": "А", "status": "read", "read_at": "2026-01-10",
+    })
+    client.post("/api/v1/books", json={
+        "title": "Свежая", "author": "Б", "status": "read", "read_at": "2026-07-01",
+    })
+    client.post("/api/v1/books", json={
+        "title": "Без даты", "author": "В", "status": "read",
+    })
+    # прочитанной без даты бэкенд сам ставит read_at=now() (инвариант, задача 1);
+    # реальный NULL бывает у старых импортов — эмулируем его прямо в БД
+    with Session(database.engine) as session:
+        book = session.exec(select(Book).where(Book.title == "Без даты")).one()
+        ub = session.exec(
+            select(UserBook).where(UserBook.book_id == book.id)
+        ).one()
+        ub.read_at = None
+        session.add(ub)
+        session.commit()
+
+    r = client.get("/api/v1/books?status=read&limit=2")
+    assert [b["title"] for b in r.json()] == ["Свежая", "Старая"]
+    assert r.headers["X-Total-Count"] == "3"   # всего на полке, не в странице
+
+    all_read = client.get("/api/v1/books?status=read").json()
+    assert all_read[-1]["title"] == "Без даты"   # nullslast
+
+
+def test_want_shelf_recent_first(client, monkeypatch):
+    """Задача 70: «Хочу прочитать» — недавно добавленные первыми."""
+    from datetime import datetime
+
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+
+    # фикстурная книга 1 (want) «добавлена давно»
+    with Session(database.engine) as session:
+        ub = session.exec(select(UserBook).where(UserBook.book_id == 1)).one()
+        ub.created_at = datetime(2026, 1, 1)
+        session.add(ub)
+        session.commit()
+
+    client.post("/api/v1/books", json={"title": "Новая", "author": "А"})
+    want = client.get("/api/v1/books?status=want").json()
+    assert want[0]["title"] == "Новая"
 
 
 def test_get_book_not_found(client):

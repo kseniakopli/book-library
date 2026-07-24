@@ -54,6 +54,17 @@ def test_search_returns_library_books_first(client, monkeypatch):
     assert results[0]["on_shelf"] is True
 
 
+def test_search_library_hit_carries_shelf_fields(client, monkeypatch):
+    """Задача 70: полочное совпадение несёт статус и оценку —
+    поиск на главной рисует такие результаты карточками книг."""
+    monkeypatch.setattr(search_routes, "search_books", lambda q, max_results=8: [])
+    client.patch("/api/v1/books/1", json={"status": "read", "rating": 8})
+    r = client.get("/api/v1/search?q=Test")
+    hit = r.json()["results"][0]
+    assert hit["status"] == "read"
+    assert hit["rating"] == 8
+
+
 def test_search_deletes_stale_catalog_rows(client, monkeypatch):
     """Протухшие записи каталога (старше TTL) удаляются при поиске."""
     from datetime import datetime, timedelta

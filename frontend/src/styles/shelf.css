@@ -160,6 +160,10 @@
   padding-bottom: 6px;                 /* место под тонкий скроллбар */
   scrollbar-width: thin;
 }
+/* «хвост»-сенсор ленивой подгрузки (задача 70): доехали до него — грузим ещё */
+.shelf-swipe-more {
+  flex: 0 0 1px;
+}
 .shelf-swipe-item {
   flex: 0 0 44%;
   scroll-snap-align: start;

@@ -21,6 +21,20 @@ const json = (method, body) => ({
 });
 
 export const getBooks = () => request("/books");
+// Задача 70: полка постранично. total приходит заголовком X-Total-Count,
+// поэтому единый request() не подходит — нужен доступ к заголовкам ответа.
+export const getShelf = async ({ status, offset = 0, limit = 30 }) => {
+  const params = new URLSearchParams({ status, offset, limit });
+  const response = await fetch(`${API}/books?${params}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.detail || `Ошибка ${response.status}`);
+  }
+  return {
+    items: await response.json(),
+    total: Number(response.headers.get("X-Total-Count") ?? 0),
+  };
+};
 // Задача 56б: лёгкий счётчик для поллинга фонового обогащения
 export const getPendingCount = () => request("/books/pending-count");
 export const getBook = (id) => request(`/books/${id}`);
