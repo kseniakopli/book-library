@@ -148,6 +148,41 @@ def test_generate_music_invalid_lang(client, monkeypatch):
     assert client.post("/api/v1/books/1/atmosphere/music?lang=fr").status_code == 400
 
 
+# --- «затасканные» пункты (avoid) ---
+
+def test_overused_items_catch_paraphrased_titles(client):
+    """24.07: модели перефразируют названия блюд («Яблочный пирог с корицей» /
+    «по-ирландски» / «со сливками»), и точный счётчик повторов их не ловил —
+    порог AVOID_MIN_BOOKS не срабатывал никогда. Теперь ключ — первые два слова,
+    в avoid идёт самое короткое название."""
+    import json as _json
+
+    from models import Book
+    from services.atmosphere import build_book_context
+
+    variants = [
+        "Яблочный пирог",
+        "Яблочный пирог с корицей",
+        "Яблочный пирог по-ирландски",
+    ]
+    with Session(database.engine) as session:
+        for i, title in enumerate(variants, start=2):
+            session.add(Book(id=i, title=f"Книга {i}", author="Автор"))
+            session.commit()
+            session.add(AISelection(
+                book_id=i, category="food", source="Claude",
+                payload=_json.dumps(
+                    [{"title": title, "description": ""}], ensure_ascii=False
+                ),
+            ))
+        session.commit()
+        context = build_book_context(session, 1, "food")
+
+    assert "Яблочный пирог" in context["avoid"]   # 3 вариации = один пункт
+    # сами вариации отдельными пунктами не дублируются
+    assert sum("пирог" in a.lower() for a in context["avoid"]) == 1
+
+
 # --- точечное удаление трека (admin) ---
 
 def _seed_music(client, monkeypatch):

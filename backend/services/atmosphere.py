@@ -7,6 +7,7 @@
 # Добавление новой категории = генератор в services/ai.py + запись в CATEGORIES.
 import asyncio
 import json
+import re
 
 from sqlmodel import Session, select
 
@@ -271,9 +272,24 @@ def build_book_context(session: Session, book_id: int, category: str) -> dict:
     return context
 
 
+def _item_key(name: str) -> str:
+    """Ключ повтора для еды/ароматов: первые два слова названия.
+
+    Зачем (24.07): модели перефразируют названия — «Яблочный пирог с корицей»,
+    «Яблочный пирог по-ирландски», «Яблочный пирог со сливками» для точного
+    счётчика были тремя разными блюдами «у одной книги каждое», и порог
+    AVOID_MIN_BOOKS не срабатывал никогда (замер по базе: «яблочный пирог»
+    у 5 книг из 19, в avoid — ни разу). Обрезка до двух слов ловит главный
+    паттерн перефраза — стабильное начало + разные хвосты."""
+    return " ".join(re.findall(r"\w+", name.lower())[:2])
+
+
 def _overused_items(session: Session, category: str, exclude_book_id: int) -> list[str]:
     """Названия, которые уже примелькались в этой категории по всей библиотеке
-    (встречаются у AVOID_MIN_BOOKS+ книг). Для музыки — «Исполнитель — Трек»."""
+    (встречаются у AVOID_MIN_BOOKS+ книг). Для музыки — «Исполнитель — Трек»
+    точным совпадением (названия канонизирует Spotify); для еды/ароматов —
+    по нормализованному ключу (_item_key), в список идёт самое короткое из
+    встреченных названий («Яблочный пирог» обобщает свои вариации)."""
     if category not in ("music", "food", "aroma"):
         return []
 
@@ -284,7 +300,7 @@ def _overused_items(session: Session, category: str, exclude_book_id: int) -> li
         )
     ).all()
 
-    books_by_item: dict[str, set[int]] = {}
+    books_by_item: dict[str, dict] = {}
     for row in rows:
         try:
             items = json.loads(row.payload)
@@ -293,13 +309,19 @@ def _overused_items(session: Session, category: str, exclude_book_id: int) -> li
         for item in items:
             if category == "music":
                 name = f"{item.get('artist', '')} — {item.get('title', '')}".strip(" —")
+                key = name.lower()
             else:
                 name = (item.get("title") or "").strip()
-            if name:
-                books_by_item.setdefault(name.lower(), set()).add(row.book_id)
+                key = _item_key(name)
+            if not key:
+                continue
+            entry = books_by_item.setdefault(key, {"books": set(), "name": name})
+            entry["books"].add(row.book_id)
+            if len(name) < len(entry["name"]):
+                entry["name"] = name
 
-    ranked = sorted(books_by_item.items(), key=lambda kv: len(kv[1]), reverse=True)
-    return [name for name, books in ranked if len(books) >= AVOID_MIN_BOOKS][:AVOID_LIMIT]
+    ranked = sorted(books_by_item.values(), key=lambda e: len(e["books"]), reverse=True)
+    return [e["name"] for e in ranked if len(e["books"]) >= AVOID_MIN_BOOKS][:AVOID_LIMIT]
 
 
 def payload_empty(payload_json: str) -> bool:
