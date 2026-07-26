@@ -128,3 +128,39 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+/* --- Пользователь в шапке (этап 9) --- */
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 1px solid var(--border);
+}
+.user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.user-name {
+  font-size: 14px;
+  color: var(--muted);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-role {
+  color: var(--accent);
+}
+.user-logout {
+  font-size: 13px;
+  padding: 6px 10px;
+}
+@media (max-width: 640px) {
+  /* на телефоне имя не помещается — оставляем аватар и «Выйти» */
+  .user-name {
+    display: none;
+  }
+}

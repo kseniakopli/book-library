@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
+import { useAuth } from "../hooks/useAuth";
 import { SkeletonRows } from "./Skeleton";
 import FeedbackButtons from "./FeedbackButtons";
 
@@ -56,6 +57,9 @@ function renderPayload(category, payload, onRemoveTrack) {
 
 function AtmosphereSection({ bookId }) {
   const queryClient = useQueryClient();
+  // Этап 9: атмосфера общая для книги — генерация и удаление трека у админа
+  // (бэкенд это и так проверяет; здесь просто не показываем чужие кнопки)
+  const { isAdmin } = useAuth();
   const [activeCategory, setActiveCategory] = useState("music");
   const [activeSource, setActiveSource] = useState("Claude");
 
@@ -115,17 +119,19 @@ function AtmosphereSection({ bookId }) {
         <h2 className="atmosphere-title">Атмосфера</h2>
         {/* задача 47: accent — только пока атмосферы нет (главное действие
             страницы); повторная генерация — обычная кнопка */}
-        <button
-          className={hasAny ? "btn-ghost" : "add-btn"}
-          onClick={() => generateAll.mutate()}
-          disabled={generateAll.isPending}
-        >
-          {generateAll.isPending
-            ? "Подбираю…"
-            : hasAny
-              ? "Обновить атмосферу"
-              : "Подобрать атмосферу"}
-        </button>
+        {isAdmin && (
+          <button
+            className={hasAny ? "btn-ghost" : "add-btn"}
+            onClick={() => generateAll.mutate()}
+            disabled={generateAll.isPending}
+          >
+            {generateAll.isPending
+              ? "Подбираю…"
+              : hasAny
+                ? "Обновить атмосферу"
+                : "Подобрать атмосферу"}
+          </button>
+        )}
       </div>
 
       <div
@@ -228,7 +234,7 @@ function AtmosphereSection({ bookId }) {
               {renderPayload(
                 activeCategory,
                 active.payload,
-                activeCategory === "music"
+                activeCategory === "music" && isAdmin
                   ? (song) => !removeTrack.isPending && removeTrack.mutate(song)
                   : undefined,
               )}

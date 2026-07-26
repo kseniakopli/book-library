@@ -1,15 +1,12 @@
 # Общие зависимости и helpers для роутеров (рефакторинг R3):
 # убирают дублирование «проверь lang» и «возьми книгу или 404».
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException, Request
 from sqlmodel import Session, select
 
 import database
 from i18n import ALLOWED_LANGS, msg
 from models import Book, User, UserBook
-
-# Пока пользователь один (id=1, admin). Появится авторизация (этап 9) — заменится
-# зависимостью, достающей текущего пользователя из сессии/JWT.
-CURRENT_USER_ID = 1
+from services.auth import SESSION_COOKIE, read_session_token
 
 
 def get_session():
@@ -35,6 +32,28 @@ def get_lang(lang: str = "ru") -> str:
     return lang
 
 
+def current_user(
+    request: Request, session: Session = Depends(get_session)
+) -> User:
+    """Этап 9: текущий пользователь из подписанной сессионной куки.
+
+    Пришла на смену константе `CURRENT_USER_ID = 1`. Подключена на уровне
+    роутеров (`dependencies=[...]` в main.py), поэтому новый эндпоинт защищён
+    по умолчанию — про авторизацию нельзя забыть.
+    В тестах подменяется через `app.dependency_overrides` (см. conftest)."""
+    user_id = read_session_token(request.cookies.get(SESSION_COOKIE))
+    user = session.get(User, user_id) if user_id is not None else None
+    if user is None:
+        # 401, а не 403: фронт по этому коду отправляет на страницу входа
+        raise HTTPException(status_code=401, detail=msg("auth_required", "ru"))
+    return user
+
+
+def current_user_id(user: User = Depends(current_user)) -> int:
+    """Ярлык для эндпоинтов, которым нужен только id владельца полки."""
+    return user.id
+
+
 def get_book_or_404(session: Session, book_id: int, lang: str) -> Book:
     """Книга (общий каталог) по id или HTTP 404."""
     book = session.get(Book, book_id)
@@ -44,7 +63,7 @@ def get_book_or_404(session: Session, book_id: int, lang: str) -> Book:
 
 
 def get_userbook_or_404(
-    session: Session, book_id: int, lang: str, user_id: int = CURRENT_USER_ID
+    session: Session, book_id: int, lang: str, user_id: int
 ) -> UserBook:
     """Запись полки (книга у пользователя) или 404, если книги нет на полке."""
     ub = session.exec(
@@ -57,7 +76,7 @@ def get_userbook_or_404(
     return ub
 
 
-def require_admin(session: Session, lang: str, user_id: int = CURRENT_USER_ID) -> User:
+def require_admin(session: Session, lang: str, user_id: int) -> User:
     """Проверка прав: правка общих данных книги и перегенерация — только admin.
     Возвращает пользователя или бросает 403."""
     user = session.get(User, user_id)

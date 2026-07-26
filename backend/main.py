@@ -7,16 +7,18 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import text
 
 import database
 import rate_limit
+from deps import current_user
 from i18n import msg
 from logging_setup import request_id_var, setup_logging
 from routers import (
     atmosphere,
+    auth,
     books,
     feedback,
     imports,
@@ -49,15 +51,23 @@ app = FastAPI(
 
 # Задача 34: всё API — под версионированным префиксом
 API_V1 = "/api/v1"
-app.include_router(books.router, prefix=API_V1)       # CRUD книг + ручной enrich
-app.include_router(atmosphere.router, prefix=API_V1)  # AI-атмосфера
-app.include_router(search.router, prefix=API_V1)      # поиск: каталог + Google Books
-app.include_router(imports.router, prefix=API_V1)     # импорт CSV и backfill
-app.include_router(recommendations.router, prefix=API_V1)  # этап 8: советы книг
-app.include_router(spotify.router, prefix=API_V1)     # плейлисты и QR
-app.include_router(stats.router, prefix=API_V1)       # задачи 24/63: статистика
-app.include_router(feedback.router, prefix=API_V1)    # задача 26: 👍/👎 по подборкам
-app.include_router(series.router, prefix=API_V1)      # задача 89: циклы книг
+
+# Этап 9: вход через Google — единственный роутер БЕЗ проверки сессии
+# (иначе войти было бы невозможно: чтобы получить куку, нужна кука).
+app.include_router(auth.router, prefix=API_V1)
+
+# Остальное API закрыто на уровне роутера, а не отдельных эндпоинтов:
+# новый эндпоинт защищён по умолчанию — про авторизацию нельзя забыть.
+PROTECTED = [Depends(current_user)]
+app.include_router(books.router, prefix=API_V1, dependencies=PROTECTED)       # CRUD книг + ручной enrich
+app.include_router(atmosphere.router, prefix=API_V1, dependencies=PROTECTED)  # AI-атмосфера
+app.include_router(search.router, prefix=API_V1, dependencies=PROTECTED)      # поиск: каталог + Google Books
+app.include_router(imports.router, prefix=API_V1, dependencies=PROTECTED)     # импорт CSV и backfill
+app.include_router(recommendations.router, prefix=API_V1, dependencies=PROTECTED)  # этап 8: советы книг
+app.include_router(spotify.router, prefix=API_V1, dependencies=PROTECTED)     # плейлисты и QR
+app.include_router(stats.router, prefix=API_V1, dependencies=PROTECTED)       # задачи 24/63: статистика
+app.include_router(feedback.router, prefix=API_V1, dependencies=PROTECTED)    # задача 26: 👍/👎 по подборкам
+app.include_router(series.router, prefix=API_V1, dependencies=PROTECTED)      # задача 89: циклы книг
 # /callback — без префикса: адрес зарегистрирован в кабинете Spotify
 app.include_router(spotify.callback_router)
 

@@ -9,7 +9,11 @@ async function request(url, options) {
   const response = await fetch(`${API}${url}`, options);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail || `Ошибка ${response.status}`);
+    const error = new Error(body.detail || `Ошибка ${response.status}`);
+    // этап 9: код нужен, чтобы отличить «не вошёл» (401) от настоящей поломки —
+    // по 401 приложение показывает страницу входа, а не сообщение об ошибке
+    error.status = response.status;
+    throw error;
   }
   return response.json();
 }
@@ -19,6 +23,15 @@ const json = (method, body) => ({
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify(body),
 });
+
+// Авторизация (этап 9). Сессия — в httpOnly-куке, поэтому токен здесь нигде
+// не хранится и не передаётся: браузер сам приложит куку к запросу.
+export const getMe = () => request("/auth/me");
+export const getAuthStatus = () => request("/auth/status");
+export const logout = () => request("/auth/logout", { method: "POST" });
+// Вход — не fetch, а переход браузера: дальше нас ведёт Google
+export const loginUrl = (invite) =>
+  `${API}/auth/google/login?invite=${encodeURIComponent(invite || "")}`;
 
 export const getBooks = () => request("/books");
 // Задача 70: полка постранично. total приходит заголовком X-Total-Count,

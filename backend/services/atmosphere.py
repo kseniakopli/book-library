@@ -30,7 +30,6 @@ from services.ai import (
     take_ai_metrics,
 )
 import services.spotify as spotify_service
-from deps import CURRENT_USER_ID
 from services.cover_art import build_cover
 from services.spotify import resolve_songs
 from services.taste import atmosphere_taste
@@ -239,7 +238,9 @@ AVOID_LIMIT = 25         # столько «уже использованных�
 AVOID_MIN_BOOKS = 3      # пункт попадает в список, если встречался у стольких книг
 
 
-def build_book_context(session: Session, book_id: int, category: str) -> dict:
+def build_book_context(
+    session: Session, book_id: int, category: str, user_id: int
+) -> dict:
     """Фактический контекст книги для промпта (22.07).
 
     Зачем: модель знает не каждую книгу и для малоизвестных **угадывает по
@@ -268,7 +269,7 @@ def build_book_context(session: Session, book_id: int, category: str) -> dict:
     }
     # задача 26 ч.4: «память вкуса» — что читателю заходило и не заходило
     # в этой категории. У моделей памяти нет, поэтому подкладываем её сами.
-    context.update(atmosphere_taste(session, CURRENT_USER_ID, category))
+    context.update(atmosphere_taste(session, user_id, category))
     return context
 
 
@@ -400,10 +401,14 @@ def replace_selections(
         )
 
 
-async def generate_design_in_background(book_id: int, lang: str = "ru") -> None:
+async def generate_design_in_background(
+    book_id: int, lang: str = "ru", user_id: int = 1
+) -> None:
     """Задача 57: оформление создаётся фоном при добавлении книги — кнопка не
     нужна, к первому открытию паспорт обычно уже готов.
-    Идемпотентно: если оформление уже есть (или книгу успели удалить) — выходим."""
+    Идемпотентно: если оформление уже есть (или книгу успели удалить) — выходим.
+    user_id — чей вкус подмешивать в промпт (з.26 ч.4); дефолт оставлен
+    для разовых скриптов (backfill_passports и т.п.), где владелец не важен."""
     cfg = CATEGORIES["design"]
     with Session(database.engine) as session:
         book = session.get(Book, book_id)
@@ -412,7 +417,7 @@ async def generate_design_in_background(book_id: int, lang: str = "ru") -> None:
         if read_selections(session, book_id, "design"):
             return
         title, author = book.title, book.author
-        context = build_book_context(session, book_id, "design")
+        context = build_book_context(session, book_id, "design", user_id)
 
     start_ai_metrics()   # задача 80: латентность и токены — в событие
     try:

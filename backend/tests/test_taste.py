@@ -73,5 +73,5 @@ def test_taste_reaches_atmosphere_context(client):
         "ref": "atmosphere:1:music:Claude", "verdict": "up", "source": "Claude",
     })
     with Session(database.engine) as session:
-        context = build_book_context(session, 1, "music")
+        context = build_book_context(session, 1, "music", 1)
     assert "Molchat Doma — Sudno" in context["liked"]

@@ -5,6 +5,7 @@ from sqlmodel import SQLModel, Session, create_engine
 from fastapi.testclient import TestClient
 
 import database
+from deps import current_user
 from models import Book, User, UserBook
 from main import app
 from services.ai import (
@@ -37,7 +38,19 @@ def client_fixture():
         session.add(UserBook(user_id=1, book_id=1, status="want"))
         session.commit()
 
+    # Этап 9: вместо настоящего входа через Google подменяем зависимость —
+    # тесты работают «от имени» пользователя 1, как до авторизации.
+    # Тест, которому нужен именно неавторизованный запрос, снимает подмену:
+    # `app.dependency_overrides.clear()` (см. tests/test_auth.py).
+    def fake_current_user():
+        with Session(database.engine) as session:
+            return session.get(User, 1)
+
+    app.dependency_overrides[current_user] = fake_current_user
+
     yield TestClient(app)
+
+    app.dependency_overrides.clear()
 
 
 # --- Фейки внешних сервисов (без сети и без токенов) ---

@@ -1,5 +1,9 @@
 // Верхний ряд действий на странице книги. Вынесено из BookDetail (ревью 19.07).
+// Этап 9 (хвост з.90/32): «Обновить информацию» и «Редактировать» меняют ОБЩУЮ
+// запись книги — их видит только админ. «Удалить» личное (снимает книгу
+// со своей полки), поэтому доступно всем.
 import { Link } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 
 function BookActionsBar({
   bookId,
@@ -10,18 +14,23 @@ function BookActionsBar({
   onDelete,
   deleting,
 }) {
+  const { isAdmin } = useAuth();
   return (
     <div className="detail-bar">
       <button className="btn-ghost" onClick={onBack}>
         ← К библиотеке
       </button>
       <div className="detail-bar-actions">
-        <button className="btn-ghost" onClick={onEnrich} disabled={enriching}>
-          {enriching ? "Обновляю…" : "Обновить информацию"}
-        </button>
-        <button className="btn-ghost" onClick={onEdit}>
-          Редактировать
-        </button>
+        {isAdmin && (
+          <>
+            <button className="btn-ghost" onClick={onEnrich} disabled={enriching}>
+              {enriching ? "Обновляю…" : "Обновить информацию"}
+            </button>
+            <button className="btn-ghost" onClick={onEdit}>
+              Редактировать
+            </button>
+          </>
+        )}
         <Link className="btn-ghost playlist-link" to={`/books/${bookId}/evening`}>
           ☾ Начать вечер
         </Link>

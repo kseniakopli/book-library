@@ -679,6 +679,170 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/auth/google/callback": {
+      "get": {
+        "description": "Шаг 2: возврат от Google. Любая осечка — редирект на /login с причиной\n(страница входа покажет человеческий текст), а не голый JSON с 4xx.",
+        "operationId": "google_callback_api_v1_auth_google_callback_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Code",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "State",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Error",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/google/login": {
+      "get": {
+        "description": "Шаг 1: уводим на согласие Google.",
+        "operationId": "google_login_api_v1_auth_google_login_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "invite",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Invite",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Google Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Выход: гасим куку. Токен без неё предъявить нечем.",
+        "operationId": "logout_api_v1_auth_logout_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "description": "Кто я. Фронт зовёт при загрузке: 401 → страница входа.\n`is_admin` нужен, чтобы прятать админские кнопки (задачи 32/90).",
+        "operationId": "me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/status": {
+      "get": {
+        "description": "Настроен ли вход через Google — чтобы страница входа не показывала\nкнопку, которая заведомо не сработает. Без авторизации (её ещё нет).",
+        "operationId": "status_api_v1_auth_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Status",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/books": {
       "get": {
         "description": "Полка текущего пользователя: JOIN userbook → book.\nЗадача 70: фильтр по статусу + limit/offset + сортировка полки + общее число\nв заголовке `X-Total-Count` (фронт рисует «1–5 из N», не загружая все книги).\nЗаголовок, а не конверт {items, total}: тело остаётся list[BookRead] —\nсуществующие клиенты и тесты не замечают изменения.\nЗадача 52: raw_metadata (тяжёлый JSON) в список не грузим.",
@@ -1585,7 +1749,7 @@
         ]
       },
       "post": {
-        "description": "Подобрать рекомендации заново. Тратит токены → только admin.\nСессию открываем вручную КОРОТКИМИ отрезками (не через get_session):\nмежду ними идёт долгий AI-вызов, держать соединение всё это время не нужно.",
+        "description": "Подобрать рекомендации заново — по кнопке (тратит токены).\n\nЭтап 9: доступно КАЖДОМУ вошедшему. Набор рекомендаций личный\n(`Recommendation.user_id`) и строится по своим оценкам — админ тут ни при\nчём. Расходы держат лимиты частоты и капы у провайдеров (з.36).\nСессию открываем вручную КОРОТКИМИ отрезками (не через get_session):\nмежду ними идёт долгий AI-вызов, держать соединение всё это время не нужно.",
         "operationId": "generate_api_v1_recommendations_post",
         "parameters": [
           {
@@ -2086,7 +2250,7 @@
     },
     "/api/v1/stats/insights": {
       "post": {
-        "description": "Наблюдения о привычках чтения. Тратит токены → только admin, по кнопке.\nНе сохраняем: цифры меняются с каждой прочитанной книгой, и устаревший\nкомментарий хуже, чем его отсутствие.\nСессию открываем вручную КОРОТКИМ отрезком (не через get_session) — дальше\nидёт долгий AI-вызов, держать соединение всё это время не нужно.",
+        "description": "Наблюдения о привычках чтения — по кнопке (тратит токены).\n\nЭтап 9: доступно КАЖДОМУ вошедшему, а не только админу. Статистика личная\n(считается по своей полке), и запрещать её тестерам бессмысленно — иначе\nкнопка у них всегда отвечала бы 403. Расходы держат лимиты частоты\n(rate_limit.py, 20 AI-запросов в час) и капы у провайдеров (з.36).\nНе сохраняем: цифры меняются с каждой прочитанной книгой, и устаревший\nкомментарий хуже, чем его отсутствие.\nСессию открываем вручную КОРОТКИМ отрезком (не через get_session) — дальше\nидёт долгий AI-вызов, держать соединение всё это время не нужно.",
         "operationId": "create_insights_api_v1_stats_insights_post",
         "parameters": [
           {

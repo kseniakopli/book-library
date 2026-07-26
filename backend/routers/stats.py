@@ -4,7 +4,7 @@ from sqlmodel import Session
 
 import database
 from constants import EVENT_AI_INSIGHTS
-from deps import CURRENT_USER_ID, get_lang, get_session, require_admin
+from deps import current_user_id, get_lang, get_session
 from events import log_event
 from services.ai import generate_insights, start_ai_metrics, take_ai_metrics
 from services.stats import compute_stats, format_summary
@@ -13,22 +13,30 @@ router = APIRouter(tags=["stats"])
 
 
 @router.get("/stats")
-def read_stats(session: Session = Depends(get_session)):
+def read_stats(session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Цифры по полке. Считается на лету: библиотека персональная, запрос дешёвый,
     а кэш пришлось бы сбрасывать на каждое изменение статуса или оценки."""
-    return compute_stats(session, CURRENT_USER_ID)
+    return compute_stats(session, user_id)
 
 
 @router.post("/stats/insights")
-async def create_insights(lang: str = Depends(get_lang)):
-    """Наблюдения о привычках чтения. Тратит токены → только admin, по кнопке.
+async def create_insights(lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
+):
+    """Наблюдения о привычках чтения — по кнопке (тратит токены).
+
+    Этап 9: доступно КАЖДОМУ вошедшему, а не только админу. Статистика личная
+    (считается по своей полке), и запрещать её тестерам бессмысленно — иначе
+    кнопка у них всегда отвечала бы 403. Расходы держат лимиты частоты
+    (rate_limit.py, 20 AI-запросов в час) и капы у провайдеров (з.36).
     Не сохраняем: цифры меняются с каждой прочитанной книгой, и устаревший
     комментарий хуже, чем его отсутствие.
     Сессию открываем вручную КОРОТКИМ отрезком (не через get_session) — дальше
     идёт долгий AI-вызов, держать соединение всё это время не нужно."""
     with Session(database.engine) as session:
-        require_admin(session, lang)
-        stats = compute_stats(session, CURRENT_USER_ID)
+        stats = compute_stats(session, user_id)
 
     if not stats["totals"]["read"]:
         # нечего толковать — честно говорим, токены не тратим

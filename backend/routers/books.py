@@ -18,7 +18,7 @@ from constants import (
     EVENT_STATUS_CHANGED,
 )
 from deps import (
-    CURRENT_USER_ID,
+    current_user_id,
     get_book_or_404,
     get_lang,
     get_session,
@@ -59,6 +59,7 @@ def list_books(
     limit: int | None = None,
     offset: int = 0,
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     """Полка текущего пользователя: JOIN userbook → book.
     Задача 70: фильтр по статусу + limit/offset + сортировка полки + общее число
@@ -69,12 +70,12 @@ def list_books(
     query = (
         select(Book, UserBook)
         .join(UserBook, UserBook.book_id == Book.id)
-        .where(UserBook.user_id == CURRENT_USER_ID)
+        .where(UserBook.user_id == user_id)
     )
     count_query = (
         select(func.count())
         .select_from(UserBook)
-        .where(UserBook.user_id == CURRENT_USER_ID)
+        .where(UserBook.user_id == user_id)
     )
     if status is not None:
         query = query.where(UserBook.status == status)
@@ -96,14 +97,18 @@ def list_books(
 
 
 @router.get("/books/design-summary")
-def design_summary(session: Session = Depends(get_session)):
+def design_summary(session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Символьный режим полки (задача 66). Маршрут объявлен ВЫШЕ /books/{book_id},
     иначе 'design-summary' поймается как book_id."""
-    return {"designs": read_design_summary(session, CURRENT_USER_ID)}
+    return {"designs": read_design_summary(session, user_id)}
 
 
 @router.get("/books/pending-count")
-def pending_count(session: Session = Depends(get_session)):
+def pending_count(session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Задача 56б: лёгкий счётчик недообогащённых книг. Пока идёт фоновое
     обогащение, фронт поллит ЭТОТ эндпоинт (одно число), а не весь список книг.
     Маршрут тоже выше /books/{book_id}."""
@@ -112,7 +117,7 @@ def pending_count(session: Session = Depends(get_session)):
         .select_from(Book)
         .join(UserBook, UserBook.book_id == Book.id)
         .where(
-            UserBook.user_id == CURRENT_USER_ID,
+            UserBook.user_id == user_id,
             Book.enrich_status == ENRICH_PENDING,
         )
     ).one()
@@ -124,9 +129,10 @@ def get_book(
     book_id: int,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     book = get_book_or_404(session, book_id, lang)
-    user_book = get_userbook_or_404(session, book_id, lang)
+    user_book = get_userbook_or_404(session, book_id, lang, user_id)
     # имя цикла — только для одиночной книги (в списке не грузим, лишний JOIN)
     series_name = None
     if book.series_id is not None:
@@ -141,8 +147,9 @@ def add_book(
     background_tasks: BackgroundTasks,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
-    book, user_book, is_new = add_to_shelf(session, data, CURRENT_USER_ID, lang)
+    book, user_book, is_new = add_to_shelf(session, data, user_id, lang)
     result = BookRead.from_pair(book, user_book)
     book_id = book.id
 
@@ -153,7 +160,7 @@ def add_book(
     # Фоновые задачи открывают свои сессии, эта к тому моменту уже закрыта.
     if is_new:
         background_tasks.add_task(enrich_in_background, book_id, lang, data.external_id)
-        background_tasks.add_task(generate_design_in_background, book_id, lang)
+        background_tasks.add_task(generate_design_in_background, book_id, lang, user_id)
     return result
 
 
@@ -163,11 +170,12 @@ def update_book(
     data: BookUpdate,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     book = get_book_or_404(session, book_id, lang)
-    user_book = get_userbook_or_404(session, book_id, lang)
+    user_book = get_userbook_or_404(session, book_id, lang, user_id)
 
-    edited = apply_book_fields(session, book, data, lang)   # общие поля — admin
+    edited = apply_book_fields(session, book, data, lang, user_id)  # общие поля — admin
     apply_shelf_fields(user_book, data, lang)               # личные поля полки
 
     session.add(user_book)
@@ -190,8 +198,9 @@ def delete_book(
     book_id: int,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
-    user_book = get_userbook_or_404(session, book_id, lang)
+    user_book = get_userbook_or_404(session, book_id, lang, user_id)
     book = get_book_or_404(session, book_id, lang)
     title = book.title
     remove_from_shelf(session, book, user_book)
@@ -204,12 +213,13 @@ def enrich_book(
     book_id: int,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     """Ручное обогащение (кнопка «Обновить информацию») — синхронное.
     Меняет общие данные книги, поэтому только admin."""
     book = get_book_or_404(session, book_id, lang)
-    user_book = get_userbook_or_404(session, book_id, lang)
-    require_admin(session, lang)
+    user_book = get_userbook_or_404(session, book_id, lang, user_id)
+    require_admin(session, lang, user_id)
 
     info = fetch_book_info(book.title, book.author, lang, isbn=book.isbn)
     found = bool(info["raw_metadata"])

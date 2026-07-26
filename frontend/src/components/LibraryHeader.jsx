@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useAuth, useLogout } from "../hooks/useAuth";
 
 // Шапка главной: заголовок и действия (вид полки, тема, импорт, добавить).
 // Вынесено из HomePage (ревью 19.07).
@@ -15,6 +16,9 @@ function LibraryHeader({
   onAddBook,
   addButtonRef,
 }) {
+  const { user, isAdmin } = useAuth();
+  const logout = useLogout();
+
   return (
     <header className={"header" + (compact ? " header-compact" : "")}>
       <div>
@@ -63,6 +67,28 @@ function LibraryHeader({
         <button className="add-btn" onClick={onAddBook} ref={addButtonRef}>
           + Добавить книгу
         </button>
+
+        {/* Этап 9: кто вошёл и выход. Аватар из Google — просто картинка
+            по ссылке, ничего от нас не требует. */}
+        {user && (
+          <span className="user-chip" title={user.email || ""}>
+            {user.avatar_url && (
+              <img className="user-avatar" src={user.avatar_url} alt="" />
+            )}
+            <span className="user-name">
+              {user.display_name}
+              {isAdmin && <span className="user-role"> · админ</span>}
+            </span>
+            <button
+              className="btn-ghost user-logout"
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
+              title="Выйти"
+            >
+              Выйти
+            </button>
+          </span>
+        )}
       </div>
     </header>
   );

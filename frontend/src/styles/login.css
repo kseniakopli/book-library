@@ -1,0 +1,61 @@
+/* Страница входа (этап 9) — единственный экран без авторизации */
+.login {
+  min-height: 70vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 28px;
+  text-align: center;
+}
+.login-title {
+  font-family: var(--serif);
+  font-size: 34px;
+  margin: 0;
+}
+.login-subtitle {
+  color: var(--muted);
+  margin: 4px 0 28px;
+}
+.login-error {
+  margin-bottom: 18px;
+}
+.login-label {
+  display: block;
+  text-align: left;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.login-hint {
+  color: var(--muted);
+}
+.login-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 16px;          /* ≥16px — iOS не приближает страницу при фокусе */
+  color: var(--text);
+  background: var(--bg);
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 18px;
+  box-sizing: border-box;
+}
+.login-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+  padding: 13px 16px;
+}
+.login-note {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 18px 0 0;
+}

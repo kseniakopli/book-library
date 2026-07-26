@@ -14,7 +14,7 @@ from constants import (
     SOURCE_CLAUDE,
     STATUS_READ,
 )
-from deps import CURRENT_USER_ID, get_lang, get_session, require_admin
+from deps import current_user_id, get_lang, get_session
 from events import log_event
 from google_books import search_books
 from models import Book, Recommendation, UserBook
@@ -37,11 +37,11 @@ def _norm(title: str, author: str) -> tuple[str, str]:
     return title.strip().lower(), author.strip().lower()
 
 
-def _stored(session: Session) -> dict:
+def _stored(session: Session, user_id: int) -> dict:
     """Сохранённые рекомендации пользователя в формате ответа."""
     rows = session.exec(
         select(Recommendation)
-        .where(Recommendation.user_id == CURRENT_USER_ID)
+        .where(Recommendation.user_id == user_id)
         .order_by(Recommendation.id)
     ).all()
     return {
@@ -60,25 +60,33 @@ def _stored(session: Session) -> dict:
 
 
 @router.get("/recommendations")
-def list_recommendations(session: Session = Depends(get_session)):
+def list_recommendations(
+    session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Сохранённые рекомендации (пусто — фронт зовёт подобрать)."""
-    return _stored(session)
+    return _stored(session, user_id)
 
 
 @router.post("/recommendations")
-async def generate(lang: str = Depends(get_lang)):
-    """Подобрать рекомендации заново. Тратит токены → только admin.
+async def generate(lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
+):
+    """Подобрать рекомендации заново — по кнопке (тратит токены).
+
+    Этап 9: доступно КАЖДОМУ вошедшему. Набор рекомендаций личный
+    (`Recommendation.user_id`) и строится по своим оценкам — админ тут ни при
+    чём. Расходы держат лимиты частоты и капы у провайдеров (з.36).
     Сессию открываем вручную КОРОТКИМИ отрезками (не через get_session):
     между ними идёт долгий AI-вызов, держать соединение всё это время не нужно."""
     with Session(database.engine) as session:
-        require_admin(session, lang)
 
         # 1) сигналы: что понравилось (оценка ≥ MIN_RATING), свежее — важнее
         liked = session.exec(
             select(Book, UserBook)
             .join(UserBook, UserBook.book_id == Book.id)
             .where(
-                UserBook.user_id == CURRENT_USER_ID,
+                UserBook.user_id == user_id,
                 UserBook.status == STATUS_READ,
                 UserBook.rating.is_not(None),
                 UserBook.rating >= MIN_RATING,
@@ -92,12 +100,12 @@ async def generate(lang: str = Depends(get_lang)):
         shelf = session.exec(
             select(Book.title, Book.author)
             .join(UserBook, UserBook.book_id == Book.id)
-            .where(UserBook.user_id == CURRENT_USER_ID)
+            .where(UserBook.user_id == user_id)
         ).all()
         exclude = [f"{t} — {a}" for t, a in shelf]
         known = {_norm(t, a) for t, a in shelf}
         # задача 26 ч.4: советы, помеченные 👎 — «такое не заходит»
-        disliked = disliked_recommendations(session, CURRENT_USER_ID)
+        disliked = disliked_recommendations(session, user_id)
 
     if not favorites:
         # нечего анализировать — честно говорим, токены не тратим
@@ -133,14 +141,14 @@ async def generate(lang: str = Depends(get_lang)):
     # 5) заменяем набор целиком
     with Session(database.engine) as session:
         for old in session.exec(
-            select(Recommendation).where(Recommendation.user_id == CURRENT_USER_ID)
+            select(Recommendation).where(Recommendation.user_id == user_id)
         ).all():
             session.delete(old)
         session.flush()
         for source, item in fresh:
             found = covers.get(_norm(item.title, item.author)) or {}
             session.add(Recommendation(
-                user_id=CURRENT_USER_ID,
+                user_id=user_id,
                 title=item.title,
                 author=item.author,
                 reason=item.reason,
@@ -159,4 +167,4 @@ async def generate(lang: str = Depends(get_lang)):
         "count": len(fresh), "by_source": by_source, "ai_calls": take_ai_metrics(),
     })
     with Session(database.engine) as session:
-        return _stored(session)
+        return _stored(session, user_id)

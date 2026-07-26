@@ -1,11 +1,13 @@
-// Корень приложения: только маршруты (R6).
+// Корень приложения: авторизация (этап 9) и маршруты (R6).
 // Страницы — в pages/, переиспользуемые блоки — в components/.
 import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import "./App.css";
 import { useTheme } from "./hooks/useTheme";
+import { useAuth } from "./hooks/useAuth";
 import HomePage from "./pages/HomePage";
 import BookPage from "./pages/BookPage";
+import LoginPage from "./pages/LoginPage";
 
 // Задача 56б: печатная карточка и сцена «вечера» — тяжёлые и редко открываемые,
 // грузим их отдельными чанками по требованию (React.lazy → меньше стартовый бандл).
@@ -22,6 +24,34 @@ function App() {
   // поэтому F5 на любой странице (включая /books/N) не теряет тему.
   // Переключатель остаётся в HomePage — оба хука читают один localStorage.
   useTheme();
+
+  // Этап 9: один запрос «кто я» на всё приложение. Пока он идёт — ничего
+  // не рисуем, иначе на миг мелькнёт то страница входа, то чужой интерфейс.
+  const { user, loading, failed } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="app">
+        <p className="muted">Загрузка…</p>
+      </div>
+    );
+  }
+  if (failed) {
+    return (
+      <div className="app">
+        <p className="error">Сервис недоступен. Попробуйте обновить страницу.</p>
+      </div>
+    );
+  }
+  // не вошёл — только страница входа, никаких других маршрутов
+  if (!user) {
+    return (
+      <div className="app">
+        <LoginPage />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <Suspense fallback={<p className="muted">Загрузка…</p>}>
@@ -32,6 +62,8 @@ function App() {
           <Route path="/books/:id/evening" element={<EveningPage />} />
           <Route path="/stats" element={<StatsPage />} />
           <Route path="/series/:id" element={<SeriesPage />} />
+          {/* вошёл, а адрес /login — показываем библиотеку */}
+          <Route path="/login" element={<HomePage />} />
         </Routes>
       </Suspense>
     </div>

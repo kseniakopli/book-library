@@ -42,6 +42,8 @@ MESSAGES = {
                              "en": "Editing a book and regeneration are available to admins only"},
     "track_not_found":      {"ru": "Трек не найден в подборке",
                              "en": "Track not found in the selection"},
+    "auth_required":        {"ru": "Нужно войти",
+                             "en": "Authentication required"},
 }
 
 

@@ -8,7 +8,7 @@ from sqlmodel import Session
 import database
 import services.spotify as spotify_service
 from constants import EVENT_TRACK_REMOVED
-from deps import get_book_or_404, get_lang, require_admin
+from deps import current_user_id, get_book_or_404, get_lang, require_admin
 from events import log_event
 from i18n import msg
 from services.ai import start_ai_metrics, take_ai_metrics
@@ -40,14 +40,15 @@ class TrackRemoveIn(BaseModel):
 
 @router.delete("/books/{book_id}/atmosphere/music/tracks")
 async def delete_music_track(
-    book_id: int, track: TrackRemoveIn, lang: str = Depends(get_lang)
+    book_id: int, track: TrackRemoveIn, lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
 ):
     """Точечное удаление трека. Подборка общая для книги, поэтому право то же,
     что у перегенерации, — только admin. Spotify-плейлист пересобирается
     из оставшихся треков (внутри remove_music_track)."""
     with Session(database.engine) as session:
         get_book_or_404(session, book_id, lang)
-        require_admin(session, lang)
+        require_admin(session, lang, user_id)
 
     response = await remove_music_track(book_id, track.source, track.title, track.artist)
     if response is None:
@@ -68,7 +69,8 @@ def get_atmosphere(book_id: int, category: str, lang: str = Depends(get_lang)):
 
 @router.post("/books/{book_id}/atmosphere/{category}")
 async def generate_atmosphere(
-    book_id: int, category: str, lang: str = Depends(get_lang)
+    book_id: int, category: str, lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
 ):
     cfg = _get_category(category, lang)
 
@@ -77,12 +79,12 @@ async def generate_atmosphere(
     # (пере)генерация меняет её для всех — поэтому только admin (решение 18.07).
     with Session(database.engine) as session:
         book = get_book_or_404(session, book_id, lang)
-        require_admin(session, lang)
+        require_admin(session, lang, user_id)
         title, author = book.title, book.author
         # 22.07: фактический контекст книги (аннотация, жанры, год) + «уже
         # затасканное» по библиотеке — иначе модель угадывает по названию
         # и повторяет один и тот же бефстроганов в каждой русской книге
-        context = build_book_context(session, book_id, category)
+        context = build_book_context(session, book_id, category, user_id)
 
     # 2) реальные AI-вызовы (токены тратятся здесь); метрики — в событие (з.80)
     start_ai_metrics()

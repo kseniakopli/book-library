@@ -176,7 +176,7 @@ def test_overused_items_catch_paraphrased_titles(client):
                 ),
             ))
         session.commit()
-        context = build_book_context(session, 1, "food")
+        context = build_book_context(session, 1, "food", 1)
 
     assert "Яблочный пирог" in context["avoid"]   # 3 вариации = один пункт
     # сами вариации отдельными пунктами не дублируются

@@ -11,7 +11,7 @@ from constants import (
     SERIES_READING,
 )
 from deps import (
-    CURRENT_USER_ID,
+    current_user_id,
     get_book_or_404,
     get_lang,
     get_session,
@@ -68,9 +68,11 @@ def _check_status(status: str, lang: str) -> None:
 
 
 @router.get("/series")
-def read_series(session: Session = Depends(get_session)):
+def read_series(session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Полка циклов: читаю → прочитано → перестала читать."""
-    return {"series": list_series(session, CURRENT_USER_ID)}
+    return {"series": list_series(session, user_id)}
 
 
 @router.post("/series")
@@ -78,10 +80,11 @@ def create_series(
     data: SeriesCreate,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     """Создать цикл. Сразу кладём его на полку пользователя со статусом.
     Цикл — общая сущность → создание только admin (з.90а)."""
-    require_admin(session, lang)
+    require_admin(session, lang, user_id)
     name = data.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail=msg("series_name_required", lang))
@@ -96,9 +99,9 @@ def create_series(
     session.commit()
     session.refresh(series)
 
-    set_status(session, series.id, CURRENT_USER_ID, data.status)
+    set_status(session, series.id, user_id, data.status)
     session.commit()
-    return series_card(session, series, CURRENT_USER_ID)
+    return series_card(session, series, user_id)
 
 
 @router.get("/series/{series_id}")
@@ -106,9 +109,10 @@ def read_one(
     series_id: int,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     series = _get_series_or_404(session, series_id, lang)
-    return series_card(session, series, CURRENT_USER_ID)
+    return series_card(session, series, user_id)
 
 
 @router.patch("/series/{series_id}")
@@ -117,6 +121,7 @@ def update_series(
     data: SeriesUpdate,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     """Правка цикла и/или смена статуса.
 
@@ -129,7 +134,7 @@ def update_series(
         value is not None for value in (data.name, data.author, data.description)
     )
     if edits_shared:
-        require_admin(session, lang)
+        require_admin(session, lang, user_id)
 
     if data.name is not None:
         name = data.name.strip()
@@ -144,11 +149,11 @@ def update_series(
 
     if data.status is not None:
         _check_status(data.status, lang)
-        set_status(session, series_id, CURRENT_USER_ID, data.status)
+        set_status(session, series_id, user_id, data.status)
 
     session.commit()
     session.refresh(series)
-    return series_card(session, series, CURRENT_USER_ID)
+    return series_card(session, series, user_id)
 
 
 @router.delete("/series/{series_id}")
@@ -156,11 +161,12 @@ def delete_series(
     series_id: int,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     """Удалить цикл. Книги остаются в каталоге — просто теряют привязку.
     Цикл общий → удаление только admin (з.90а)."""
     series = _get_series_or_404(session, series_id, lang)
-    require_admin(session, lang)
+    require_admin(session, lang, user_id)
     for book in session.exec(select(Book).where(Book.series_id == series_id)).all():
         book.series_id = None
         book.series_index = None
@@ -171,14 +177,16 @@ def delete_series(
 
 
 @router.post("/series/{series_id}/design")
-async def generate_design(series_id: int, lang: str = Depends(get_lang)):
+async def generate_design(series_id: int, lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
+):
     """Сгенерировать экслибрис цикла (задача 89). Тратит токены → только admin,
     по кнопке. Опирается на описание цикла — поэтому имеет смысл сначала его
     заполнить.
     Сессию держим КОРОТКО: между чтением и записью идёт долгий AI-вызов."""
     with Session(database.engine) as session:
         series = _get_series_or_404(session, series_id, lang)
-        require_admin(session, lang)
+        require_admin(session, lang, user_id)
         name, author, description = series.name, series.author, series.description
 
     start_ai_metrics()
@@ -190,7 +198,7 @@ async def generate_design(series_id: int, lang: str = Depends(get_lang)):
         session.add(series)
         session.commit()
         session.refresh(series)
-        card = series_card(session, series, CURRENT_USER_ID)
+        card = series_card(session, series, user_id)
 
     log_event(EVENT_AI_DESIGN, detail={
         "target": "series", "series_id": series_id, "ai_calls": take_ai_metrics(),
@@ -205,13 +213,14 @@ def add_book_to_series(
     background_tasks: BackgroundTasks,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     """Привязать книгу к циклу (со страницы цикла).
     Книга может отсутствовать на полке пользователя — тогда в цикле она
     показывается как «что дальше».
     Состав цикла — общие данные → только admin (з.90а)."""
     _get_series_or_404(session, series_id, lang)
-    require_admin(session, lang)
+    require_admin(session, lang, user_id)
 
     if data.book_id is not None:
         book = get_book_or_404(session, data.book_id, lang)
@@ -237,7 +246,7 @@ def add_book_to_series(
     attach_book(session, series_id, book, data.series_index)
     session.commit()
     series = session.get(Series, series_id)
-    return series_card(session, series, CURRENT_USER_ID)
+    return series_card(session, series, user_id)
 
 
 @router.delete("/series/{series_id}/books/{book_id}")
@@ -246,13 +255,14 @@ def remove_book_from_series(
     book_id: int,
     lang: str = Depends(get_lang),
     session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
 ):
     series = _get_series_or_404(session, series_id, lang)
-    require_admin(session, lang)          # состав цикла общий (з.90а)
+    require_admin(session, lang, user_id)          # состав цикла общий (з.90а)
     book = get_book_or_404(session, book_id, lang)
     if book.series_id == series_id:
         book.series_id = None
         book.series_index = None
         session.add(book)
         session.commit()
-    return series_card(session, series, CURRENT_USER_ID)
+    return series_card(session, series, user_id)

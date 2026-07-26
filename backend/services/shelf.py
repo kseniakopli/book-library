@@ -94,14 +94,16 @@ def add_to_shelf(session: Session, data, user_id: int, lang: str) -> tuple[Book,
     return book, user_book, is_new
 
 
-def apply_book_fields(session: Session, book: Book, data, lang: str) -> list[str]:
+def apply_book_fields(
+    session: Session, book: Book, data, lang: str, user_id: int
+) -> list[str]:
     """Правка ОБЩИХ полей книги (задача 3). Меняет книгу у всех, кто держит её
     на полке, поэтому только admin. Возвращает список изменённых полей."""
     fields = (data.title, data.author, data.isbn, data.cover_url, data.description)
     if all(f is None for f in fields):
         return []
 
-    require_admin(session, lang)
+    require_admin(session, lang, user_id)
     edited = []
 
     if data.title is not None:

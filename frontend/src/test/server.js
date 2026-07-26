@@ -63,6 +63,23 @@ const notFound = () =>
 const SHELF_SORT = { read: "read_at", want: "created_at", reading: "updated_at" };
 
 export const handlers = [
+  // Этап 9: в тестах пользователь всегда «вошёл» и он админ — иначе App
+  // показал бы страницу входа вместо библиотеки. Тест на гостя подменяет
+  // этот хэндлер (server.use) и получает 401.
+  http.get("/api/v1/auth/me", () =>
+    HttpResponse.json({
+      id: 1,
+      display_name: "Ксения",
+      email: "owner@example.com",
+      avatar_url: null,
+      is_admin: true,
+    }),
+  ),
+  http.get("/api/v1/auth/status", () =>
+    HttpResponse.json({ oauth_configured: true }),
+  ),
+  http.post("/api/v1/auth/logout", () => HttpResponse.json({ ok: true })),
+
   // Задача 70: /books понимает status/limit/offset, сортирует полку и отдаёт
   // общее число заголовком X-Total-Count — как настоящий бэкенд
   http.get("/api/v1/books", ({ request }) => {

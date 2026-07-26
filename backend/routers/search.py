@@ -4,13 +4,13 @@
 #   3) ручное добавление — на фронте, если ничего не нашлось.
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import defer
 from sqlmodel import Session, col, delete, select
 
 import database
 from constants import EVENT_SEARCH
-from deps import CURRENT_USER_ID
+from deps import current_user_id
 from events import log_event
 from google_books import search_books
 from models import Book, Catalog, UserBook
@@ -21,7 +21,9 @@ CATALOG_TTL_DAYS = 30   # сколько дней запись каталога 
 
 
 @router.get("/search")
-def search(q: str):
+def search(q: str,
+    user_id: int = Depends(current_user_id),
+):
     q = q.strip()
     if len(q) < 3:                       # от 3 символов — бережём внешний API
         return {"results": []}
@@ -45,7 +47,7 @@ def search(q: str):
         shelf = {
             ub.book_id: ub
             for ub in session.exec(
-                select(UserBook).where(UserBook.user_id == CURRENT_USER_ID)
+                select(UserBook).where(UserBook.user_id == user_id)
             ).all()
         }
 

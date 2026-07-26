@@ -6,11 +6,29 @@ from sqlmodel import Field, SQLModel, UniqueConstraint
 from constants import SOURCE_CLAUDE
 
 
-# --- Пользователь. Пока один (id=1, admin); задел под авторизацию (этап 9) ---
+# --- Пользователь. Этап 9: вход через Google OAuth ---
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     display_name: str = "Ксения"
     is_admin: bool = False          # перегенерация атмосферы и правка книги — только admin
+    # Пароли не храним: аутентификацию делает Google, у нас — только его id.
+    # google_sub — стабильный идентификатор аккаунта (email пользователь может
+    # сменить, sub — нет), поэтому ищем сначала по нему.
+    email: Optional[str] = Field(default=None, index=True)
+    google_sub: Optional[str] = Field(default=None, index=True)
+    avatar_url: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+# --- Инвайт-код (этап 9): регистрация только по приглашению.
+# Сервис тратит платные AI-вызовы, поэтому случайные люди завести аккаунт
+# не могут — код выдаётся лично (scripts/make_invite.py) ---
+class Invite(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True)
+    note: Optional[str] = None                  # кому выдан — для памяти
+    used_by_user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    used_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 

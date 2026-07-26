@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from deps import CURRENT_USER_ID, get_session
+from deps import current_user_id, get_session
 from models import Feedback
 
 router = APIRouter(tags=["feedback"])
@@ -19,17 +19,21 @@ class FeedbackIn(BaseModel):
 
 
 @router.get("/feedback")
-def list_feedback(session: Session = Depends(get_session)):
+def list_feedback(session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Все оценки пользователя как {ref: verdict} — фронт рисует состояние кнопок
     одним запросом, не спрашивая по каждой подборке отдельно."""
     rows = session.exec(
-        select(Feedback).where(Feedback.user_id == CURRENT_USER_ID)
+        select(Feedback).where(Feedback.user_id == user_id)
     ).all()
     return {"feedback": {row.ref: row.verdict for row in rows}}
 
 
 @router.post("/feedback")
-def set_feedback(data: FeedbackIn, session: Session = Depends(get_session)):
+def set_feedback(data: FeedbackIn, session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Поставить/сменить/снять оценку. Повторный тот же вердикт = снять (toggle):
     два состояния кнопки 👍 — включена и выключена. Возвращает актуальный вердикт
     (или null, если сняли)."""
@@ -39,13 +43,13 @@ def set_feedback(data: FeedbackIn, session: Session = Depends(get_session)):
 
     row = session.exec(
         select(Feedback).where(
-            Feedback.user_id == CURRENT_USER_ID, Feedback.ref == data.ref
+            Feedback.user_id == user_id, Feedback.ref == data.ref
         )
     ).first()
 
     if row is None:
         session.add(Feedback(
-            user_id=CURRENT_USER_ID, ref=data.ref,
+            user_id=user_id, ref=data.ref,
             source=data.source, verdict=data.verdict,
         ))
         session.commit()
@@ -64,12 +68,14 @@ def set_feedback(data: FeedbackIn, session: Session = Depends(get_session)):
 
 
 @router.get("/feedback/summary")
-def feedback_summary(session: Session = Depends(get_session)):
+def feedback_summary(session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
     """Acceptance rate по провайдерам: сколько 👍/👎 у Claude и у ChatGPT.
     Считаем только записи с известным source (у атмосферы и рекомендаций он есть)."""
     rows = session.exec(
         select(Feedback).where(
-            Feedback.user_id == CURRENT_USER_ID, Feedback.source.is_not(None)
+            Feedback.user_id == user_id, Feedback.source.is_not(None)
         )
     ).all()
     summary: dict[str, dict[str, int]] = {}

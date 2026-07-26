@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
+import { useAuth } from "../hooks/useAuth";
 import { centeredSvgDataUri } from "../lib/svg";
 import SeriesBookSearch from "../components/SeriesBookSearch";
 import "../styles/series.css";
@@ -25,6 +26,8 @@ function SeriesPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // этап 9: общие данные цикла правит только админ (хвост з.90)
+  const { isAdmin } = useAuth();
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ name: "", author: "", description: "" });
@@ -162,22 +165,25 @@ function SeriesPage() {
             )}
           </div>
 
-          <button
-            className="btn-ghost series-design-btn"
-            onClick={() => makeDesign.mutate()}
-            disabled={makeDesign.isPending}
-            title={
-              series.description
-                ? undefined
-                : "Сначала добавьте описание цикла — символ рисуется по нему"
-            }
-          >
-            {makeDesign.isPending
-              ? "Рисую символ…"
-              : series.design
-                ? "Обновить экслибрис"
-                : "Сгенерировать экслибрис"}
-          </button>
+          {/* этап 9 (хвост з.90): экслибрис цикла — общие данные, только админ */}
+          {isAdmin && (
+            <button
+              className="btn-ghost series-design-btn"
+              onClick={() => makeDesign.mutate()}
+              disabled={makeDesign.isPending}
+              title={
+                series.description
+                  ? undefined
+                  : "Сначала добавьте описание цикла — символ рисуется по нему"
+              }
+            >
+              {makeDesign.isPending
+                ? "Рисую символ…"
+                : series.design
+                  ? "Обновить экслибрис"
+                  : "Сгенерировать экслибрис"}
+            </button>
+          )}
           {makeDesign.isError && (
             <p className="error">Не вышло: {makeDesign.error.message}</p>
           )}
@@ -239,6 +245,7 @@ function SeriesPage() {
                   });
                   setEditing(true);
                 }}
+                hidden={!isAdmin}
               >
                 Редактировать
               </button>

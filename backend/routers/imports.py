@@ -9,7 +9,7 @@ from sqlmodel import Session, col, func, select
 import database
 from constants import ENRICH_PENDING, EVENT_BACKFILL, EVENT_IMPORT, STATUS_READ, STATUS_WANT
 from dates import parse_read_date
-from deps import CURRENT_USER_ID, get_lang, require_admin
+from deps import current_user_id, get_lang, require_admin
 from events import log_event
 from google_books import search_books
 from i18n import msg
@@ -72,7 +72,9 @@ async def _resolve_columns(fieldnames: list[str], rows: list[dict], lang: str) -
 
 
 @router.post("/import")
-async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)):
+async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
+):
     content = await file.read(MAX_IMPORT_BYTES + 1)   # читаем на байт больше лимита
     if len(content) > MAX_IMPORT_BYTES:
         raise HTTPException(status_code=400, detail=msg("import_too_large", lang))
@@ -108,7 +110,7 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
         book_by_key = {(t.strip().lower(), a.strip().lower()): bid for bid, t, a, _ in existing}
         # книги, уже лежащие на полке пользователя — их пропускаем как дубли
         shelf_ids = set(session.exec(
-            select(UserBook.book_id).where(UserBook.user_id == CURRENT_USER_ID)
+            select(UserBook.book_id).where(UserBook.user_id == user_id)
         ).all())
 
         for row in rows:
@@ -150,7 +152,7 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
 
             # кладём на полку пользователя с личными полями из CSV
             session.add(UserBook(
-                user_id=CURRENT_USER_ID, book_id=book_id,
+                user_id=user_id, book_id=book_id,
                 status=status, rating=rating, read_at=read_at,
             ))
             imported += 1
@@ -166,12 +168,14 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
 
 
 @router.post("/books/backfill-covers")
-def backfill_covers(lang: str = Depends(get_lang)):
+def backfill_covers(lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
+):
     """Массовая операция над общим каталогом → только admin (план деплоя п.1.3):
     на проде эндпоинт не должен быть доступен любому тестеру."""
     updated = 0
     with Session(database.engine) as session:
-        require_admin(session, lang)
+        require_admin(session, lang, user_id)
         books = session.exec(
             # задача 52: raw_metadata здесь не нужен — не грузим
             select(Book)
@@ -195,13 +199,14 @@ def backfill_metadata(
     background_tasks: BackgroundTasks,
     limit: int = 40,
     lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
 ):
     """Задача 12: дозаполнение старых книг метаданными — В ФОНЕ.
     Ответ мгновенный; партия помечается pending, фронт поллит счётчик,
     и обложки/жанры «проявляются» по мере обогащения.
     Массовая операция над общим каталогом → только admin (план деплоя п.1.3)."""
     with Session(database.engine) as session:
-        require_admin(session, lang)
+        require_admin(session, lang, user_id)
         # порция книг без метаданных (raw_metadata пуст)
         books = session.exec(
             select(Book).where(col(Book.raw_metadata).is_(None)).limit(limit)
