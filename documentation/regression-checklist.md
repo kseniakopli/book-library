@@ -9,10 +9,27 @@ keys in `backend/.env`. ~15 minutes.
 - [ ] `alembic upgrade head` on a **copy** of `library.db` — no errors, no changes on
       an up-to-date database
 
+## Sign-in (stage 9)
+- [ ] Signed out (private window): any page shows the login screen, no library data
+- [ ] Owner signs in with the `ADMIN_EMAIL` account without an invite code and lands on
+      the existing shelf; the header shows the name and the "админ" badge
+- [ ] Invite flow: `python scripts/make_invite.py "test"` → sign in with a second Google
+      account and that code → empty shelf with onboarding; the code cannot be reused
+      (`--list` shows it as taken)
+- [ ] Non-admin: no "Редактировать" / "Обновить информацию" / "Обновить атмосферу" /
+      track ✕ / series ex-libris buttons; personal actions (status, rating, delete from
+      own shelf, recommendations, stats insights) all work
+- [ ] Shelves are isolated: the tester does not see the owner's books; adding a book that
+      already exists in the catalog brings its atmosphere along (no AI spend)
+- [ ] "Выйти" returns to the login screen; the session does not survive it
+
 ## Library basics
 - [ ] Home page loads; shelves show correct counts
 - [ ] Shelf pagination: arrows page through; position survives opening a book and returning
-- [ ] Library filter narrows by title and author; clearing restores shelves
+- [ ] Shelf lazy loading: paging past the first 30 books fetches more (mobile: swipe to
+      the end of the row); the "1–5 из N" range shows the full shelf size
+- [ ] Library search (3+ chars) finds books on the shelf and in the catalog; adding one
+      with "+ На полку" closes the search and shows the book on "Хочу прочитать"
 - [ ] Book page opens by click; direct URL `/books/N` works; **F5 shows the app, not raw
       API JSON** (Vite proxy bypass for text/html); browser Back works
 

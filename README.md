@@ -98,6 +98,15 @@ copy prompt_config.example.py prompt_config.py   # then edit your prompts
 #   GOOGLE_BOOKS_API_KEY=...
 #   SPOTIFY_CLIENT_ID=... / SPOTIFY_CLIENT_SECRET=...   # optional (playlists)
 #   DATABASE_URL=...          # optional, defaults to sqlite:///library.db
+#   --- sign-in (Google OAuth) ---
+#   GOOGLE_OAUTH_CLIENT_ID=... / GOOGLE_OAUTH_CLIENT_SECRET=...
+#   GOOGLE_OAUTH_REDIRECT=http://localhost:5173/api/v1/auth/google/callback
+#     ^ points at the FRONTEND port on purpose: Vite proxies /api to the backend,
+#       so the whole sign-in happens on one origin and the session cookie sticks.
+#       Register the same URL in Google Cloud Console → Credentials.
+#   SESSION_SECRET=...        # signs session cookies; changing it logs everyone out
+#   ADMIN_EMAIL=...           # this Google account is linked to the admin row
+#   COOKIE_SECURE=1           # production only (HTTPS); breaks cookies over http
 
 alembic upgrade head         # create / migrate the database
 uvicorn main:app --reload    # http://127.0.0.1:8000
@@ -118,10 +127,16 @@ Interactive documentation (the source of truth): **http://127.0.0.1:8000/docs** 
 or `/redoc`; a committed snapshot lives in `documentation/openapi.json`.
 
 All endpoints live under the versioned prefix **`/api/v1`** (except the Spotify
-OAuth `/callback`, which is registered externally):
+OAuth `/callback`, which is registered externally). **Everything except `/auth/*`
+requires a session cookie** — the dependency is attached per router, so a new endpoint
+is authenticated by default:
 
 | Method | Path | Description |
 |--------|------|-------------|
+| GET | `/api/v1/auth/google/login` | Redirect to Google consent (`?invite=` for a first sign-in) |
+| GET | `/api/v1/auth/google/callback` | Return trip: creates/links the user, sets the session cookie |
+| GET | `/api/v1/auth/me` | Current user (`401` when signed out — the SPA shows the login page) |
+| POST | `/api/v1/auth/logout` | Clear the session cookie |
 | GET/POST | `/api/v1/books` | List books (`status`, `limit`/`offset`) / add a book |
 | GET/PATCH/DELETE | `/api/v1/books/{id}` | Read / update status, rating, read date / delete |
 | GET | `/api/v1/books/design-summary` | Symbols + palettes for the symbol shelf view |

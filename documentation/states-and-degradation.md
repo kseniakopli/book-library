@@ -123,6 +123,10 @@ and ratings live in the local database and are always available.
 | **Spotify** | no music generated | the whole playlist block is hidden | Nothing — the button would be useless without music | Generate atmosphere |
 | **Playlist cover** | `requirements-cover.txt` not installed / bad SVG | `build_cover` returns `None`, upload skipped | Spotify shows its default mosaic of track covers | `pip install -r requirements-cover.txt`, then `scripts/reset_playlist.py --cover` |
 | **QR code** | no playlist | `404` | Dashed placeholder frame on the print card | Create the playlist |
+| **Google OAuth** (sign-in) | keys missing on the server | `/auth/status` reports `oauth_configured: false`; the login route redirects back with `?error=oauth_not_configured` | Login page explains that sign-in is not configured instead of showing a dead button | Set `GOOGLE_OAUTH_CLIENT_ID/SECRET` and restart |
+| **Google OAuth** (sign-in) | user cancels, state expired, token exchange fails | callback redirects to `/login?error=…` (`cancelled`, `bad_state`, `google_failed`) | A human-readable line on the login page; the form is ready for another attempt | Sign in again |
+| **Google OAuth** (sign-in) | unknown account, invite missing/wrong/used | `AuthError` → `/login?error=need_invite \| bad_invite \| invite_used`; no user is created | Explanation of which code is required | Ask the owner for a fresh code (`scripts/make_invite.py`) |
+| **Session** | cookie expired (30 days), tampered with, or the user row is gone | `deps.current_user` → `401` on any API call | The SPA shows the login page (a 401 is treated as "signed out", not as an error) | Sign in again |
 | **Database** | unavailable | `GET /health` → 500 | Library fails to load, "Повторить" button | Restore from `backend/backups/` (see `scripts/backup_db.py`) |
 
 ### Notes

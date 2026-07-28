@@ -1,10 +1,11 @@
 # Data model
 
-Schema is owned by Alembic (`backend/alembic/`). Current revision: `0012_series`.
+Schema is owned by Alembic (`backend/alembic/`). Current revision: `0013_auth_google`.
 
 **The core split (revision 0005)** — the former mixed `book` table became three:
 
-- **`user`** — who reads (single user for now, `id=1`, admin).
+- **`user`** — who reads. Since revision 0013 a real account: identified by a Google
+  account (`google_sub` + `email`), no passwords stored. `is_admin` marks the owner.
 - **`book`** — the shared catalog: intrinsic, book-level data, the same for everyone who
   adds the book. AI atmosphere (`aiselection`) and the Spotify playlist live here too —
   generated once per book and reused by every shelf that references it.
@@ -29,10 +30,22 @@ erDiagram
     BOOK ||--o{ AISELECTION : "has (CASCADE on delete)"
     SERIES ||--o{ BOOK : "groups (SET NULL on delete)"
     SERIES ||--o{ USERSERIES : "is tracked as"
+    USER ||--o{ INVITE : "was invited by"
     USER {
         int id PK
         string display_name
         bool is_admin "editing a book & regenerating atmosphere require admin"
+        string email "indexed — from Google, nullable for pre-0013 rows"
+        string google_sub "indexed — stable Google account id; primary lookup key"
+        string avatar_url "picture from the Google profile"
+        datetime created_at
+    }
+    INVITE {
+        int id PK
+        string code "unique — registration is invite-only (rev 0013)"
+        string note "who it was handed to"
+        int used_by_user_id FK "nullable — null means still unused"
+        datetime used_at
         datetime created_at
     }
     BOOK {
@@ -201,6 +214,13 @@ Enforced in code and/or schema:
     dropped, the rest get canonical names. If Spotify is unavailable the selection is
     stored with `aiselection.verified = false` and `scripts/reverify_music.py` re-checks
     it later.
+11. **Registration is invite-only** (revision 0013) — an unknown Google account needs an
+    unused `invite.code`; the code is then bound to the new user and cannot be reused.
+    Exception: an account whose email matches `ADMIN_EMAIL`, or an email already present
+    on a `user` row, is linked to that existing row instead of creating a new one.
+12. **Every request is scoped to the caller** — the user id comes from the signed session
+    cookie (`deps.current_user`), never from the request body or query. All API routers
+    are mounted with that dependency, so a new endpoint is authenticated by default.
 
 ## Status lifecycles
 
