@@ -1,5 +1,6 @@
 # Spotify-плейлисты (этап 10.2). Сеть всегда замокана — токены не тратятся.
 import json
+import time
 
 import pytest
 from sqlmodel import Session
@@ -473,6 +474,44 @@ def test_create_playlist_from_songs_builds_uris_and_reports_missing(monkeypatch)
     assert sent["https://api.spotify.com/v1/playlists/pl1/items"] == {
         "uris": ["spotify:track:a"]
     }
+
+
+def test_parallel_searches_are_capped(monkeypatch):
+    """Задача 82 ч.4: сколько бы потоков ни резолвило треки, одновременно
+    в Spotify уходит не больше MAX_PARALLEL запросов.
+
+    Квота Spotify считается НА ПРИЛОЖЕНИЕ, а `resolve_songs` поднимает 6 потоков
+    на КАЖДЫЙ вызов: две одновременные генерации — уже 12 запросов, десять
+    тестеров — шестьдесят. Так 21.07 приехал бан на 21 час.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    now = 0  # сколько запросов «в полёте» прямо сейчас
+    peak = 0           # максимум за прогон — это и проверяем
+    lock = threading.Lock()
+
+    def fake_get(*a, **kw):
+        nonlocal now, peak
+        with lock:
+            now += 1
+            peak = max(peak, now)
+        time.sleep(0.02)          # держим слот, чтобы потоки успели столкнуться
+        with lock:
+            now -= 1
+        return FakeResponse([])
+
+    monkeypatch.setattr(spotify_service.requests, "get", fake_get)
+    before = spotify_service.calls_made()
+
+    with ThreadPoolExecutor(max_workers=20) as pool:
+        list(pool.map(lambda _: spotify_service._search_request({}, "q"), range(20)))
+
+    assert peak <= spotify_service.MAX_PARALLEL, (
+        f"одновременно ушло {peak} запросов при лимите {spotify_service.MAX_PARALLEL}"
+    )
+    # счётчик считает реальные походы в сеть — по нему потом смотрим нагрузку
+    assert spotify_service.calls_made() - before == 20
 
 
 def test_token_saved_to_configured_path(tmp_path, monkeypatch):

@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import random
+import threading
 import time
 import urllib.parse
 from pathlib import Path
@@ -151,6 +152,43 @@ def _enter_cooldown(seconds: float) -> None:
     )
 
 
+# --- Глобальный ограничитель параллелизма (задача 82, часть 4) ---
+#
+# Проблема: квота Spotify считается НА ПРИЛОЖЕНИЕ, а `resolve_songs` поднимает
+# по 6 потоков НА КАЖДЫЙ вызов. Две одновременные генерации атмосферы — уже 12
+# параллельных запросов, десять тестеров — шестьдесят. Именно так 21.07 приехал
+# бан на 21 час (тогда — от массовой пересборки скриптом).
+#
+# Очередь с персистентностью не нужна: на Fly одна машина и ОДИН воркер uvicorn,
+# то есть все походы в Spotify живут в одном процессе — хватает семафора.
+# ⚠ Появятся несколько воркеров или машин — этого станет мало, тогда понадобится
+# внешний координатор (Redis) или очередь.
+#
+# Число подобрано с запасом вниз: реальные лимиты Spotify не документированы,
+# окно скользящее. Ошибиться в меньшую сторону дёшево (резолв чуть медленнее),
+# в большую — бан на часы. Настраивается через SPOTIFY_MAX_PARALLEL.
+#
+# Ограничиваем ПОИСК: он и есть горячий путь (15 треков на каждую генерацию
+# музыки). Создание плейлиста и загрузка обложки — это 2–3 запроса на действие
+# пользователя, они всплеска не дают, и заворачивать их смысла нет.
+MAX_PARALLEL = int(os.getenv("SPOTIFY_MAX_PARALLEL", "4"))
+_slots = threading.Semaphore(MAX_PARALLEL)
+# счётчик запросов — чтобы потом посмотреть на РЕАЛЬНУЮ нагрузку, а не гадать
+_calls = 0
+_calls_lock = threading.Lock()
+
+
+def calls_made() -> int:
+    """Сколько запросов ушло в Spotify с момента старта процесса."""
+    return _calls
+
+
+def _count_call() -> None:
+    global _calls
+    with _calls_lock:
+        _calls += 1
+
+
 # ============================================================
 # 4. Поиск и резолв с кэшем (TrackCache)
 # ============================================================
@@ -168,12 +206,16 @@ def _search_request(headers: dict, query: str, attempts: int = 3) -> list | None
         return None
     for attempt in range(attempts):
         try:
-            response = requests.get(
-                "https://api.spotify.com/v1/search",
-                headers=headers,
-                params={"q": query, "type": "track", "limit": SEARCH_LIMIT},
-                timeout=TIMEOUT,
-            )
+            # семафор — на сам поход в сеть: сколько бы потоков ни резолвило
+            # треки, одновременно в Spotify уходит не больше MAX_PARALLEL
+            with _slots:
+                _count_call()
+                response = requests.get(
+                    "https://api.spotify.com/v1/search",
+                    headers=headers,
+                    params={"q": query, "type": "track", "limit": SEARCH_LIMIT},
+                    timeout=TIMEOUT,
+                )
         except requests.RequestException as e:
             log.warning("поиск трека: сеть недоступна (%s)", e)
             time.sleep(1 + attempt)
