@@ -154,6 +154,11 @@
             ],
             "title": "External Rating"
           },
+          "featured": {
+            "default": false,
+            "title": "Featured",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -340,6 +345,17 @@
               }
             ],
             "title": "Description"
+          },
+          "featured": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Featured"
           },
           "isbn": {
             "anyOf": [
@@ -1726,6 +1742,97 @@
         "summary": "Import Csv",
         "tags": [
           "import"
+        ]
+      }
+    },
+    "/api/v1/public/{slug}": {
+      "get": {
+        "description": "Витрина: заголовок и отобранные книги с обложкой/символом.",
+        "operationId": "showcase_api_v1_public__slug__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Showcase",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/v1/public/{slug}/books/{book_id}": {
+      "get": {
+        "description": "Страница книги в витрине: описание, оформление и атмосфера.\n\nКнига обязана быть отмеченной (`featured`) именно у владельца витрины —\nиначе по прямой ссылке можно было бы посмотреть любую книгу с его полки.",
+        "operationId": "showcase_book_api_v1_public__slug__books__book_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "slug",
+            "required": true,
+            "schema": {
+              "title": "Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "title": "Book Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Showcase Book",
+        "tags": [
+          "public"
         ]
       }
     },
