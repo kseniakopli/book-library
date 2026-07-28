@@ -8,9 +8,9 @@
 #   5. редиректим на «/» — фронт спрашивает /auth/me и видит вошедшего
 import os
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import RedirectResponse
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from deps import current_user, get_session
 from models import User
@@ -100,6 +100,30 @@ def me(user: User = Depends(current_user)):
         "avatar_url": user.avatar_url,
         "is_admin": user.is_admin,
     }
+
+
+# --- Служебный вход для E2E (R6, 26.07) ---
+# Playwright гоняет НАСТОЯЩИЙ бэкенд, а пройти согласие Google скриптом нельзя.
+# Поэтому вход «за админа» без Google — но маршрут РЕГИСТРИРУЕТСЯ ТОЛЬКО когда
+# явно задана переменная окружения ALLOW_DEV_LOGIN=1. На проде её нет, значит
+# эндпоинта не существует вовсе: он не появится ни в OpenAPI, ни по прямому
+# запросу (404). Включать только локально для прогона e2e.
+if os.getenv("ALLOW_DEV_LOGIN") == "1":
+
+    @router.post("/auth/dev-login", include_in_schema=False)
+    def dev_login(response: Response, session: Session = Depends(get_session)):
+        user = session.exec(select(User).where(User.is_admin == True)).first()  # noqa: E712
+        if user is None:
+            raise HTTPException(status_code=404, detail="Нет пользователя-админа")
+        response.set_cookie(
+            SESSION_COOKIE,
+            create_session_token(user.id),
+            max_age=3600,
+            httponly=True,
+            samesite="lax",
+            path="/",
+        )
+        return {"ok": True, "user_id": user.id}
 
 
 @router.get("/auth/status")

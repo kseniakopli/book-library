@@ -7,6 +7,20 @@
 // (дёшево); поиск по «щщщ…» гарантированно пуст → уходим в ручное добавление.
 import { test, expect } from "@playwright/test";
 
+// Этап 9: сервис закрыт авторизацией, а пройти согласие Google скриптом нельзя.
+// Поэтому перед каждым тестом входим служебным эндпоинтом — он существует,
+// только если бэкенд запущен с ALLOW_DEV_LOGIN=1:
+//   cd backend; $env:ALLOW_DEV_LOGIN="1"; uvicorn main:app
+test.beforeEach(async ({ page }) => {
+  const response = await page.request.post("/api/v1/auth/dev-login");
+  if (!response.ok()) {
+    throw new Error(
+      "Служебный вход недоступен. Запустите бэкенд с ALLOW_DEV_LOGIN=1 — " +
+        "иначе e2e упрутся в страницу входа.",
+    );
+  }
+});
+
 test("добавить → открыть → печатная карточка → удалить", async ({ page }) => {
   const title = `E2E книга ${Date.now()}`; // уникальное имя, чтобы не ловить дубль-409
   const author = "E2E Автор";
@@ -43,4 +57,39 @@ test("добавить → открыть → печатная карточка 
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await page.getByRole("button", { name: "Удалить" }).click();
   await expect(page.getByText(title)).toHaveCount(0);
+});
+
+
+// --- Авторизация (R6, 26.07) ---
+// Оба сценария ниже закрывают класс багов, который прошёл мимо юнит-тестов:
+// бэкенд отвечает верно, а экран не перерисовывается под новое состояние.
+
+test("гость видит вход и не видит библиотеку", async ({ page, context }) => {
+  await context.clearCookies();            // сбрасываем служебный вход
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("link", { name: "Войти через Google" }),
+  ).toBeVisible();
+  // ни полок, ни кнопки добавления
+  await expect(page.getByRole("button", { name: "+ Добавить книгу" })).toHaveCount(0);
+
+  // прямая ссылка на книгу тоже ведёт на вход, а не отдаёт данные
+  await page.goto("/books/1");
+  await expect(
+    page.getByRole("link", { name: "Войти через Google" }),
+  ).toBeVisible();
+});
+
+test("выход возвращает на страницу входа", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "+ Добавить книгу" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Выйти" }).click();
+
+  // баг 26.07: кнопка исчезала, а библиотека оставалась на экране
+  await expect(
+    page.getByRole("link", { name: "Войти через Google" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "+ Добавить книгу" })).toHaveCount(0);
 });
