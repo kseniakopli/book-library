@@ -83,7 +83,7 @@ async def main() -> None:
             replace_selections(bid, "music", cfg, results, verified=True)
             print(f"  ✓ book {bid} · {title}")
         else:
-            print(f"  ⏸ Spotify ушёл в куладаун — останавливаюсь")
+            print("  ⏸ Spotify ушёл в куладаун — останавливаюсь")
             break
     print("Готово.")
 

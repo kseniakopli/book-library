@@ -198,7 +198,7 @@ def test_invalid_status_rejected(client):
 
 def test_series_sorted_by_status(client):
     """Полка: читаю → прочитано → перестала читать."""
-    reading = _create_series(client, name="Б читаю")
+    _create_series(client, name="Б читаю")   # статус по умолчанию — «читаю»
     read = _create_series(client, name="А прочитан")
     dropped = _create_series(client, name="В брошен")
     client.patch(f"/api/v1/series/{read['id']}", json={"status": "read"})

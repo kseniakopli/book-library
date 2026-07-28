@@ -103,7 +103,7 @@ def test_regenerate_does_not_duplicate(client, monkeypatch):
 def test_failed_regeneration_keeps_old(client, monkeypatch):
     """Защита от потери (инцидент 18.07): неудачная перегенерация (AI вернул
     пустой фолбэк) НЕ должна затирать уже сохранённую атмосферу."""
-    from services.ai_schemas import MusicResult, Song
+    from services.ai_schemas import MusicResult
 
     _mock_music(monkeypatch)
     client.post("/api/v1/books/1/atmosphere/music")   # успешно: Song A / Song B
