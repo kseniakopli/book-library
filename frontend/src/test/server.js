@@ -75,6 +75,26 @@ export const handlers = [
       is_admin: true,
     }),
   ),
+  // Задача 30: публичная витрина (гостевые страницы)
+  http.get("/api/v1/public/:slug", ({ params }) =>
+    HttpResponse.json({
+      title: `Библиотека: ${params.slug}`,
+      intro: "Отобранные книги",
+      books: [{ id: 1, title: "Волшебная гора", author: "Томас Манн",
+                cover_url: null, design: null }],
+    }),
+  ),
+  http.get("/api/v1/public/:slug/books/:id", () =>
+    HttpResponse.json({
+      id: 1, title: "Волшебная гора", author: "Томас Манн", cover_url: null,
+      description: "Роман о санатории в Альпах.", published_year: 1924,
+      spotify_playlist_url: null, design: null,
+      atmosphere: { music: { items: [{ title: "Song A", artist: "Artist A" }],
+                             explanation: "Тихо" } },
+      showcase_title: "Библиотека",
+    }),
+  ),
+
   http.get("/api/v1/auth/status", () =>
     HttpResponse.json({ oauth_configured: true }),
   ),

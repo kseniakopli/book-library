@@ -33,6 +33,10 @@ export const logout = () => request("/auth/logout", { method: "POST" });
 export const loginUrl = (invite) =>
   `${API}/auth/google/login?invite=${encodeURIComponent(invite || "")}`;
 
+// Публичная витрина (задача 30) — единственные запросы, работающие без входа
+export const getShowcase = (slug) => request(`/public/${slug}`);
+export const getShowcaseBook = (slug, id) => request(`/public/${slug}/books/${id}`);
+
 export const getBooks = () => request("/books");
 // Задача 70: полка постранично. total приходит заголовком X-Total-Count,
 // поэтому единый request() не подходит — нужен доступ к заголовкам ответа.

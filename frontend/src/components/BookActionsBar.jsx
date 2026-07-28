@@ -13,6 +13,9 @@ function BookActionsBar({
   onEdit,
   onDelete,
   deleting,
+  featured,
+  onToggleFeatured,
+  featuredPending,
 }) {
   const { isAdmin } = useAuth();
   return (
@@ -31,6 +34,20 @@ function BookActionsBar({
             </button>
           </>
         )}
+        {/* задача 30: витрина — личный выбор владельца полки, не admin-действие */}
+        <button
+          className={"btn-ghost" + (featured ? " pill-active" : "")}
+          onClick={onToggleFeatured}
+          disabled={featuredPending}
+          aria-pressed={Boolean(featured)}
+          title={
+            featured
+              ? "Книга показана в публичной витрине — нажмите, чтобы убрать"
+              : "Показать книгу в публичной витрине"
+          }
+        >
+          {featured ? "✓ В витрине" : "В витрину"}
+        </button>
         <Link className="btn-ghost playlist-link" to={`/books/${bookId}/evening`}>
           ☾ Начать вечер
         </Link>

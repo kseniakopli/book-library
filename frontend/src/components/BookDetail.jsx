@@ -89,6 +89,11 @@ function BookDetail({ book, onBack, onDeleted }) {
         onEdit={() => setShowEdit(true)}
         onDelete={removeBook}
         deleting={deleteMutation.isPending}
+        featured={book.featured}
+        onToggleFeatured={() =>
+          patchMutation.mutate({ featured: !book.featured })
+        }
+        featuredPending={patchMutation.isPending}
       />
 
       {errors.length > 0 && <p className="error">{errors.join(" ")}</p>}
