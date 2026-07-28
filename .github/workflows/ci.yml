@@ -73,4 +73,7 @@ jobs:
       - name: Dependency audit (npm audit, task 41)
         # Только прод-зависимости и только high/critical — dev-инструменты
         # (vite, vitest) шумят advisories, не попадающими в собранный бандл.
-        run: npm audit --omit=dev --audit-level=high
+        # npm audit валит сборку на любую advisory в пакете, даже если уязвимая
+        # ФУНКЦИЯ у нас не используется. Свой скрипт умеет то же самое, но с
+        # обоснованными исключениями — frontend/audit-allowlist.json (з.41).
+        run: npm run audit
