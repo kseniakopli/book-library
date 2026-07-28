@@ -39,25 +39,35 @@ function LoginPage() {
 
         {error && <p className="error login-error">{ERRORS[error] || "Не удалось войти."}</p>}
 
-        <label className="login-label" htmlFor="invite">
-          Код приглашения
-          <span className="login-hint"> — только для первого входа</span>
-        </label>
-        <input
-          id="invite"
-          className="login-input"
-          value={invite}
-          onChange={(e) => setInvite(e.target.value)}
-          placeholder="XXXX-XXXX-XXXX"
-          autoComplete="off"
-        />
+        {/* форма, а не просто поле: Enter в коде приглашения = «Войти» */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (oauthReady) window.location.href = api.loginUrl(invite);
+          }}
+        >
+          <label className="login-label" htmlFor="invite">
+            Код приглашения
+            <span className="login-hint"> — только для первого входа</span>
+          </label>
+          <input
+            id="invite"
+            className="login-input"
+            value={invite}
+            onChange={(e) => setInvite(e.target.value)}
+            placeholder="XXXX-XXXX-XXXX"
+            autoComplete="off"
+          />
 
-        {oauthReady ? (
-          // ссылка, а не fetch: браузер должен УЙТИ на страницу согласия Google
-          <a className="add-btn login-btn" href={api.loginUrl(invite)}>
-            Войти через Google
-          </a>
-        ) : (
+          {oauthReady && (
+            // ссылка, а не fetch: браузер должен УЙТИ на страницу согласия Google
+            <a className="add-btn login-btn" href={api.loginUrl(invite)}>
+              Войти через Google
+            </a>
+          )}
+        </form>
+
+        {!oauthReady && (
           <p className="muted">
             Вход через Google не настроен. Задайте ключи GOOGLE_OAUTH_* на сервере.
           </p>

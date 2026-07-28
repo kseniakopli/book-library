@@ -2,6 +2,7 @@
 # Запуск из backend/:
 #   python scripts/make_invite.py "Аня"        — создать код с пометкой
 #   python scripts/make_invite.py --list       — показать выданные и их статус
+import os
 import secrets
 import sys
 
@@ -11,6 +12,10 @@ import _bootstrap  # noqa: F401  (кладёт backend/ в sys.path)
 import database
 from models import Invite, User
 
+# Куда звать приглашённого. Локально это Vite (5173), на проде — сам сервис;
+# переопределяется переменной окружения SITE_URL.
+SITE_URL = os.getenv("SITE_URL", "http://localhost:5173")
+
 
 def create(note: str) -> None:
     # 4 группы по 4 символа: диктовать голосом и вводить руками терпимо
@@ -19,7 +24,7 @@ def create(note: str) -> None:
         session.add(Invite(code=code, note=note))
         session.commit()
     print(f"Код: {code}   (кому: {note or '—'})")
-    print("Ссылка для приглашённого: https://nocturne-library.fly.dev/login")
+    print(f"Ссылка для приглашённого: {SITE_URL}/login")
 
 
 def show() -> None:

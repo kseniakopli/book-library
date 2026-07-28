@@ -16,9 +16,14 @@ from urllib.parse import urlencode
 
 import jwt
 import requests
+from dotenv import load_dotenv
 from sqlmodel import Session, select
 
 from models import Invite, User
+
+# Читаем backend/.env здесь же: модуль импортируется и из скриптов, где
+# services/ai.py (который тоже зовёт load_dotenv) может не подгружаться.
+load_dotenv()
 
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -49,10 +54,16 @@ def oauth_configured() -> bool:
 
 def _redirect_uri() -> str:
     """Должен СОВПАДАТЬ с адресом, зарегистрированным в Google Cloud Console
-    (Authorized redirect URIs), иначе Google вернёт redirect_uri_mismatch."""
+    (Authorized redirect URIs), иначе Google вернёт redirect_uri_mismatch.
+
+    ⚠ Дефолт указывает на ФРОНТ (5173), а не на бэкенд (8000), хотя обрабатывает
+    запрос бэкенд: Vite проксирует /api на него. Причина — кука. Вернись Google
+    на 127.0.0.1:8000, кука сессии осталась бы у хоста 127.0.0.1, а приложение
+    открыто на localhost — для браузера это РАЗНЫЕ хосты, и куку он бы не прислал.
+    Через прокси весь вход происходит на одном origin (localhost:5173)."""
     return os.getenv(
         "GOOGLE_OAUTH_REDIRECT",
-        "http://127.0.0.1:8000/api/v1/auth/google/callback",
+        "http://localhost:5173/api/v1/auth/google/callback",
     )
 
 
