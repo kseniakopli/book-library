@@ -48,6 +48,9 @@ def _design_of(session: Session, book_id: int) -> dict | None:
         "palette_dark": payload.get("palette_dark") or payload.get("palette"),
         "palette_light": payload.get("palette_light"),
         "statement": payload.get("statement"),
+        # base_mood наружу НЕ отдаём: 28.07 попробовали показывать его в карточке
+        # ленты — формулы у разных книг вышли от трёх слов до трёх строк, ровный
+        # ряд рассыпался. Решение Ксении: в ленте только название и автор.
     }
 
 

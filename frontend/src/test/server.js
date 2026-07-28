@@ -80,8 +80,17 @@ export const handlers = [
     HttpResponse.json({
       title: `Библиотека: ${params.slug}`,
       intro: "Отобранные книги",
-      books: [{ id: 1, title: "Волшебная гора", author: "Томас Манн",
-                cover_url: null, design: null }],
+      books: [{
+        id: 1, title: "Волшебная гора", author: "Томас Манн", cover_url: null,
+        // паспорт со светлым символом: на витрине плашка должна уйти в тёмную
+        // палитру, иначе символ не виден (28.07)
+        design: {
+          base_mood: "туманная меланхолия",
+          symbol_svg: '<svg viewBox="0 0 100 100"><path stroke="#e9e1d3" d="M50 20v60"/></svg>',
+          palette_light: { bg: "#f2eade", text: "#2c2621", accent: "#b5652f" },
+          palette_dark: { bg: "#171310", text: "#e9e1d3", accent: "#e08b2d" },
+        },
+      }],
     }),
   ),
   http.get("/api/v1/public/:slug/books/:id", () =>

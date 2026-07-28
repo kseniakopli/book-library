@@ -20,7 +20,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, "../../docs/audit-28.07");
 const BASE = process.env.AUDIT_BASE || "http://localhost:5173";
 const DIRECT_API = process.env.AUDIT_API || "http://127.0.0.1:8000";
-const SLUG = process.env.AUDIT_SLUG || "ksenia";
+const SLUG = process.env.AUDIT_SLUG || "publiclib";
 
 const VIEWPORTS = [
   { name: "390", width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 },

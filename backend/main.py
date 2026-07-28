@@ -199,7 +199,8 @@ def health():
 # Регистрируется ПОСЛЕДНИМ, то есть оборачивает все остальные middleware:
 # заголовки попадают и на 401 (нет пароля), и на 429 (лимит).
 # CSP: свои скрипты/стили + шрифты Google + обложки книг (любой https) + data:
-# для символов-экслибрисов (SVG рендерится через <img data:>).
+# для символов-экслибрисов (SVG рендерится через <img data:>) + formspree
+# в connect-src (лист ожидания на витрине).
 # ⚠ Появится Spotify-embed (з.29б) — добавить frame-src https://open.spotify.com.
 CSP = (
     "default-src 'self'; "
@@ -207,7 +208,10 @@ CSP = (
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
     "font-src 'self' https://fonts.gstatic.com; "
     "img-src 'self' data: https:; "
-    "connect-src 'self'; "
+    # formspree — приёмник листа ожидания на витрине (28.07). Без этого адреса
+    # браузер блокирует отправку МОЛЧА: локально Vite отдаёт страницу без CSP,
+    # поэтому поломка вылезла бы только на проде.
+    "connect-src 'self' https://formspree.io; "
     "frame-ancestors 'none'; "
     "base-uri 'self'"
 )

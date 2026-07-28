@@ -16,19 +16,76 @@
   margin: 0;
   overflow-wrap: break-word; /* длинное слово не вылезает за карточку */
 }
+/* Подпись под заголовком — это единственное объяснение сервиса для гостя,
+   поэтому она длиннее строчки-слогана. Ограничиваем меру набора: строка
+   в 900px читается плохо, комфортный предел — 60–70 знаков (28.07). */
 .showcase-intro {
   color: var(--muted);
-  margin: 8px 0 0;
+  margin: 10px auto 0;
+  max-width: 34em;
+  line-height: 1.6;
 }
 
-/* сетка книг */
-.showcase-grid {
+/* Полка книг (28.07): одна горизонтальная лента вместо сетки.
+   Сетка расползалась по высоте — у книг названия в 1–3 строки, ряды
+   выглядели рваными; лента же держит один ряд и укорачивает страницу,
+   оставляя место блокам «что это» и «оставьте почту». */
+.showcase-shelf {
+  --card-width: 150px;
+  --cover-height: calc(var(--card-width) * 1.5); /* aspect-ratio 2/3 */
+  position: relative;
+}
+.showcase-strip {
   list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 24px;
+  padding: 0 0 4px;
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  /* Полосу прокрутки прячем: аффорданс дают стрелки на десктопе и свайп
+     на таче, а серая линия под книгами спорит с оформлением витрины. */
+  scrollbar-width: none;
+}
+.showcase-strip::-webkit-scrollbar {
+  display: none;
+}
+.showcase-item {
+  flex: 0 0 var(--card-width);
+  min-width: 0; /* без этого длинный автор распирает карточку (грабли 24.07) */
+  scroll-snap-align: start;
+}
+/* Стрелки прижаты к краям ленты и подняты на середину ОБЛОЖКИ, а не всей
+   полки: иначе они висят на уровне подписей и выглядят съехавшими (28.07).
+   Высота обложки известна — карточка фиксированной ширины с aspect-ratio 2/3. */
+.showcase-arrow {
+  position: absolute;
+  top: calc(var(--cover-height) / 2);
+  transform: translateY(-50%);
+  z-index: 1;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  line-height: 1;
+}
+/* Упёрлись в край — стрелку убираем совсем, а не гасим: полупрозрачная
+   кнопка всё равно лежит поверх обложки и мешает её разглядеть. */
+.showcase-arrow:disabled {
+  display: none;
+}
+.showcase-arrow-prev {
+  left: -14px;
+}
+.showcase-arrow-next {
+  right: -14px;
+}
+/* На таче стрелок нет — там свайп; заодно не мешают попадать по карточкам */
+@media (pointer: coarse) {
+  .showcase-arrow {
+    display: none;
+  }
 }
 /* Сетка внутри карточки (аудит 28.07): обложка — заголовок — автор.
    Строка заголовка тянется, поэтому авторы стоят на одной линии во всём ряду,
@@ -56,9 +113,16 @@
 }
 /* символ-экслибрис показываем не «на всю», а по центру на палитре книги */
 .showcase-cover img[aria-hidden="true"] {
-  width: 60%;
-  height: 60%;
+  width: 72%;
+  height: 72%;
   object-fit: contain;
+}
+/* Плашка с символом — это «экслибрис», а не иконка (28.07): рамка и мягкая
+   тень отделяют её от фона страницы, иначе ряд карточек читается как панель
+   кнопок. Рамка полупрозрачная, чтобы не спорить с палитрой книги. */
+.showcase-cover-symbol {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 .showcase-title {
   font-family: var(--serif);
@@ -140,6 +204,89 @@
   text-align: right;
   min-width: 0;
 }
+/* --- Блок «что такое nocturne» и лист ожидания (28.07) --- */
+/* Витрина — вход в сервис для человека с бумажной карточки: сначала книги,
+   потом объяснение, потом способ остаться на связи. */
+.showcase-features {
+  margin-top: 64px;
+  padding-top: 40px;
+  border-top: 1px solid var(--border);
+  text-align: center; /* заголовок раздела по центру страницы */
+}
+/* Сетка 2×2 (28.07). Карточек ровно четыре, поэтому две колонки — единственная
+   раскладка без «сироты» в последнем ряду. `grid-auto-rows: 1fr` уравнивает
+   ряды: иначе верхний тянется до самой длинной карточки, а нижний — до своего
+   текста, и блоки выходят разной высоты. */
+.showcase-feature-grid {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 16px;
+}
+.showcase-feature {
+  min-width: 0;
+  text-align: left; /* сам текст карточки — обычным флагом слева */
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+@media (max-width: 640px) {
+  .showcase-feature-grid {
+    grid-template-columns: 1fr; /* на телефоне — колонкой, высоты по тексту */
+    grid-auto-rows: auto;
+  }
+}
+.showcase-feature-title {
+  font-family: var(--serif);
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+.showcase-feature-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.showcase-waitlist {
+  margin-top: 56px;
+  text-align: center;
+}
+.showcase-waitlist-lead {
+  color: var(--muted);
+  max-width: 34em;
+  margin: 8px auto 0;
+  line-height: 1.6;
+}
+.showcase-waitlist-form {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+.showcase-waitlist-form input {
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 14px;
+  min-width: 260px;
+}
+.showcase-form-ok {
+  margin-top: 12px;
+  color: var(--accent);
+}
+.showcase-waitlist-note {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
 .showcase-foot {
   margin-top: 48px;
   text-align: center;

@@ -22,7 +22,8 @@ import qrcode
 import qrcode.image.svg
 
 # слаг задаётся scripts/set_showcase.py — адрес должен совпадать с ним
-DEFAULT_URL = "https://nocturne-library.fly.dev/u/ksenia"
+# 28.07: ksenia → publiclib (витрина обезличена, отсылок к владельцу нет)
+DEFAULT_URL = "https://nocturne-library.fly.dev/u/publiclib"
 LANDING_URL = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_URL
 OUT = Path(__file__).resolve().parent.parent.parent / "frontend" / "public" / "landing-qr.svg"
 

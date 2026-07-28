@@ -4,40 +4,15 @@
 // Открывается БЕЗ входа, поэтому здесь нет ни useAuth, ни запросов к закрытому
 // API: только /public/{slug}. Гость видит книги и их оформление; оценки, статусы
 // и даты чтения сюда не приходят вовсе (см. routers/public.py).
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
-import { centeredSvgDataUri } from "../lib/svg";
-import { pickPalette } from "../lib/palette";
 import { useTheme } from "../hooks/useTheme";
+import ShowcaseShelf from "../components/ShowcaseShelf";
+import ShowcaseFeatures from "../components/ShowcaseFeatures";
+import ShowcaseWaitlist from "../components/ShowcaseWaitlist";
 import "../styles/showcase.css";
-
-function ShowcaseCard({ slug, book, theme }) {
-  const design = book.design;
-  // палитра по теме — единое правило (lib/palette.js), аудит 28.07
-  const palette = pickPalette(design, theme);
-  const symbol = design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null;
-
-  return (
-    <li className="showcase-item">
-      <Link className="showcase-card" to={`/u/${slug}/books/${book.id}`}>
-        <span
-          className="showcase-cover"
-          style={palette ? { background: palette.bg } : undefined}
-        >
-          {symbol ? (
-            <img src={symbol} alt="" aria-hidden="true" />
-          ) : book.cover_url ? (
-            <img src={book.cover_url} alt="" loading="lazy" />
-          ) : null}
-        </span>
-        <span className="showcase-title">{book.title}</span>
-        <span className="showcase-author">{book.author}</span>
-      </Link>
-    </li>
-  );
-}
 
 function ShowcasePage() {
   const { slug } = useParams();
@@ -61,14 +36,15 @@ function ShowcasePage() {
       {data.books.length === 0 ? (
         <p className="muted">Пока здесь пусто.</p>
       ) : (
-        <ul className="showcase-grid">
-          {data.books.map((book) => (
-            <ShowcaseCard key={book.id} slug={slug} book={book} theme={theme} />
-          ))}
-        </ul>
+        <ShowcaseShelf books={data.books} slug={slug} theme={theme} />
       )}
 
-      {/* витрина — рекламная страница: гость должен понять, что это за сервис */}
+      {/* Витрина — не только полка, но и вход в сервис: человек приходит сюда
+          по QR с бумажной карточки, ничего о nocturne не зная. Дальше — чем
+          это может быть полезно ему самому и как остаться на связи. */}
+      <ShowcaseFeatures />
+      <ShowcaseWaitlist />
+
       <footer className="showcase-foot">
         <p className="muted">
           nocturne — вечер вокруг книги: музыка, угощения и ароматы под её

@@ -1,5 +1,5 @@
 # Настроить публичную витрину (задача 30). Запуск из backend/:
-#   python scripts/set_showcase.py ksenia "Библиотека Ксении" "Вечера с книгами"
+#   python scripts/set_showcase.py publiclib "Библиотека" "Подпись под заголовком"
 #   python scripts/set_showcase.py --off          — убрать витрину
 #   python scripts/set_showcase.py --show         — показать текущие настройки
 #
@@ -56,7 +56,7 @@ def main() -> None:
             slug = args[0].strip().lower()
             if not SLUG_RE.match(slug):
                 raise SystemExit(
-                    "Слаг: латиница, цифры и дефис, 2–31 символ (например ksenia)"
+                    "Слаг: латиница, цифры и дефис, 2–31 символ (например publiclib)"
                 )
             user.public_slug = slug
             if len(args) > 1:

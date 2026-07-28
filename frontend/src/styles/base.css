@@ -38,6 +38,19 @@ body {
   display: none;
 }
 
+/* Подпись для скринридера: не видна глазом, но озвучивается.
+   display:none и visibility:hidden не годятся — их читалка пропускает. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ===== Кнопки ===== */
 .add-btn {
   font-family: inherit;

@@ -93,6 +93,48 @@ def test_custom_title_is_used(client):
     assert _anon(client).get("/api/v1/public/ksenia").json()["title"] == "Полка Ксении"
 
 
+def test_showcase_card_gets_both_palettes(client):
+    """Ленте витрины нужны ОБЕ палитры: фон плашки выбирается по контрасту
+    с чернилами символа, а не по теме интерфейса (28.07, pickPaletteForSymbol).
+    Если наружу уедет одна палитра, светлый символ на светлом фоне пропадёт."""
+    _publish()
+    with Session(database.engine) as session:
+        session.add(AISelection(
+            book_id=1, category="design", source="Claude",
+            payload=json.dumps({
+                "base_mood": "туманная меланхолия",
+                "symbol_svg": "<svg/>",
+                "palette_light": {"bg": "#f2eade"},
+                "palette_dark": {"bg": "#171310"},
+            }),
+            explanation="Символ выбран так",
+        ))
+        session.commit()
+
+    design = _anon(client).get("/api/v1/public/ksenia").json()["books"][0]["design"]
+    assert design["palette_light"] == {"bg": "#f2eade"}
+    assert design["palette_dark"] == {"bg": "#171310"}
+    # настроение решили не показывать — наружу его не отдаём вовсе
+    assert "base_mood" not in design
+
+
+def test_showcase_understands_old_passport(client):
+    """Старый формат паспорта — одно поле `palette` (тёмное). Витрина не должна
+    ни падать, ни отдавать пустую палитру: символ негде будет разместить."""
+    _publish()
+    with Session(database.engine) as session:
+        session.add(AISelection(
+            book_id=1, category="design", source="Claude",
+            payload=json.dumps({"symbol_svg": "<svg/>", "palette": {"bg": "#161311"}}),
+            explanation="",
+        ))
+        session.commit()
+
+    design = _anon(client).get("/api/v1/public/ksenia").json()["books"][0]["design"]
+    assert design["palette_dark"] == {"bg": "#161311"}
+    assert design["palette_light"] is None
+
+
 def test_featured_toggle_is_personal_not_admin(client):
     """Отметка «в витрину» — личное решение владельца полки, не admin-действие."""
     with Session(database.engine) as session:
