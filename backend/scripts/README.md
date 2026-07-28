@@ -35,6 +35,7 @@ python scripts/backup_db.py
 | `backfill_read_dates.py` | Разовый перенос дат прочтения из CSV-выгрузки LiveLib |
 | `find_covers.py` / `apply_covers.py` | Поиск недостающих обложек через Google Books и применение найденного к базе |
 | `fix_openlibrary_covers.py` | Чистка битых обложек с OpenLibrary |
+| `showcase_stats.py` | Заходы на публичную витрину (з.96): сколько раз открывали, какие книги, разбивка по дням. Аргумент — окно в днях (по умолчанию 14). На проде: `fly ssh console -C "sh -c 'cd /app/backend && python scripts/showcase_stats.py'"` |
 
 ## Необязательные зависимости
 

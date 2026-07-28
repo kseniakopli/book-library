@@ -3,9 +3,10 @@
 # и ничего личного.
 import json
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 import database
+from events import Event
 from main import app
 from models import AISelection, User, UserBook
 
@@ -133,6 +134,50 @@ def test_showcase_understands_old_passport(client):
     design = _anon(client).get("/api/v1/public/ksenia").json()["books"][0]["design"]
     assert design["palette_dark"] == {"bg": "#161311"}
     assert design["palette_light"] is None
+
+
+def test_visits_are_logged_without_personal_data(client):
+    """Задача 96: заход на витрину попадает в событийный лог — иначе про
+    единственный канал привлечения (бумажные карточки) не узнать ничего.
+    В событии НЕ должно быть ни IP, ни User-Agent: на вопрос «ходят ли туда»
+    хватает самого факта, а личное о госте мы не собираем."""
+    _publish()
+    _anon(client).get("/api/v1/public/ksenia")
+
+    with Session(database.engine) as session:
+        events = session.exec(
+            select(Event).where(Event.type == "showcase_viewed")
+        ).all()
+
+    assert len(events) == 1
+    assert events[0].detail == {}
+    assert events[0].book_id is None
+
+
+def test_book_view_is_logged_with_book(client):
+    """Открытие книги с витрины пишется отдельным событием и с book_id:
+    это сигнал, что оформление зацепило — человек пошёл смотреть дальше."""
+    _publish()
+    _anon(client).get("/api/v1/public/ksenia/books/1")
+
+    with Session(database.engine) as session:
+        events = session.exec(
+            select(Event).where(Event.type == "showcase_book_viewed")
+        ).all()
+
+    assert [e.book_id for e in events] == [1]
+
+
+def test_missing_showcase_is_not_counted(client):
+    """404 в счётчик не идёт: чужой слаг и опечатки — это не заходы."""
+    _anon(client).get("/api/v1/public/no-such-slug")
+
+    with Session(database.engine) as session:
+        events = session.exec(
+            select(Event).where(col(Event.type).like("showcase%"))
+        ).all()
+
+    assert events == []
 
 
 def test_featured_toggle_is_personal_not_admin(client):

@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException
 from sqlmodel import Session, select
 
 import database
+from constants import EVENT_SHOWCASE_BOOK_VIEWED, EVENT_SHOWCASE_VIEWED
+from events import log_event
 from models import AISelection, Book, User, UserBook
 
 router = APIRouter(tags=["public"])
@@ -76,6 +78,12 @@ def showcase(slug: str):
                 "design": _design_of(session, book.id),
             })
 
+    # Задача 96: витрина — единственный канал привлечения (карточки уезжают
+    # в книгах), и обратной связи от него не было никакой. Пишем факт захода
+    # и больше ничего: ни IP, ни User-Agent, ни отпечатка. На вопрос «ходят ли
+    # туда» этого достаточно, а личных данных гостя мы не собираем вовсе.
+    log_event(EVENT_SHOWCASE_VIEWED)
+
     return {
         "title": user.public_title or f"Библиотека: {user.display_name}",
         "intro": user.public_intro,
@@ -124,7 +132,7 @@ def showcase_book(slug: str, book_id: int):
                 except (TypeError, ValueError):
                     continue
 
-        return {
+        response = {
             "id": book.id,
             "title": book.title,
             "author": book.author,
@@ -136,3 +144,8 @@ def showcase_book(slug: str, book_id: int):
             "atmosphere": atmosphere,
             "showcase_title": user.public_title or f"Библиотека: {user.display_name}",
         }
+
+    # Задача 96: открытие книги с витрины — сигнал, что оформление зацепило:
+    # человек не просто попал на страницу, а пошёл смотреть дальше.
+    log_event(EVENT_SHOWCASE_BOOK_VIEWED, book_id=book.id)
+    return response

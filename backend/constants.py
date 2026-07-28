@@ -42,4 +42,9 @@ EVENT_AI_AROMA = "ai_aroma_generated"
 EVENT_AI_RECOMMENDATIONS = "ai_recommendations_generated"   # этап 8
 EVENT_AI_INSIGHTS = "ai_insights_generated"                 # задача 24/63
 EVENT_PLAYLIST_CREATED = "spotify_playlist_created"
+# Задача 96: заходы на публичную витрину. Пишем ВЫЗОВ API, а не отдачу HTML:
+# страницу-оболочку тянут поисковые роботы и превью мессенджеров, а за данными
+# ходит уже браузер живого человека — дешёвый фильтр от накрутки счётчика.
+EVENT_SHOWCASE_VIEWED = "showcase_viewed"
+EVENT_SHOWCASE_BOOK_VIEWED = "showcase_book_viewed"
 EVENT_BACKFILL = "backfill_scheduled"
