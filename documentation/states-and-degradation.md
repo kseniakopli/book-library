@@ -128,6 +128,9 @@ and ratings live in the local database and are always available.
 | **Google OAuth** (sign-in) | unknown account, invite missing/wrong/used | `AuthError` → `/login?error=need_invite \| bad_invite \| invite_used`; no user is created | Explanation of which code is required | Ask the owner for a fresh code (`scripts/make_invite.py`) |
 | **Session** | cookie expired (30 days), tampered with, or the user row is gone | `deps.current_user` → `401` on any API call | The SPA shows the login page (a 401 is treated as "signed out", not as an error) | Sign in again |
 | **Database** | unavailable | `GET /health` → 500 | Library fails to load, "Повторить" button | Restore from `backend/backups/` (see `scripts/backup_db.py`) |
+| **Spotify embed player** | book has no playlist yet, or the stored URL is malformed | `playlistEmbedId()` returns `null`, the `<iframe>` is not rendered | Track list and the "create playlist" button as before — no empty frame | Create the playlist |
+| **Spotify embed player** | listener is not signed in to Spotify | Spotify's own player plays 30-second previews | A working player with previews; the "Открыть плейлист" link leads to the full version | Sign in to Spotify (Premium plays tracks in full) |
+| **Waitlist form** (showcase) | Formspree unreachable or rejects the request | `fetch` error is caught | "Нет связи… или напишите на почту" plus the contact address — the address is never lost silently | Try again or write directly |
 
 ### Notes
 
@@ -146,5 +149,15 @@ and ratings live in the local database and are always available.
 - **Spotify has a per-app quota**, not just a per-user one. Hammering it (e.g. mass playlist
   rebuilds) earns a 429 with a very long `Retry-After` — we observed ~78 000 s (~21 h). The
   cooldown breaker keeps the server alive during such a ban, but the fix is not to trigger it:
-  never loop mass Spotify operations. This is also why the deploy plan adds a rate limit on
-  playlist-building endpoints before external testers arrive.
+  never loop mass Spotify operations.
+  Two guards stand before the breaker now: the `TrackCache` (every track is resolved once
+  for the whole system) and a **process-wide semaphore** — no more than
+  `SPOTIFY_MAX_PARALLEL` (4) searches run at a time, however many threads or users ask.
+  `spotify.calls_made()` counts the requests actually sent, so the real load can be looked
+  at instead of guessed.
+- **CSP failures are silent.** Third-party embeds are allowed explicitly:
+  `frame-src https://open.spotify.com` (player) and `connect-src https://formspree.io`
+  (waitlist). If one is missing, the browser blocks it without any visible error — and
+  local development cannot catch it, because Vite serves pages without CSP. Hence the test
+  `test_csp_allows_embedded_third_parties` and the production items in the regression
+  checklist.

@@ -205,6 +205,12 @@ Enforced in code and/or schema:
    **reading status** (`userseries.status`) is a personal action available to everyone.
 6. **Events are append-only** — never updated or deleted; `book_id` has no FK so history
    survives book deletion. `detail` is JSON (revision 0007), so it can be queried.
+   Public showcase visits are events too (`showcase_viewed`, `showcase_book_viewed` with
+   `book_id`) and deliberately carry **no** `detail`: a visitor is a stranger, and neither
+   IP nor User-Agent is needed to answer "does anyone come here at all". Read them with
+   `scripts/showcase_stats.py`. Note the honest limit — the owner's own visits are counted
+   too; there is no way to tell them apart, and for the showcase there is no difference
+   between an owner and a guest.
 7. **`cover_url` from clients must be `https://`** (schemas.py); AI palette colors must be
    hex, font names alphanumeric (services/ai.py validators).
 8. **One feedback per (user, target)** — unique `uq_feedback_user_ref`; repeating the same

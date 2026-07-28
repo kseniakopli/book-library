@@ -47,8 +47,15 @@ Landing page & waitlist: **https://nocturne-library.netlify.app**
 - **Printable A6 card** — ex-libris face, evening tracks, QR codes for the Spotify
   playlist and the project site; texts editable right on the preview, printed via the
   browser (double-sided A6).
+- **Public showcase** — an open `/u/{slug}` page with hand-picked books and their
+  atmosphere: this is where the QR on a printed card leads. Nothing personal is exposed —
+  no ratings, statuses or reading dates. A symbol tile is coloured by the palette its own
+  ink is visible on, so a light-inked ex-libris lands on a dark tile instead of vanishing.
+  Visits are counted in the event log (`scripts/showcase_stats.py`).
 - **Spotify integration** — one click builds a playlist from the book's picks (OAuth once,
-  refresh token reused).
+  refresh token reused), plus an embedded player next to the track list. Track resolution
+  is cached system-wide and capped by a process-wide semaphore: the quota is counted per
+  application, so parallel work has to be limited globally rather than per request.
 - **Shelf view toggle** — real covers or ex-libris symbols on the book's own palette.
 - **CSV import** — idempotent (dedup by ISBN and title+author), auto-detected delimiter,
   size/row limits, per-file report. Non-standard column headers are recognized by AI
@@ -97,6 +104,11 @@ copy prompt_config.example.py prompt_config.py   # then edit your prompts
 #   OPENAI_API_KEY=...
 #   GOOGLE_BOOKS_API_KEY=...
 #   SPOTIFY_CLIENT_ID=... / SPOTIFY_CLIENT_SECRET=...   # optional (playlists)
+#   SPOTIFY_TOKEN_FILE=...    # optional; where the refresh token is stored.
+#     ^ in production it MUST point at a volume (/data/spotify_token.json):
+#       next to the code it lives inside the image and is wiped by every deploy.
+#   SPOTIFY_MAX_PARALLEL=4    # optional; concurrent searches. The quota is counted
+#     ^ per application, so this caps every thread and user together.
 #   DATABASE_URL=...          # optional, defaults to sqlite:///library.db
 #   --- sign-in (Google OAuth) ---
 #   GOOGLE_OAUTH_CLIENT_ID=... / GOOGLE_OAUTH_CLIENT_SECRET=...

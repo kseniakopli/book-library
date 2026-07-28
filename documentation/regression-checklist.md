@@ -23,6 +23,22 @@ keys in `backend/.env`. ~15 minutes.
       already exists in the catalog brings its atmosphere along (no AI spend)
 - [ ] "Выйти" returns to the login screen; the session does not survive it
 
+## Public showcase (task 30) — check **in production**, in a private window
+The showcase is what strangers see after scanning a printed card, and two of its
+dependencies fail *silently* in a way local development cannot reveal: CSP only exists
+in production (Vite serves pages without security headers).
+- [ ] `/u/{slug}` opens **without signing in**; no ratings, statuses or reading dates
+      anywhere in the response
+- [ ] Book symbols are visible on every tile — a symbol drawn in light ink must land on
+      a dark tile, not disappear into a light one
+- [ ] Waitlist form: submit an address → "Готово!" and the mail actually arrives.
+      A silent failure here means `connect-src` lost Formspree
+- [ ] Book page in the showcase: the Spotify player renders — an **empty frame** means
+      `frame-src https://open.spotify.com` is missing from CSP
+- [ ] Scan the printed card with a phone: the QR leads to the current showcase URL
+      (regenerate with `python scripts/make_landing_qr.py` after changing the slug)
+- [ ] `python scripts/showcase_stats.py` counts the visits just made
+
 ## Library basics
 - [ ] Home page loads; shelves show correct counts
 - [ ] Shelf pagination: arrows page through; position survives opening a book and returning

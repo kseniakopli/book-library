@@ -52,6 +52,14 @@ flowchart LR
 - **React Query** owns all server state: cache keys are centralized in `src/queryKeys.js`,
   mutations invalidate by key prefix. No manual `fetch`/`useState` for server data.
 - **Schema is owned by Alembic** (`alembic upgrade head`); `create_all` exists only in tests.
+- **Public showcase** (`routers/public.py`) is the only router besides `auth` served
+  without a session: paper cards carry a QR to `/u/{slug}`. Its responses are assembled
+  by hand rather than reused from `BookRead`, so a field added to the shared schema
+  cannot leak ratings, statuses or reading dates to a stranger. Visits are recorded in
+  the event log (`showcase_viewed`, `showcase_book_viewed`) — the printed cards are the
+  only acquisition channel and gave no feedback at all before that. We log the **API
+  call**, not the HTML: crawlers and messenger previews fetch the shell, a real browser
+  fetches the data. Nothing personal is stored — no IP, no User-Agent.
 - **Event log** (`event` table) records every meaningful action. `detail` is stored as
   JSON (not a string), and AI events carry per-call metrics: provider, latency and token
   usage — so "what does a generation cost and which provider is faster" is answerable.
@@ -132,6 +140,11 @@ as a plain diff.
 | One resolve pass feeds both the atmosphere and the playlist | halves Spotify calls; the playlist is ready the moment the atmosphere is | playlists become per-user (stage 9) |
 | Playlist refresh replaces items instead of recreating | the URL is printed as a QR code on cards — it must stay valid | — |
 | Cooldown breaker instead of honouring a long Spotify `Retry-After` | a 429 with a ~21 h wait once froze the single worker; waiting is pointless, so we skip Spotify until the ban lifts and keep serving | — |
+| A process-wide semaphore (4 parallel searches) instead of a job queue | the quota is counted **per application**, and each resolve pass spawns 6 threads — two concurrent generations already make 12 calls. One machine with one uvicorn worker means every call lives in one process, so a semaphore is enough; a persistent queue would be complexity for its own sake | several workers or machines (then an external coordinator is required) |
+| One service Spotify account for the whole service | since Feb 2026 a Development-Mode app allows only 5 authorized users, and extended quota is granted to organizations only — per-user OAuth is simply not available to us | the project becomes an organization |
+| Tile colour for a book symbol chosen by contrast with the **symbol's own ink**, not by the interface theme | the model draws one symbol for two palettes and its colour is not pinned; one book's cross was drawn in exactly the palette's background colour and vanished | symbols are generated per palette |
+| AI accent colour is nudged to AA instead of rejected | the contrast check covered only text/background, while the accent is used both as text and as a button fill; discarding the whole palette over one colour loses the book's look, so lightness is shifted until it passes | — |
+| Waitlist e-mails go to Formspree, not to our own endpoint | storing other people's addresses means a table, exports, deletion on request and responsibility for personal data — for one input field | a mailing list becomes a product feature |
 | Structured JSON logs + request id (`X-Request-ID`) | needed before publishing: filterable logs, one id ties a complaint to log lines | log shipping is set up |
 | In-memory rate limiter instead of slowapi/Redis | one instance in production; a plain counter is enough and adds no dependency | scaling beyond one instance |
 | ~~Basic Auth (shared password) for the test deploy~~ — replaced by Google sign-in on 2026-07-26 | it closed the service and the AI budget until real auth landed; the middleware stays in the code, the env vars are unset | — |
