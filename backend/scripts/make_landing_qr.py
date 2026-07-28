@@ -1,20 +1,29 @@
-"""Разовый скрипт: генерирует статичный QR со ссылкой на лендинг.
+"""Разовый скрипт: генерирует статичный QR для подвала печатной карточки.
 
 Результат — frontend/public/landing-qr.svg (вектор, идеально резкий на печати).
 Используется в подвале оборота печатной карточки (CardPage).
 
-Запуск из папки backend/:
-    python make_landing_qr.py
+⚠ 26.07: QR ведёт на ПУБЛИЧНУЮ ВИТРИНУ (задача 30), а не на лендинг.
+Решение Ксении: сервис работает, и звать человека с бумажной карточки на
+страницу «оставьте почту» бессмысленно — пусть сразу видит отобранные книги
+с их атмосферой. Лендинг остаётся отдельно, для листа ожидания.
 
-Перегенерировать нужно только если сменится адрес лендинга (свой домен).
+Запуск из папки backend/:
+    python scripts/make_landing_qr.py
+    python scripts/make_landing_qr.py https://другой-адрес/   — свой URL
+
+Перегенерировать нужно, если сменится слаг витрины или домен.
 """
 
+import sys
 from pathlib import Path
 
 import qrcode
 import qrcode.image.svg
 
-LANDING_URL = "https://nocturne-library.netlify.app/"
+# слаг задаётся scripts/set_showcase.py — адрес должен совпадать с ним
+DEFAULT_URL = "https://nocturne-library.fly.dev/u/ksenia"
+LANDING_URL = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_URL
 OUT = Path(__file__).resolve().parent.parent.parent / "frontend" / "public" / "landing-qr.svg"
 
 qr = qrcode.QRCode(
@@ -28,3 +37,4 @@ img = qr.make_image(image_factory=qrcode.image.svg.SvgPathFillImage)
 img.save(str(OUT))
 print(f"QR для {LANDING_URL}")
 print(f"Записан: {OUT} ({qr.modules_count}×{qr.modules_count} модулей)")
+print("⚠ Проверьте телефоном перед печатью тиража.")

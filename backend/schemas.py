@@ -41,6 +41,8 @@ class BookUpdate(BaseModel):
     isbn: Optional[str] = None
     cover_url: Optional[str] = None
     description: Optional[str] = None
+    # Задача 30: показывать книгу в публичной витрине (личная отметка полки)
+    featured: Optional[bool] = None
 
     # та же политика безопасности, что при создании: в <img src> — только https
     @field_validator("cover_url")
@@ -87,6 +89,7 @@ class BookRead(BaseModel):
     series_id: Optional[int] = None
     series_index: Optional[int] = None
     series_name: Optional[str] = None
+    featured: bool = False               # задача 30: книга в публичной витрине
 
     @classmethod
     def from_pair(cls, book, user_book, series_name: Optional[str] = None) -> "BookRead":
@@ -101,6 +104,7 @@ class BookRead(BaseModel):
             description=book.description,
             status=user_book.status,
             rating=user_book.rating,
+            featured=user_book.featured,
             created_at=user_book.created_at,      # когда книга легла на полку
             page_count=book.page_count,
             categories=book.categories,

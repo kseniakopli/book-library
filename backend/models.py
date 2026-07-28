@@ -17,6 +17,12 @@ class User(SQLModel, table=True):
     email: Optional[str] = Field(default=None, index=True)
     google_sub: Optional[str] = Field(default=None, index=True)
     avatar_url: Optional[str] = None
+    # --- Публичная витрина (задача 30) ---
+    # Адрес вида /u/{public_slug}. Пусто — витрины нет и страница отдаёт 404:
+    # публикация всегда явное действие, случайно библиотека не откроется.
+    public_slug: Optional[str] = Field(default=None, index=True)
+    public_title: Optional[str] = None      # заголовок витрины («Библиотека Ксении»)
+    public_intro: Optional[str] = None      # 1–2 предложения под заголовком
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -80,6 +86,10 @@ class UserBook(SQLModel, table=True):
     status: str = "want"                   # want / reading / read
     rating: Optional[int] = None           # 1..10, только для прочитанных
     read_at: Optional[datetime] = None     # дата прочтения (фундамент статистики)
+    # Задача 30: показывать эту книгу в публичной витрине. Витрина — не «вся
+    # полка», а отобранные книги с готовой атмосферой: это рекламная страница,
+    # на неё ведут QR печатных карточек.
+    featured: bool = False
     created_at: datetime = Field(default_factory=datetime.now)  # когда добавлена на полку
     updated_at: datetime = Field(default_factory=datetime.now)  # задача 1
 

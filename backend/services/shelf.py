@@ -131,7 +131,13 @@ def apply_book_fields(
 
 
 def apply_shelf_fields(user_book: UserBook, data, lang: str) -> None:
-    """Правка ЛИЧНЫХ полей полки: статус, оценка, дата прочтения — и инварианты."""
+    """Правка ЛИЧНЫХ полей полки: статус, оценка, дата прочтения, витрина —
+    и инварианты."""
+    # задача 30: отметка «в витрину» — личное решение владельца полки,
+    # к общим данным книги отношения не имеет, поэтому здесь и без admin
+    if getattr(data, "featured", None) is not None:
+        user_book.featured = data.featured
+
     if data.status is not None:
         if data.status not in ALLOWED_STATUSES:
             raise HTTPException(status_code=400, detail=msg("bad_status", lang))

@@ -1,0 +1,106 @@
+# Публичная витрина (задача 30). Главное, что здесь проверяется, —
+# ГРАНИЦА: витрина открыта без входа, но отдаёт только отмеченные книги
+# и ничего личного.
+import json
+
+from sqlmodel import Session, select
+
+import database
+from main import app
+from models import AISelection, User, UserBook
+
+
+def _publish(slug="ksenia", featured=True, title=None):
+    """Завести витрину владельцу и отметить фикстурную книгу."""
+    with Session(database.engine) as session:
+        user = session.get(User, 1)
+        user.public_slug = slug
+        user.public_title = title
+        session.add(user)
+        ub = session.exec(select(UserBook).where(UserBook.book_id == 1)).one()
+        ub.featured = featured
+        ub.rating = 9
+        ub.status = "read"
+        session.add(ub)
+        session.commit()
+
+
+def _anon(client):
+    """Гость: снимаем подмену входа из conftest."""
+    app.dependency_overrides.clear()
+    return client
+
+
+def test_showcase_is_open_without_login(client):
+    _publish()
+    r = _anon(client).get("/api/v1/public/ksenia")
+    assert r.status_code == 200
+    assert [b["title"] for b in r.json()["books"]] == ["Test"]
+
+
+def test_showcase_hides_personal_data(client):
+    """Оценка, статус и дата прочтения наружу не уходят — витрина про книги."""
+    _publish()
+    body = _anon(client).get("/api/v1/public/ksenia").text
+    assert "rating" not in body
+    assert "read_at" not in body
+    assert "status" not in body
+
+
+def test_only_featured_books_are_shown(client):
+    _publish(featured=False)
+    r = _anon(client).get("/api/v1/public/ksenia")
+    assert r.json()["books"] == []
+    # и по прямой ссылке такую книгу не открыть
+    assert _anon(client).get("/api/v1/public/ksenia/books/1").status_code == 404
+
+
+def test_no_slug_no_showcase(client):
+    """Публикация — явное действие: без слага витрины не существует."""
+    assert _anon(client).get("/api/v1/public/ksenia").status_code == 404
+
+
+def test_book_page_returns_atmosphere(client):
+    """Гость видит оформление и подборки — ради этого витрина и делалась."""
+    _publish()
+    with Session(database.engine) as session:
+        session.add(AISelection(
+            book_id=1, category="music", source="Claude",
+            payload=json.dumps([{"title": "Song A", "artist": "Artist A"}]),
+            explanation="Почему эта музыка",
+        ))
+        session.add(AISelection(
+            book_id=1, category="design", source="Claude",
+            payload=json.dumps({
+                "symbol_svg": "<svg/>",
+                "palette_dark": {"bg": "#161311"},
+                "statement": "Символ выбран так",
+            }),
+            explanation="Символ выбран так",
+        ))
+        session.commit()
+
+    r = _anon(client).get("/api/v1/public/ksenia/books/1")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["design"]["symbol_svg"] == "<svg/>"
+    assert body["atmosphere"]["music"]["items"][0]["title"] == "Song A"
+    assert "rating" not in r.text
+
+
+def test_custom_title_is_used(client):
+    _publish(title="Полка Ксении")
+    assert _anon(client).get("/api/v1/public/ksenia").json()["title"] == "Полка Ксении"
+
+
+def test_featured_toggle_is_personal_not_admin(client):
+    """Отметка «в витрину» — личное решение владельца полки, не admin-действие."""
+    with Session(database.engine) as session:
+        user = session.get(User, 1)
+        user.is_admin = False
+        session.add(user)
+        session.commit()
+
+    r = client.patch("/api/v1/books/1", json={"featured": True})
+    assert r.status_code == 200
+    assert r.json()["featured"] is True
