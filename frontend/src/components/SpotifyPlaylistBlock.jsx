@@ -28,6 +28,10 @@ function SpotifyPlaylistBlock({ book, hasMusic }) {
 
   return (
     <>
+      {/* Сам плеер (з.29б) живёт во вкладке «Музыка» — в широкой правой колонке,
+          рядом с треками. Здесь остаётся ссылка: в embed без входа в Spotify
+          играют только 30-секундные отрывки, и человеку нужен путь к полной
+          версии. */}
       <div className="playlist-row">
         {book.spotify_playlist_url ? (
           <a

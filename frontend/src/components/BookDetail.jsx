@@ -175,7 +175,9 @@ function BookDetail({ book, onBack, onDeleted }) {
           )}
         </div>
 
-        <AtmosphereSection bookId={book.id} />
+        {/* плейлист приезжает сюда ссылкой: компактный плеер живёт во вкладке
+            «Музыка», рядом с треками, которые он и играет (з.29б) */}
+        <AtmosphereSection bookId={book.id} playlistUrl={book.spotify_playlist_url} />
       </div>
 
       {showEdit && (

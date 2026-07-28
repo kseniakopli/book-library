@@ -48,6 +48,21 @@ def test_security_headers_present(client):
     assert r.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
 
 
+def test_csp_allows_embedded_third_parties(client):
+    """CSP должна пропускать ровно то, что мы встроили, и не больше.
+
+    Оба разрешения появились из-за реальных фич, и оба ломаются МОЛЧА: локально
+    Vite отдаёт страницу без CSP, поэтому промах виден только на проде —
+    пустая рамка вместо плеера и неотправляемая форма без единой ошибки.
+    """
+    csp = client.get("/api/v1/books").headers["Content-Security-Policy"]
+
+    assert "frame-src https://open.spotify.com" in csp   # з.29б, плеер плейлиста
+    assert "https://formspree.io" in csp                 # з.30, лист ожидания
+    # чужие фреймы по-прежнему запрещены
+    assert "frame-ancestors 'none'" in csp
+
+
 def test_security_headers_on_errors(client):
     """Заголовки должны быть и на ошибочных ответах (middleware — самый внешний)."""
     r = client.get("/api/v1/books/999")

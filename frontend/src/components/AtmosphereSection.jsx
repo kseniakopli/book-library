@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useAuth } from "../hooks/useAuth";
+import { playlistEmbedId } from "../lib/spotify";
 import { SkeletonRows } from "./Skeleton";
 import FeedbackButtons from "./FeedbackButtons";
 
@@ -55,7 +56,7 @@ function renderPayload(category, payload, onRemoveTrack) {
   );
 }
 
-function AtmosphereSection({ bookId }) {
+function AtmosphereSection({ bookId, playlistUrl }) {
   const queryClient = useQueryClient();
   // Этап 9: атмосфера общая для книги — генерация и удаление трека у админа
   // (бэкенд это и так проверяет; здесь просто не показываем чужие кнопки)
@@ -106,6 +107,7 @@ function AtmosphereSection({ bookId }) {
     },
   });
 
+  const embedId = playlistEmbedId(playlistUrl);
   const current = byCategory[activeCategory];
   const selections = current.data?.selections ?? [];
   const active = selections.find((s) => s.source === activeSource);
@@ -230,6 +232,20 @@ function AtmosphereSection({ bookId }) {
                 <p className="error">
                   Не удалось удалить трек: {removeTrack.error.message}
                 </p>
+              )}
+              {/* Задача 29б: компактный плеер — над списком треков, которые он
+                  и играет. Полный вариант (352px) в узкой колонке разъезжался,
+                  компактный — одна строка управления, список остаётся наш.
+                  loading="lazy": плеер тянет свой скрипт и обложки, незачем
+                  грузить их тем, кто открыл «Угощения». */}
+              {activeCategory === "music" && embedId && (
+                <iframe
+                  className="playlist-embed"
+                  title="Плейлист книги в Spotify"
+                  src={`https://open.spotify.com/embed/playlist/${embedId}`}
+                  loading="lazy"
+                  allow="clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                />
               )}
               {renderPayload(
                 activeCategory,

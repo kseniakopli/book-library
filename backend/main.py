@@ -199,9 +199,9 @@ def health():
 # Регистрируется ПОСЛЕДНИМ, то есть оборачивает все остальные middleware:
 # заголовки попадают и на 401 (нет пароля), и на 429 (лимит).
 # CSP: свои скрипты/стили + шрифты Google + обложки книг (любой https) + data:
-# для символов-экслибрисов (SVG рендерится через <img data:>) + formspree
-# в connect-src (лист ожидания на витрине).
-# ⚠ Появится Spotify-embed (з.29б) — добавить frame-src https://open.spotify.com.
+# для символов-экслибрисов (SVG рендерится через <img data:>), formspree
+# в connect-src (лист ожидания на витрине) и open.spotify.com в frame-src
+# (embed-плеер плейлиста, з.29б).
 CSP = (
     "default-src 'self'; "
     "script-src 'self'; "
@@ -212,6 +212,9 @@ CSP = (
     # браузер блокирует отправку МОЛЧА: локально Vite отдаёт страницу без CSP,
     # поэтому поломка вылезла бы только на проде.
     "connect-src 'self' https://formspree.io; "
+    # задача 29б: embed-плеер плейлиста на странице книги — официальный iframe
+    # Spotify. Без этой строки браузер показывает пустую рамку, причём МОЛЧА.
+    "frame-src https://open.spotify.com; "
     "frame-ancestors 'none'; "
     "base-uri 'self'"
 )
