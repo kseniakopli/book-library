@@ -3,13 +3,8 @@
 // Google Books, и только при пустой выдаче — «создать вручную».
 // Отличие от SearchModal: выбранная книга НЕ попадает на полку, а привязывается
 // к циклу; если её нет в каталоге — заводится там (без UserBook).
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import * as api from "../api";
-import { keys } from "../queryKeys";
-
-const MIN_CHARS = 3;
-const DEBOUNCE_MS = 350;
+import { useState } from "react";
+import { useBookSearch } from "../hooks/useBookSearch";
 
 const SOURCE_LABEL = {
   library: "в библиотеке",
@@ -19,25 +14,12 @@ const SOURCE_LABEL = {
 
 function SeriesBookSearch({ onPick, busy }) {
   const [term, setTerm] = useState("");
-  const [debounced, setDebounced] = useState("");
   const [index, setIndex] = useState("");
   const [manual, setManual] = useState(false);
   const [manualAuthor, setManualAuthor] = useState("");
 
-  // дебаунс: не дёргаем поиск на каждую букву (бережём Google API)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(term.trim()), DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [term]);
-
-  const { data, isFetching } = useQuery({
-    queryKey: keys.search(debounced),
-    queryFn: () => api.searchBooks(debounced),
-    enabled: debounced.length >= MIN_CHARS,
-  });
-  const results = data?.results ?? [];
-  const nothingFound =
-    debounced.length >= MIN_CHARS && !isFetching && results.length === 0;
+  // поиск (debounce + запрос) — общий хук useBookSearch (R1)
+  const { results, searching: isFetching, nothingFound } = useBookSearch(term);
 
   const numberField = (
     <input

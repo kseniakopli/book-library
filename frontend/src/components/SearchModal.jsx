@@ -1,12 +1,13 @@
 // Модалка «Найти книгу»: поиск во внешнем каталоге с debounce + добавление.
 // Задача 18: после выбора кандидата — шаг с выбором статуса, а для
 // «Прочитана» — дата прочтения с чекбоксом «Не помню».
-import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { STATUS_LABELS, STATUSES } from "../constants";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useBookSearch } from "../hooks/useBookSearch";
 
 function SearchModal({ onClose }) {
   const queryClient = useQueryClient();
@@ -21,24 +22,12 @@ function SearchModal({ onClose }) {
 
   useFocusTrap(modalRef, onClose);
 
-  // Поиск: debounce 300 мс, затем useQuery — повтор того же запроса берётся из кэша
-  const [debouncedTerm, setDebouncedTerm] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedTerm(query.trim()), 300);
-    return () => clearTimeout(t);
-  }, [query]);
-
+  // Поиск (debounce + запрос + разбор) — общий хук useBookSearch (R1)
   const {
-    data: searchData,
-    isFetching: searching,
+    results: searchResults,
+    searching,
     isError: searchError,
-  } = useQuery({
-    queryKey: keys.search(debouncedTerm),
-    queryFn: () => api.searchBooks(debouncedTerm),
-    enabled: debouncedTerm.length >= 3, // не дёргать бэкенд, пока меньше 3 символов
-  });
-  const searchResults =
-    debouncedTerm.length >= 3 ? (searchData?.results ?? []) : [];
+  } = useBookSearch(query);
 
   const addBookMutation = useMutation({
     mutationFn: api.createBook,
@@ -81,7 +70,7 @@ function SearchModal({ onClose }) {
     });
   }
 
-  const term = query.trim();
+  const term = query.trim();   // «сырая» строка — для подсказки «введите 3 символа»
 
   return (
     <div className="modal-overlay">

@@ -11,6 +11,7 @@ import { useTheme } from "../hooks/useTheme";
 import { useDisplayMode } from "../hooks/useDisplayMode";
 import { useStickyHeader } from "../hooks/useStickyHeader";
 import { useShelfPages } from "../hooks/useShelfPages";
+import { useBookSearch } from "../hooks/useBookSearch";
 import { useCsvImport } from "../hooks/useCsvImport";
 import { useShelfPositions } from "../hooks/useShelfPositions";
 import BookCard from "../components/BookCard";
@@ -100,31 +101,21 @@ function HomePage() {
   // Задача 70: поиск целиком СЕРВЕРНЫЙ (/search ищет по каталогу и помечает
   // полочные книги). Клиентский фильтр убран: фронт видит не всю библиотеку,
   // и фильтр по загруженному молча терял бы книги с неподгруженных страниц.
-  const trimmed = filter.trim().toLowerCase();
-  const searching = trimmed.length >= 3;
-  const catalogSearch = useQuery({
-    queryKey: keys.search(trimmed),
-    queryFn: () => api.searchBooks(trimmed),
-    enabled: searching,
-  });
-  const searchResults = catalogSearch.data?.results ?? [];
-  // совпадения на полке — рисуем карточками книг (форма BookCard)
-  const shelfHits = searchResults
-    .filter((r) => r.on_shelf)
-    .map((r) => ({
-      id: r.book_id,
-      title: r.title,
-      author: r.author,
-      cover_url: r.cover_url,
-      status: r.status,
-      rating: r.rating,
-    }));
-  const offShelf = searchResults.filter((r) => !r.on_shelf);
-  // «база» — только реальные записи Book (source library). catalog — это кэш
-  // прошлых поисков в Google (таблица Catalog), то есть тоже Google Books,
-  // а не наши данные; относим его к Google-группе.
-  const inBaseHits = offShelf.filter((r) => r.source === "library");
-  const googleHits = offShelf.filter((r) => r.source !== "library");
+  // R1: debounce, запрос и разбор на группы — в общем хуке useBookSearch.
+  const trimmed = filter.trim();
+  const search = useBookSearch(filter);
+  const searching = search.enabled;
+  // совпадения на полке рисуем карточками книг — приводим к форме BookCard
+  const shelfHits = search.onShelf.map((r) => ({
+    id: r.book_id,
+    title: r.title,
+    author: r.author,
+    cover_url: r.cover_url,
+    status: r.status,
+    rating: r.rating,
+  }));
+  const inBaseHits = search.inCatalog;
+  const googleHits = search.fromGoogle;
 
   const addToShelf = useMutation({
     mutationFn: (item) =>
@@ -232,12 +223,10 @@ function HomePage() {
               ),
           )}
 
-          {catalogSearch.isFetching && searchResults.length === 0 && (
+          {search.searching && search.results.length === 0 && (
             <p className="muted">Ищу в каталоге…</p>
           )}
-          {searchResults.length === 0 && !catalogSearch.isFetching && (
-            <p className="muted">Ничего не найдено.</p>
-          )}
+          {search.nothingFound && <p className="muted">Ничего не найдено.</p>}
           {addToShelf.isError && (
             <p className="error">
               Не удалось добавить: {addToShelf.error.message}
