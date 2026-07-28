@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from dotenv import load_dotenv
 import json
@@ -47,6 +48,24 @@ def _author_matches(author: str, candidate: dict) -> bool:
     found = " ".join(candidate.get("authors", [])).lower()
     return any(tok in found for tok in tokens)
 
+def clean_description(text: str | None) -> str | None:
+    """Аннотации Google Books приходят с артефактами вёрстки: двойной дефис
+    вместо тире («дом»--история»), <br> и прочие теги, склеенные пробелы.
+    Раньше это было видно только владельцу, а с задачи 30 описание читает
+    гость с бумажной карточки — чистим на входе (аудит 28.07, находка 9)."""
+    if not text:
+        return text
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)   # переносы до снятия тегов
+    text = re.sub(r"<[^>]+>", "", text)                    # остальная разметка
+    text = text.replace("&nbsp;", " ").replace("&amp;", "&")
+    text = text.replace("&quot;", '"').replace("&#39;", "'")
+    # двойной дефис между словами → тире; «--» в начале строки не трогаем
+    text = re.sub(r"(?<=\S)\s*--\s*(?=\S)", " — ", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
 def _parse_volume_info(info: dict) -> dict:
     """volumeInfo Google Books → наш плоский словарь с метаданными."""
     result = {
@@ -54,7 +73,7 @@ def _parse_volume_info(info: dict) -> dict:
         "categories": None, "published_year": None, "language": None,
         "external_rating": None, "raw_metadata": None,
     }
-    result["description"] = info.get("description")
+    result["description"] = clean_description(info.get("description"))
     image_links = info.get("imageLinks", {})
     cover = image_links.get("thumbnail") or image_links.get("smallThumbnail")
     if cover:
@@ -108,8 +127,11 @@ def fetch_book_info(title: str, author: str, lang: str = "ru", isbn: str = None)
                     info = candidate
                     break
 
-            if info is not None:
-                result = _parse_volume_info(info)
+        # Разбор — ОБЩИЙ для обеих веток. Раньше он был вложен в `if info is
+        # None`, поэтому книга, найденная по ISBN, возвращала пустой результат:
+        # ветка 1 отрабатывала, а метаданные из неё никто не читал (28.07).
+        if info is not None:
+            result = _parse_volume_info(info)
     except requests.RequestException:
         pass
     return result

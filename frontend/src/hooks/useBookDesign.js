@@ -8,7 +8,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useImageFallback } from "./useImageFallback";
-import { bestTextOn, hasReadableContrast, withAlpha } from "../lib/contrast";
+import {
+  bestTextOn,
+  ensureContrast,
+  hasReadableContrast,
+  withAlpha,
+} from "../lib/contrast";
 import { pickPalette } from "../lib/palette";
 import { centeredSvgDataUri } from "../lib/svg";
 
@@ -75,12 +80,19 @@ export function useBookDesign(bookId, theme) {
 
   // Паспорт → CSS-переменные (наследуются всеми детьми карточки).
   // Статические отступы — в классе .detail-themed (styles/detail.css)
+  // Аудит 28.07 (находка 7): accent модель придумывает свободно, а он идёт и в
+  // текст (statement), и в фон под белыми буквами. Проверка выше смотрит только
+  // пару текст/фон, поэтому accent дотягиваем до нормы AA отдельно.
+  const accent = appliedDesign
+    ? ensureContrast(palette.accent, palette.bg)
+    : null;
+
   const themedStyle = appliedDesign
     ? {
         "--surface": palette.surface,
-        "--accent": palette.accent,
+        "--accent": accent,
         // задача 49: текст на accent — по контрасту (тема сюда не дотягивается)
-        "--on-accent": bestTextOn(palette.accent),
+        "--on-accent": bestTextOn(accent),
         "--text": palette.text,
         "--muted": palette.muted,
         // задача 49: границы — полупрозрачный muted, чтобы не сливались с текстом

@@ -14,6 +14,7 @@
   font-family: var(--serif);
   font-size: 34px;
   margin: 0;
+  overflow-wrap: break-word; /* длинное слово не вылезает за карточку */
 }
 .showcase-intro {
   color: var(--muted);
@@ -29,9 +30,12 @@
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 24px;
 }
+/* Сетка внутри карточки (аудит 28.07): обложка — заголовок — автор.
+   Строка заголовка тянется, поэтому авторы стоят на одной линии во всём ряду,
+   сколько бы строк ни занял заголовок. */
 .showcase-card {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   text-decoration: none;
   color: inherit;
 }
@@ -129,6 +133,7 @@
 }
 .showcase-item-title {
   font-weight: 500;
+  min-width: 0; /* длинное название трека не распирает строку (грабли 24.07) */
 }
 .showcase-item-note {
   color: var(--showcase-muted, var(--muted));
@@ -142,6 +147,18 @@
 @media (max-width: 640px) {
   .showcase-book {
     padding: 16px;
+  }
+  /* Аудит 28.07: 34px заголовок при колонке ~228px (символ 72px + отступы)
+     не помещался — «Голландский» упирался в край экрана */
+  .showcase-heading {
+    font-size: 26px;
+  }
+  .showcase-book-head {
+    gap: 12px;
+  }
+  .showcase-symbol {
+    width: 56px;
+    height: 56px;
   }
   .showcase-list li {
     flex-direction: column;

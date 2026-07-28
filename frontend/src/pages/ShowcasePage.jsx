@@ -9,11 +9,14 @@ import { useQuery } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { centeredSvgDataUri } from "../lib/svg";
+import { pickPalette } from "../lib/palette";
+import { useTheme } from "../hooks/useTheme";
 import "../styles/showcase.css";
 
-function ShowcaseCard({ slug, book }) {
+function ShowcaseCard({ slug, book, theme }) {
   const design = book.design;
-  const palette = design?.palette_light || design?.palette_dark;
+  // палитра по теме — единое правило (lib/palette.js), аудит 28.07
+  const palette = pickPalette(design, theme);
   const symbol = design?.symbol_svg ? centeredSvgDataUri(design.symbol_svg) : null;
 
   return (
@@ -38,6 +41,7 @@ function ShowcaseCard({ slug, book }) {
 
 function ShowcasePage() {
   const { slug } = useParams();
+  const { theme } = useTheme();
   const { data, isLoading, isError } = useQuery({
     queryKey: keys.showcase(slug),
     queryFn: () => api.getShowcase(slug),
@@ -59,7 +63,7 @@ function ShowcasePage() {
       ) : (
         <ul className="showcase-grid">
           {data.books.map((book) => (
-            <ShowcaseCard key={book.id} slug={slug} book={book} />
+            <ShowcaseCard key={book.id} slug={slug} book={book} theme={theme} />
           ))}
         </ul>
       )}

@@ -201,6 +201,17 @@
   flex: 1;
   margin: 0;
 }
+/* Аудит 28.07: на телефоне кнопки 👍/👎 (flex: none) забирали ~100px по всей
+   высоте абзаца — пояснение шло колонкой в 3–4 слова. Кладём оценку под текст. */
+@media (max-width: 640px) {
+  .atmosphere-explanation-row {
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .atmosphere-explanation-row .atmosphere-explanation {
+    width: 100%;
+  }
+}
 
 /* кнопки 👍/👎 (задача 26) — общий стиль для атмосферы и рекомендаций */
 .feedback {
@@ -275,6 +286,23 @@
 }
 .song-remove:hover {
   color: var(--text);
+}
+/* Аудит 28.07: на 390px исполнитель прижимался вправо и рвался на две строки
+   («Iron & / Wine»). На витрине эта же строка давно складывается в колонку —
+   переносим приём сюда (showcase.css, .showcase-list li). */
+@media (max-width: 640px) {
+  .song {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .song-title {
+    width: calc(100% - 44px); /* оставляем место крестику справа */
+  }
+  .song-artist {
+    width: 100%;
+    text-align: left;
+    margin-left: 0;
+  }
 }
 /* Символ-экслибрис из паспорта (этап 7) */
 .detail-title-row {

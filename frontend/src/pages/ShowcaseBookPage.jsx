@@ -8,6 +8,9 @@ import { useQuery } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { centeredSvgDataUri } from "../lib/svg";
+import { pickPalette } from "../lib/palette";
+import { ensureContrast, withAlpha } from "../lib/contrast";
+import { useTheme } from "../hooks/useTheme";
 import "../styles/showcase.css";
 
 const SECTIONS = [
@@ -41,6 +44,7 @@ function Section({ id, title, block }) {
 
 function ShowcaseBookPage() {
   const { slug, id } = useParams();
+  const { theme } = useTheme();
   const { data, isLoading, isError } = useQuery({
     queryKey: keys.showcaseBook(slug, id),
     queryFn: () => api.getShowcaseBook(slug, id),
@@ -50,8 +54,11 @@ function ShowcaseBookPage() {
   if (isLoading) return <p className="muted">Загрузка…</p>;
   if (isError) return <p className="error">Книга не найдена.</p>;
 
-  // страница окрашивается палитрой книги — тот же приём, что на «Вечере»
-  const palette = data.design?.palette_light || data.design?.palette_dark;
+  // Страница окрашивается палитрой книги — тот же приём, что на «Вечере».
+  // Палитру берём ПО ТЕМЕ (аудит 28.07, P1): раньше здесь всегда бралась
+  // светлая, а текст кнопок и рамки приходили из тёмной темы интерфейса —
+  // контраст падал до 1.11:1, кнопки было не разглядеть.
+  const palette = pickPalette(data.design, theme);
   const symbol = data.design?.symbol_svg
     ? centeredSvgDataUri(data.design.symbol_svg)
     : null;
@@ -59,8 +66,13 @@ function ShowcaseBookPage() {
     ? {
         background: palette.bg,
         color: palette.text,
-        "--showcase-accent": palette.accent,
+        // акцент от модели читаемым не гарантирован — дотягиваем до нормы AA
+        "--showcase-accent": ensureContrast(palette.accent, palette.bg),
         "--showcase-muted": palette.muted,
+        // рамки и текст кнопок внутри страницы — из палитры, а не из темы
+        "--text": palette.text,
+        "--muted": palette.muted,
+        "--border": withAlpha(palette.muted, "66"),
       }
     : undefined;
 

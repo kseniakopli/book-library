@@ -40,8 +40,13 @@
   display: none;
 }
 
+/* Перенос — в базовом правиле, а не только на телефоне (аудит 28.07, P1).
+   Кнопок шесть (после этапа 9 добавился чип пользователя), и в диапазоне
+   641–900px они не помещались в строку: контейнер выдавливал документ до
+   964px при вьюпорте 768 — браузер отзумливал страницу целиком. */
 .header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
 }
@@ -63,9 +68,6 @@
   }
   .title {
     font-size: 28px;
-  }
-  .header-actions {
-    flex-wrap: wrap;
   }
   .header-compact {
     flex-direction: row;
