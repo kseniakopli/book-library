@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 import database
 from models import Recommendation
 from routers import recommendations as rec_routes
-from services.ai import RecommendationItem, RecommendationsResult
+from services.ai_schemas import RecommendationItem, RecommendationsResult
 
 
 def _fake_generate(favorites, exclude, count=5, lang="ru", disliked=None):

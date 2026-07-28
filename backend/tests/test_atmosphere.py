@@ -8,7 +8,7 @@ import database
 from conftest import fake_generate_design, fake_generate_music
 from models import AISelection
 from routers import atmosphere as atmosphere_routes
-from services.ai import DesignResult
+from services.ai_schemas import DesignResult
 
 
 def _mock_music(monkeypatch):
@@ -103,7 +103,7 @@ def test_regenerate_does_not_duplicate(client, monkeypatch):
 def test_failed_regeneration_keeps_old(client, monkeypatch):
     """Защита от потери (инцидент 18.07): неудачная перегенерация (AI вернул
     пустой фолбэк) НЕ должна затирать уже сохранённую атмосферу."""
-    from services.ai import MusicResult, Song
+    from services.ai_schemas import MusicResult, Song
 
     _mock_music(monkeypatch)
     client.post("/api/v1/books/1/atmosphere/music")   # успешно: Song A / Song B
@@ -125,7 +125,7 @@ def test_failed_regeneration_keeps_old(client, monkeypatch):
 def test_first_generation_all_empty_writes_nothing(client, monkeypatch):
     """Первая генерация, если AI не ответил ни одним источником, не плодит
     пустые строки — остаётся «пусто», а не два пустых варианта."""
-    from services.ai import MusicResult
+    from services.ai_schemas import MusicResult
 
     async def all_empty(title, author, lang="ru", context=None):
         return {
@@ -158,7 +158,7 @@ def test_overused_items_catch_paraphrased_titles(client):
     import json as _json
 
     from models import Book
-    from services.atmosphere import build_book_context
+    from services.prompt_context import build_book_context
 
     variants = [
         "Яблочный пирог",

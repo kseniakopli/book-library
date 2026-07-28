@@ -259,3 +259,73 @@ def upload_cover(playlist_id: str, jpeg_base64: str) -> bool:
         log.warning("обложка плейлиста: запрос не удался: %s", e)
     return False
 
+
+
+# ============================================================
+# Плейлист книги: создание/обновление по её подборке музыки
+# (переехало из services/atmosphere.py — R3, 26.07: это Spotify, а не атмосфера)
+# ============================================================
+import asyncio                                    # noqa: E402
+
+from models import Book                           # noqa: E402
+from services.cover_art import build_cover        # noqa: E402
+
+
+async def sync_book_playlist(book_id: int, title: str, uris: list[str]) -> None:
+    """Создать плейлист книги или обновить существующий. Ошибки не критичны:
+    музыка уже сохранена, плейлист можно собрать кнопкой позже."""
+    # Spotify в куладауне (лимит) — не дёргаем его, плейлист соберётся позже
+    if not uris or not spotify.has_token() or spotify.in_cooldown():
+        return
+    try:
+        with Session(database.engine) as session:
+            book = session.get(Book, book_id)
+            existing = book.spotify_playlist_url if book else None
+
+        if existing:
+            await asyncio.to_thread(
+                replace_playlist_items, existing, uris
+            )
+            return
+
+        design = None
+        # локальный импорт: atmosphere импортирует playlist, обратная связь
+        # на уровне модуля дала бы круговой импорт
+        from services.atmosphere import read_selections
+
+        with Session(database.engine) as session:
+            rows = read_selections(session, book_id, "design")
+            design = rows[0].payload if rows else None
+        cover = build_cover(design) if design else None
+
+        result = await asyncio.to_thread(
+            create_playlist_with_uris,
+            f"nocturne · {title}", uris, cover,
+        )
+        with Session(database.engine) as session:
+            book = session.get(Book, book_id)
+            if book is not None:
+                book.spotify_playlist_url = result["url"]
+                session.add(book)
+                session.commit()
+    except Exception as e:
+        print(f"Плейлист для книги {book_id} не собрался:", e)
+
+
+
+async def rebuild_book_playlist(book_id: int, title: str, songs: list[dict]) -> None:
+    """Пересобрать плейлист из уже сохранённых (канонических) треков.
+    Резолв идёт через TrackCache — все эти треки уже резолвились при генерации,
+    так что походов в Spotify почти нет. Spotify недоступен — тихо выходим:
+    подборка уже обновлена, плейлист догонится при следующей генерации.
+    Если треков не осталось — плейлист не опустошаем (редкий случай; замена
+    пустым списком через /items невозможна, и старый QR полезнее пустого)."""
+    if not songs or not spotify.available():
+        return
+    unique = list({
+        (s.get("title", ""), s.get("artist", "")): s for s in songs
+    }.values())
+    resolved = await asyncio.to_thread(resolve_songs, unique)
+    uris = [item["uri"] for item in resolved if item and item.get("uri")]
+    await _sync_playlist(book_id, title, uris)
+

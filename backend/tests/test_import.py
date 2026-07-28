@@ -138,7 +138,7 @@ def test_backfill_metadata_failure_marks_failed(client, monkeypatch):
 def test_import_maps_unknown_headers_with_ai(client, monkeypatch):
     """Незнакомые заголовки → модель говорит, где что; импорт работает как обычно."""
     from routers import imports
-    from services.ai import CsvMapping
+    from services.ai_schemas import CsvMapping
 
     async def fake_map(headers, sample_rows, lang="ru"):
         assert "Book" in headers        # модель получает реальные заголовки
@@ -180,7 +180,7 @@ def test_import_standard_headers_do_not_call_ai(client, monkeypatch):
 def test_import_rejects_unmappable_columns(client, monkeypatch):
     """Модель вернула выдуманную колонку или упала → понятная 400, а не пустой импорт."""
     from routers import imports
-    from services.ai import CsvMapping
+    from services.ai_schemas import CsvMapping
 
     async def fake_map(headers, sample_rows, lang="ru"):
         return CsvMapping(title_column="Нет такой", author_column="Тоже нет")

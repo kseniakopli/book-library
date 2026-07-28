@@ -7,7 +7,7 @@ from sqlmodel import Session
 import database
 from models import Book, UserBook
 from routers import stats as stats_routes
-from services.ai import InsightsResult
+from services.ai_schemas import InsightsResult
 from services.stats import compute_stats, format_summary
 
 TODAY = date(2026, 7, 19)   # фиксируем «сегодня»: иначе тест протухнет со временем

@@ -12,9 +12,9 @@ from deps import current_user_id, get_book_or_404, get_lang, require_admin
 from events import log_event
 from i18n import msg
 from services.ai import start_ai_metrics, take_ai_metrics
+from services.prompt_context import build_book_context
 from services.atmosphere import (
     CATEGORIES,          # ре-экспорт: на него ссылаются тесты и разовые скрипты
-    build_book_context,
     read_selections,
     remove_music_track,
     replace_selections,

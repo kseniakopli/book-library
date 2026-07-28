@@ -7,7 +7,6 @@
 # Добавление новой категории = генератор в services/ai.py + запись в CATEGORIES.
 import asyncio
 import json
-import re
 
 from sqlmodel import Session, select
 
@@ -21,19 +20,12 @@ from constants import (
 )
 from events import log_event
 from models import AISelection, Book, UserBook
-from services.ai import (
-    generate_aroma,
-    generate_design,
-    generate_food,
-    generate_music,
-    start_ai_metrics,
-    take_ai_metrics,
-)
+from services.ai import generate_aroma, generate_design, generate_food, generate_music, start_ai_metrics, take_ai_metrics
 import services.playlist as playlist_service
-import services.spotify as spotify_service
-from services.cover_art import build_cover
 from services.playlist import resolve_songs
-from services.taste import atmosphere_taste
+# сборка плейлиста книги переехала в services/playlist.py (R3), контекст
+# промпта — в services/prompt_context.py; здесь остались только подборки
+from services.prompt_context import build_book_context
 
 
 async def _generate_design_selections(
@@ -93,45 +85,9 @@ async def verify_music_results(results: dict, book_id: int, title: str) -> dict:
         result.songs = kept
 
     uris = [item["uri"] for item in resolved if item and item.get("uri")]
-    await _sync_playlist(book_id, title, uris)
+    await playlist_service.sync_book_playlist(book_id, title, uris)
     return results
 
-
-async def _sync_playlist(book_id: int, title: str, uris: list[str]) -> None:
-    """Создать плейлист книги или обновить существующий. Ошибки не критичны:
-    музыка уже сохранена, плейлист можно собрать кнопкой позже."""
-    # Spotify в куладауне (лимит) — не дёргаем его, плейлист соберётся позже
-    if not uris or not spotify_service.has_token() or spotify_service.in_cooldown():
-        return
-    try:
-        with Session(database.engine) as session:
-            book = session.get(Book, book_id)
-            existing = book.spotify_playlist_url if book else None
-
-        if existing:
-            await asyncio.to_thread(
-                playlist_service.replace_playlist_items, existing, uris
-            )
-            return
-
-        design = None
-        with Session(database.engine) as session:
-            rows = read_selections(session, book_id, "design")
-            design = rows[0].payload if rows else None
-        cover = build_cover(design) if design else None
-
-        result = await asyncio.to_thread(
-            playlist_service.create_playlist_with_uris,
-            f"nocturne · {title}", uris, cover,
-        )
-        with Session(database.engine) as session:
-            book = session.get(Book, book_id)
-            if book is not None:
-                book.spotify_playlist_url = result["url"]
-                session.add(book)
-                session.commit()
-    except Exception as e:
-        print(f"Плейлист для книги {book_id} не собрался:", e)
 
 
 async def remove_music_track(
@@ -177,25 +133,9 @@ async def remove_music_track(
         book_title = book.title if book else ""
         response = selections_response(book_id, "music", rows)
 
-    await _rebuild_playlist(book_id, book_title, remaining)
+    await playlist_service.rebuild_book_playlist(book_id, book_title, remaining)
     return response
 
-
-async def _rebuild_playlist(book_id: int, title: str, songs: list[dict]) -> None:
-    """Пересобрать плейлист из уже сохранённых (канонических) треков.
-    Резолв идёт через TrackCache — все эти треки уже резолвились при генерации,
-    так что походов в Spotify почти нет. Spotify недоступен — тихо выходим:
-    подборка уже обновлена, плейлист догонится при следующей генерации.
-    Если треков не осталось — плейлист не опустошаем (редкий случай; замена
-    пустым списком через /items невозможна, и старый QR полезнее пустого)."""
-    if not songs or not spotify_service.available():
-        return
-    unique = list({
-        (s.get("title", ""), s.get("artist", "")): s for s in songs
-    }.values())
-    resolved = await asyncio.to_thread(resolve_songs, unique)
-    uris = [item["uri"] for item in resolved if item and item.get("uri")]
-    await _sync_playlist(book_id, title, uris)
 
 
 CATEGORIES = {
@@ -233,97 +173,6 @@ CATEGORIES = {
     },
 }
 
-
-MAX_DESCRIPTION = 1200   # символов аннотации в промпт (хватает, не раздувает)
-AVOID_LIMIT = 25         # столько «уже использованных» пунктов показываем модели
-AVOID_MIN_BOOKS = 3      # пункт попадает в список, если встречался у стольких книг
-
-
-def build_book_context(
-    session: Session, book_id: int, category: str, user_id: int
-) -> dict:
-    """Фактический контекст книги для промпта (22.07).
-
-    Зачем: модель знает не каждую книгу и для малоизвестных **угадывает по
-    названию** — «Капля духов в открытую рану» превратилась у Claude в арабский
-    Дубай, хотя книга о московском парфюмерном мире. Аннотация из Google Books
-    у нас уже есть — просто не доезжала до промпта.
-
-    `avoid` борется с mode collapse: генерации независимы, и модель не знает,
-    что бефстроганов с сельдью она уже советовала в каждой русской книге.
-    Показываем ей самое затасканное по библиотеке — с просьбой не повторяться."""
-    book = session.get(Book, book_id)
-    if book is None:
-        return {}
-
-    genres = ""
-    try:
-        genres = ", ".join((json.loads(book.categories) or [])[:3])
-    except (TypeError, ValueError):
-        genres = ""
-
-    context = {
-        "description": (book.description or "")[:MAX_DESCRIPTION],
-        "genres": genres,
-        "year": book.published_year,
-        "avoid": _overused_items(session, category, exclude_book_id=book_id),
-    }
-    # задача 26 ч.4: «память вкуса» — что читателю заходило и не заходило
-    # в этой категории. У моделей памяти нет, поэтому подкладываем её сами.
-    context.update(atmosphere_taste(session, user_id, category))
-    return context
-
-
-def _item_key(name: str) -> str:
-    """Ключ повтора для еды/ароматов: первые два слова названия.
-
-    Зачем (24.07): модели перефразируют названия — «Яблочный пирог с корицей»,
-    «Яблочный пирог по-ирландски», «Яблочный пирог со сливками» для точного
-    счётчика были тремя разными блюдами «у одной книги каждое», и порог
-    AVOID_MIN_BOOKS не срабатывал никогда (замер по базе: «яблочный пирог»
-    у 5 книг из 19, в avoid — ни разу). Обрезка до двух слов ловит главный
-    паттерн перефраза — стабильное начало + разные хвосты."""
-    return " ".join(re.findall(r"\w+", name.lower())[:2])
-
-
-def _overused_items(session: Session, category: str, exclude_book_id: int) -> list[str]:
-    """Названия, которые уже примелькались в этой категории по всей библиотеке
-    (встречаются у AVOID_MIN_BOOKS+ книг). Для музыки — «Исполнитель — Трек»
-    точным совпадением (названия канонизирует Spotify); для еды/ароматов —
-    по нормализованному ключу (_item_key), в список идёт самое короткое из
-    встреченных названий («Яблочный пирог» обобщает свои вариации)."""
-    if category not in ("music", "food", "aroma"):
-        return []
-
-    rows = session.exec(
-        select(AISelection).where(
-            AISelection.category == category,
-            AISelection.book_id != exclude_book_id,
-        )
-    ).all()
-
-    books_by_item: dict[str, dict] = {}
-    for row in rows:
-        try:
-            items = json.loads(row.payload)
-        except (TypeError, ValueError):
-            continue
-        for item in items:
-            if category == "music":
-                name = f"{item.get('artist', '')} — {item.get('title', '')}".strip(" —")
-                key = name.lower()
-            else:
-                name = (item.get("title") or "").strip()
-                key = _item_key(name)
-            if not key:
-                continue
-            entry = books_by_item.setdefault(key, {"books": set(), "name": name})
-            entry["books"].add(row.book_id)
-            if len(name) < len(entry["name"]):
-                entry["name"] = name
-
-    ranked = sorted(books_by_item.values(), key=lambda e: len(e["books"]), reverse=True)
-    return [e["name"] for e in ranked if len(e["books"]) >= AVOID_MIN_BOOKS][:AVOID_LIMIT]
 
 
 def payload_empty(payload_json: str) -> bool:

@@ -66,7 +66,7 @@ def test_disliked_recommendations(client):
 
 def test_taste_reaches_atmosphere_context(client):
     """Профиль вкуса попадает в контекст, который уходит в промпт."""
-    from services.atmosphere import build_book_context
+    from services.prompt_context import build_book_context
 
     _add_music_selection(source="Claude")
     client.post("/api/v1/feedback", json={
