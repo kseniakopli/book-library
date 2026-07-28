@@ -21,7 +21,7 @@ from sqlmodel import Session, select
 
 import database
 from models import AISelection, Book
-from services.spotify import resolve_songs
+from services.playlist import resolve_songs
 
 
 def main() -> None:

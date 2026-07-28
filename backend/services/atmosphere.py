@@ -29,9 +29,10 @@ from services.ai import (
     start_ai_metrics,
     take_ai_metrics,
 )
+import services.playlist as playlist_service
 import services.spotify as spotify_service
 from services.cover_art import build_cover
-from services.spotify import resolve_songs
+from services.playlist import resolve_songs
 from services.taste import atmosphere_taste
 
 
@@ -109,7 +110,7 @@ async def _sync_playlist(book_id: int, title: str, uris: list[str]) -> None:
 
         if existing:
             await asyncio.to_thread(
-                spotify_service.replace_playlist_items, existing, uris
+                playlist_service.replace_playlist_items, existing, uris
             )
             return
 
@@ -120,7 +121,7 @@ async def _sync_playlist(book_id: int, title: str, uris: list[str]) -> None:
         cover = build_cover(design) if design else None
 
         result = await asyncio.to_thread(
-            spotify_service.create_playlist_with_uris,
+            playlist_service.create_playlist_with_uris,
             f"nocturne · {title}", uris, cover,
         )
         with Session(database.engine) as session:

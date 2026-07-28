@@ -5,7 +5,9 @@ import pytest
 from sqlmodel import Session
 
 import database
+import services.playlist as playlist_service
 import services.spotify as spotify_service
+import services.track_match as track_match
 from models import AISelection
 
 
@@ -50,7 +52,7 @@ def test_playlist_created_and_saved(client, monkeypatch):
         return {"url": "https://open.spotify.com/playlist/test123",
                 "found": 3, "not_found": [], "cover_set": False}
 
-    monkeypatch.setattr(spotify_service, "create_playlist_from_songs", fake_create)
+    monkeypatch.setattr(playlist_service, "create_playlist_from_songs", fake_create)
 
     r = client.post("/api/v1/books/1/playlist")
     assert r.status_code == 200
@@ -71,7 +73,7 @@ def test_playlist_existing_returned_without_recreation(client, monkeypatch):
     _add_music()
     monkeypatch.setattr(spotify_service, "has_token", lambda: True)
     monkeypatch.setattr(
-        spotify_service, "create_playlist_from_songs",
+        playlist_service, "create_playlist_from_songs",
         lambda name, songs, cover=None: {
             "url": "https://open.spotify.com/playlist/first",
             "found": 1, "not_found": [], "cover_set": False,
@@ -82,7 +84,7 @@ def test_playlist_existing_returned_without_recreation(client, monkeypatch):
     def boom(name, songs, cover=None):
         raise AssertionError("плейлист не должен создаваться повторно")
 
-    monkeypatch.setattr(spotify_service, "create_playlist_from_songs", boom)
+    monkeypatch.setattr(playlist_service, "create_playlist_from_songs", boom)
     r = client.post("/api/v1/books/1/playlist")
     assert r.json() == {
         "status": "exists",
@@ -130,41 +132,41 @@ def _track(name, *artists):
 
 
 def test_matches_accepts_exact_and_remastered():
-    assert spotify_service._matches(
+    assert track_match._matches(
         _track("Spiegel im Spiegel", "Arvo Pärt"), "Spiegel im Spiegel", "Arvo Pärt"
     )
     # приписки ремастера/переиздания не должны мешать
-    assert spotify_service._matches(
+    assert track_match._matches(
         _track("Song To The Siren - Remastered", "This Mortal Coil"),
         "Song To The Siren", "This Mortal Coil",
     )
     # трек с несколькими исполнителями — достаточно совпадения с одним
-    assert spotify_service._matches(
+    assert track_match._matches(
         _track("Solas", "Lisa Gerrard", "Patrick Cassidy"), "Solas", "Patrick Cassidy"
     )
 
 
 def test_matches_accepts_transliterated_cyrillic():
     """Русские исполнители в Spotify часто латиницей — сравнение через транслит."""
-    assert spotify_service._matches(
+    assert track_match._matches(
         _track("Sudno", "Molchat Doma"), "Судно", "Молчат Дома"
     )
-    assert spotify_service._matches(
+    assert track_match._matches(
         _track("Судно (Борис Рыжий)", "Молчат Дома"), "Судно", "Molchat Doma"
     )
-    assert spotify_service._matches(
+    assert track_match._matches(
         _track("Plyazh", "Buerak"), "Пляж", "Буерак"
     )
 
 
 def test_matches_rejects_foreign_track():
     """Именно так в плейлист попадал случайный популярный трек."""
-    assert not spotify_service._matches(
+    assert not track_match._matches(
         _track("1Train", "A$AP Rocky", "Kendrick Lamar"),
         "The Deer's Cry", "Arvo Pärt",
     )
     # название совпало, а исполнитель — нет: это кавер/однофамилец, не берём
-    assert not spotify_service._matches(
+    assert not track_match._matches(
         _track("History", "Kings of Leon"), "History", "Ólafur Arnalds"
     )
 
@@ -222,7 +224,7 @@ def test_resolve_songs_marks_invented_tracks(client, monkeypatch):
         spotify_service.requests, "get",
         lambda *a, **kw: FakeResponse([_track("Near Light", "Ólafur Arnalds")]),
     )
-    resolved = spotify_service.resolve_songs([
+    resolved = playlist_service.resolve_songs([
         {"title": "Near Light", "artist": "Ólafur Arnalds"},
         {"title": "Familiar Ground", "artist": "Ólafur Arnalds"},
     ])
@@ -239,7 +241,7 @@ def test_resolve_songs_uses_canonical_names(client, monkeypatch):
         spotify_service.requests, "get",
         lambda *a, **kw: FakeResponse([_track("Sudno", "Molchat Doma")]),
     )
-    resolved = spotify_service.resolve_songs(
+    resolved = playlist_service.resolve_songs(
         [{"title": "Судно", "artist": "Молчат Дома"}]
     )
     assert resolved[0]["title"] == "Sudno"
@@ -251,7 +253,7 @@ def test_resolve_songs_skipped_without_credentials(client, monkeypatch):
     monkeypatch.setattr(spotify_service, "has_token", lambda: False)
     monkeypatch.setattr(spotify_service, "_client_credentials_token", lambda: None)
     songs = [{"title": "Что угодно", "artist": "Кто угодно"}]
-    assert spotify_service.resolve_songs(songs) == songs
+    assert playlist_service.resolve_songs(songs) == songs
 
 
 # --- кэш резолва треков (задача 82, часть 1) ---
@@ -268,12 +270,12 @@ def test_resolve_songs_caches_and_reuses(client, monkeypatch):
 
     monkeypatch.setattr(spotify_service.requests, "get", fake_get)
 
-    first = spotify_service.resolve_songs([{"title": "Sea", "artist": "This Mortal Coil"}])
+    first = playlist_service.resolve_songs([{"title": "Sea", "artist": "This Mortal Coil"}])
     assert first[0]["uri"] == "uri:Sea"
     calls_after_first = calls["n"]
     assert calls_after_first > 0
 
-    second = spotify_service.resolve_songs([{"title": "Sea", "artist": "This Mortal Coil"}])
+    second = playlist_service.resolve_songs([{"title": "Sea", "artist": "This Mortal Coil"}])
     assert second[0]["uri"] == "uri:Sea"
     assert calls["n"] == calls_after_first        # в Spotify не ходили — кэш
 
@@ -289,9 +291,9 @@ def test_resolve_songs_caches_negative(client, monkeypatch):
 
     monkeypatch.setattr(spotify_service.requests, "get", fake_get)
 
-    assert spotify_service.resolve_songs([{"title": "Нет такого", "artist": "Никто"}]) == [None]
+    assert playlist_service.resolve_songs([{"title": "Нет такого", "artist": "Никто"}]) == [None]
     calls_after_first = calls["n"]
-    assert spotify_service.resolve_songs([{"title": "Нет такого", "artist": "Никто"}]) == [None]
+    assert playlist_service.resolve_songs([{"title": "Нет такого", "artist": "Никто"}]) == [None]
     assert calls["n"] == calls_after_first        # отрицательный результат из кэша
 
 
@@ -309,7 +311,7 @@ def test_unreliable_result_not_cached(client, monkeypatch):
     )
     song = {"title": "Run Boy Run", "artist": "Woodkid"}
     # трек остаётся непроверенным (как есть), НЕ None
-    assert spotify_service.resolve_songs([song]) == [song]
+    assert playlist_service.resolve_songs([song]) == [song]
 
     from models import TrackCache
     from sqlmodel import Session, select
@@ -398,7 +400,7 @@ def test_playlist_created_without_cover_when_no_design(client, monkeypatch):
         return {"url": "https://open.spotify.com/playlist/x", "found": 1,
                 "not_found": [], "cover_set": False}
 
-    monkeypatch.setattr(spotify_service, "create_playlist_from_songs", fake_create)
+    monkeypatch.setattr(playlist_service, "create_playlist_from_songs", fake_create)
     assert client.post("/api/v1/books/1/playlist").status_code == 200
     assert captured["cover"] is None
 
@@ -409,4 +411,4 @@ def test_dedupe_songs_unit():
         {"title": "a ", "artist": " x"},
         {"title": "B", "artist": "X"},
     ]
-    assert len(spotify_service.dedupe_songs(songs)) == 2
+    assert len(playlist_service.dedupe_songs(songs)) == 2

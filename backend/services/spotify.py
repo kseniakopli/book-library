@@ -5,29 +5,24 @@ import json
 import logging
 import os
 import random
-import re
 import time
 import urllib.parse
-from concurrent.futures import ThreadPoolExecutor
-from difflib import SequenceMatcher
 from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from sqlmodel import Session, col, select
 
-import database
-from models import TrackCache
+from services.track_match import _matches
 
 log = logging.getLogger("nocturne")
 
-# Модуль большой и делится на разделы (навигация; полное вынесение резолва
-# и плейлистов в отдельный модуль — задача 88, отложена до крупного захода):
+# После разделения (R2/задача 88, 26.07) здесь осталось только «как спросить
+# Spotify»:
 #   1. Конфиг и OAuth-токены
-#   2. Матчинг треков (нормализация, похожесть, транслит)
-#   3. Куладаун (предохранитель против бана Spotify)
-#   4. Поиск и резолв с кэшем (TrackCache)
-#   5. Плейлисты (создание/замена, обложка)
+#   2. Куладаун (предохранитель против бана Spotify)
+#   3. Поиск трека (HTTP + ретраи)
+# Сопоставление названий — services/track_match.py (чистые функции),
+# резолв с кэшем и плейлисты — services/playlist.py.
 
 # ============================================================
 # 1. Конфиг и OAuth-токены
@@ -47,7 +42,9 @@ SCOPE = "playlist-modify-public playlist-modify-private ugc-image-upload"
 # refresh_token живёт рядом с .env и так же не попадает в git
 TOKEN_FILE = Path(__file__).resolve().parent.parent / "spotify_token.json"
 
+API = "https://api.spotify.com/v1"
 TIMEOUT = 10
+SEARCH_LIMIT = 5     # смотрим несколько кандидатов, а не только первого
 
 
 def auth_url(state: str = "") -> str:
@@ -107,70 +104,6 @@ def _access_token() -> str:
             json.dumps({"refresh_token": resp["refresh_token"]}), encoding="utf-8"
         )
     return resp["access_token"]
-
-
-# ============================================================
-# 2. Матчинг треков (нормализация, похожесть, транслит)
-# ============================================================
-
-# Пороги похожести при проверке найденного трека (инцидент 20.07 — см. _matches).
-TITLE_RATIO = 0.72
-ARTIST_RATIO = 0.6
-SEARCH_LIMIT = 5     # смотрим несколько кандидатов, а не только первого
-
-
-def _normalize(value: str) -> str:
-    """Приводим название/исполнителя к сравнимому виду: нижний регистр, без
-    приписок вроде «- Remastered 2011», «(feat. X)», «[Live]» и без пунктуации.
-    Без этого «Song To The Siren - Remastered» не совпало бы с оригиналом."""
-    text = value.lower()
-    text = re.split(r"\s+-\s+|\s*[\(\[]", text)[0]      # хвост после «-» или скобки
-    text = re.sub(r"[^\w\s]", " ", text, flags=re.UNICODE)
-    return " ".join(text.split())
-
-
-# Кириллица → латиница. Нужна, потому что русские исполнители в Spotify часто
-# записаны транслитом: «Молчат Дома» → Molchat Doma, «Буерак» → Buerak,
-# «Судно» → Sudno. Без этого сравнение кириллицы с латиницей даёт 0 сходства,
-# и половина русской подборки отсеивалась как «не найдено» (инцидент 20.07).
-TRANSLIT = {
-    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
-    "ж": "zh", "з": "z", "и": "i", "й": "i", "к": "k", "л": "l", "м": "m",
-    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
-    "ф": "f", "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "shch",
-    "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
-}
-
-
-def _translit(text: str) -> str:
-    return "".join(TRANSLIT.get(char, char) for char in text)
-
-
-def _similar(a: str, b: str) -> float:
-    """Похожесть с учётом возможного транслита: сравниваем и как есть,
-    и обе строки в латинице — берём лучший результат."""
-    first, second = _normalize(a), _normalize(b)
-    return max(
-        SequenceMatcher(None, first, second).ratio(),
-        SequenceMatcher(None, _translit(first), _translit(second)).ratio(),
-    )
-
-
-def _matches(item: dict, title: str, artist: str) -> bool:
-    """Действительно ли найденное — тот трек, который просили.
-
-    Инцидент 20.07: в плейлист «Демона из Пустоши» попал рэп-трек. Причина —
-    свободный поиск брал ПЕРВЫЙ результат без проверки: если выдуманного моделью
-    трека в Spotify нет, поиск возвращает что-нибудь популярное по отдельным
-    словам. Теперь сверяем название и исполнителя, и лучше не добавить трек,
-    чем добавить чужой."""
-    if _similar(item.get("name", ""), title) < TITLE_RATIO:
-        return False
-    # у трека может быть несколько исполнителей — достаточно совпадения с одним
-    return any(
-        _similar(performer.get("name", ""), artist) >= ARTIST_RATIO
-        for performer in item.get("artists", [])
-    )
 
 
 # ============================================================
@@ -333,251 +266,3 @@ def _client_credentials_token() -> str | None:
 
 
 
-def dedupe_songs(songs: list[dict]) -> list[dict]:
-    """Убираем дубли по (артист, название) без учёта регистра (из book-playlist)."""
-    seen = set()
-    unique = []
-    for s in songs:
-        key = (s["artist"].strip().lower(), s["title"].strip().lower())
-        if key not in seen:
-            seen.add(key)
-            unique.append(s)
-    return unique
-
-
-def upload_cover(playlist_id: str, jpeg_base64: str) -> bool:
-    """Своя обложка плейлиста (символ книги). Spotify ждёт base64-JPEG в теле,
-    до 256 КБ; успех — 202. Обложка не критична: ошибки только логируем.
-    Частый случай отказа (403) — токен выдан без scope ugc-image-upload,
-    то есть авторизация была до 20.07: помогает переавторизация."""
-    try:
-        response = requests.put(
-            f"https://api.spotify.com/v1/playlists/{playlist_id}/images",
-            headers={
-                "Authorization": f"Bearer {_access_token()}",
-                "Content-Type": "image/jpeg",
-            },
-            data=jpeg_base64,
-            timeout=TIMEOUT * 3,   # картинка грузится дольше обычного запроса
-        )
-        if response.status_code in (200, 201, 202):
-            return True
-        log.warning(
-            "обложка плейлиста не принята Spotify: %s %s",
-            response.status_code, response.text[:200],
-        )
-    except Exception as e:
-        log.warning("обложка плейлиста: запрос не удался: %s", e)
-    return False
-
-
-def _cache_key(song: dict) -> str:
-    """Ключ кэша: нормализованный «артист|название» из запроса модели.
-    По нему ищем ранее зарезолвленное — атмосферные подборки сильно пересекаются."""
-    artist = (song.get("artist") or "").strip().lower()
-    title = (song.get("title") or "").strip().lower()
-    return f"{artist}|{title}"
-
-
-def _card(row) -> dict:
-    return {"title": row.title, "artist": row.artist, "uri": row.uri}
-
-
-def resolve_songs(songs: list[dict], workers: int = 6) -> list[dict | None]:
-    """Один проход поиска. Результат ВЫРОВНЕН по входному списку: на месте
-    каждого трека либо карточка `{title, artist, uri}` с каноническими данными
-    Spotify, либо None (такого трека нет).
-
-    Задача 82 (часть 1): перед запросом к Spotify смотрим в кэш `TrackCache` —
-    каждый трек резолвится один раз на всю систему (квота Spotify — на приложение).
-    Кэшируем и «не найдено», чтобы выдумки моделей не долбили Spotify повторно.
-    БД-операции — вне потоков (SQLite + threads не дружат); в Spotify параллельно
-    ходим только за промахами кэша.
-
-    Одного прохода хватает и для атмосферы, и для плейлиста (идея Ксении, 20.07).
-    Нет ключей / Spotify в куладауне — промахи возвращаем как есть
-    (лучше непроверенная атмосфера, чем пустая); в кэш их НЕ пишем."""
-    keys = [_cache_key(s) for s in songs]
-
-    # 1) читаем кэш одним запросом
-    with Session(database.engine) as session:
-        cached = {
-            row.query_key: row
-            for row in session.exec(
-                select(TrackCache).where(col(TrackCache.query_key).in_(keys))
-            ).all()
-        }
-
-    results: list[dict | None] = [None] * len(songs)
-    misses = []   # (индекс, song, key) — чего нет в кэше
-    for i, (song, key) in enumerate(zip(songs, keys)):
-        row = cached.get(key)
-        if row is not None:
-            results[i] = _card(row) if row.found else None
-        else:
-            misses.append((i, song, key))
-
-    if not misses:
-        return results
-
-    # Spotify недоступен — промахи оставляем непроверенными, кэш не портим
-    token = None if in_cooldown() else (
-        _access_token() if has_token() else _client_credentials_token()
-    )
-    if token is None:
-        for i, song, _ in misses:
-            results[i] = dict(song)
-        return results
-
-    # 2) промахи ищем в Spotify (параллельно)
-    headers = {"Authorization": f"Bearer {token}"}
-
-    def resolve(item):
-        i, song, key = item
-        found = find_track(headers, song.get("title", ""), song.get("artist", ""))
-        return i, key, found
-
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        resolved = list(pool.map(resolve, misses))
-
-    # 3) записываем результаты в кэш (в т.ч. отрицательные) одним коммитом.
-    #    UNRELIABLE (Spotify не ответил) НЕ кэшируем — иначе временный сбой
-    #    навсегда пометил бы существующий трек как «не найден» (инцидент 22.07).
-    miss_song = {i: song for i, song, _ in misses}
-    with Session(database.engine) as session:
-        for i, key, item in resolved:
-            if item is UNRELIABLE:
-                results[i] = dict(miss_song[i])   # непроверено, оставляем как есть
-                continue
-            if item is not None:
-                card = {
-                    "title": item["name"],
-                    "artist": ", ".join(a["name"] for a in item.get("artists", [])),
-                    "uri": item["uri"],
-                }
-                results[i] = card
-                session.add(TrackCache(query_key=key, found=True, **card))
-            else:
-                results[i] = None
-                session.add(TrackCache(query_key=key, found=False))
-        session.commit()
-
-    return results
-
-
-# ============================================================
-# 5. Плейлисты (создание/замена; обложка — upload_cover выше)
-# ============================================================
-
-MAX_URIS_PER_REQUEST = 100   # ограничение Spotify на один запрос
-
-
-def replace_playlist_items(playlist_url: str, uris: list[str]) -> bool:
-    """Заменить содержимое существующего плейлиста (атмосферу перегенерировали).
-    Плейлист и его ссылка остаются прежними — QR на печатной карточке не портится.
-
-    ⚠ Путь именно `/items`: старый `/tracks` помечен deprecated, и замена по нему
-    молча не срабатывала — в плейлисте оставались прежние треки (20.07)."""
-    playlist_id = playlist_url.rstrip("/").split("/")[-1].split("?")[0]
-    headers = {"Authorization": f"Bearer {_access_token()}"}
-    try:
-        # первый запрос заменяет весь список, последующие — дописывают хвост
-        first, rest = uris[:MAX_URIS_PER_REQUEST], uris[MAX_URIS_PER_REQUEST:]
-        response = requests.put(
-            f"https://api.spotify.com/v1/playlists/{playlist_id}/items",
-            headers=headers,
-            json={"uris": first},
-            timeout=TIMEOUT * 2,
-        )
-        if response.status_code not in (200, 201):
-            log.warning(
-                "не удалось обновить плейлист: %s %s",
-                response.status_code, response.text[:200],
-            )
-            return False
-
-        while rest:
-            chunk, rest = rest[:MAX_URIS_PER_REQUEST], rest[MAX_URIS_PER_REQUEST:]
-            requests.post(
-                f"https://api.spotify.com/v1/playlists/{playlist_id}/items",
-                headers=headers,
-                json={"uris": chunk},
-                timeout=TIMEOUT * 2,
-            )
-        log.info("плейлист обновлён: %s треков", len(uris))
-        return True
-    except Exception as e:
-        log.warning("не удалось обновить плейлист: %s", e)
-    return False
-
-
-def create_playlist_with_uris(name: str, uris: list[str], cover: str | None = None) -> dict:
-    """Создать плейлист из уже найденных uri (поиск сделан в resolve_songs)."""
-    headers = {"Authorization": f"Bearer {_access_token()}"}
-    playlist = requests.post(
-        "https://api.spotify.com/v1/me/playlists",
-        headers=headers,
-        json={"name": name, "public": True},
-        timeout=TIMEOUT,
-    ).json()
-    if "external_urls" not in playlist:
-        raise RuntimeError(f"Spotify не создал плейлист: {playlist}")
-
-    rest = uris
-    while rest:   # Spotify принимает не больше 100 uri за запрос
-        chunk, rest = rest[:MAX_URIS_PER_REQUEST], rest[MAX_URIS_PER_REQUEST:]
-        requests.post(
-            f"https://api.spotify.com/v1/playlists/{playlist['id']}/items",
-            headers=headers,
-            json={"uris": chunk},
-            timeout=TIMEOUT,
-        )
-    cover_set = upload_cover(playlist["id"], cover) if cover else False
-    return {
-        "url": playlist["external_urls"]["spotify"],
-        "found": len(uris),
-        "cover_set": cover_set,
-    }
-
-
-def create_playlist_from_songs(name: str, songs: list[dict], cover: str | None = None) -> dict:
-    """Ищет треки, создаёт публичный плейлист, возвращает
-    {"url", "found", "not_found": [...]}. Ссылка постоянна, пока плейлист жив."""
-    access = _access_token()
-    headers = {"Authorization": f"Bearer {access}"}
-
-    uris = []
-    not_found = []
-    for song in dedupe_songs(songs):
-        uri = _search_track(headers, song["title"], song["artist"])
-        if uri and uri not in uris:
-            uris.append(uri)
-        elif not uri:
-            not_found.append(f"{song['artist']} — {song['title']}")
-
-    playlist = requests.post(
-        "https://api.spotify.com/v1/me/playlists",
-        headers=headers,
-        json={"name": name, "public": True},
-        timeout=TIMEOUT,
-    ).json()
-    if "external_urls" not in playlist:
-        raise RuntimeError(f"Spotify не создал плейлист: {playlist}")
-
-    if uris:
-        requests.post(
-            f"https://api.spotify.com/v1/playlists/{playlist['id']}/items",
-            headers=headers,
-            json={"uris": uris},
-            timeout=TIMEOUT,
-        )
-
-    # своя обложка (символ книги) — украшение: не вышло, плейлист всё равно живой
-    cover_set = upload_cover(playlist["id"], cover) if cover else False
-
-    return {
-        "url": playlist["external_urls"]["spotify"],
-        "found": len(uris),
-        "not_found": not_found,
-        "cover_set": cover_set,
-    }

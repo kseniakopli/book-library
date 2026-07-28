@@ -35,7 +35,8 @@ def _update_covers(session: Session) -> None:
     """Ставит обложку-символ существующим плейлистам, не пересоздавая их.
     Нужен токен со scope ugc-image-upload — если авторизация была до 20.07,
     Spotify ответит 403: удалите spotify_token.json и авторизуйтесь заново."""
-    import services.spotify as spotify_service
+    import services.playlist as playlist_service
+import services.spotify as spotify_service
     from models import AISelection
     from services.cover_art import build_cover
 
@@ -55,7 +56,7 @@ def _update_covers(session: Session) -> None:
             continue
         # id плейлиста — хвост ссылки вида https://open.spotify.com/playlist/<id>
         playlist_id = book.spotify_playlist_url.rstrip("/").split("/")[-1].split("?")[0]
-        if spotify_service.upload_cover(playlist_id, cover):
+        if playlist_service.upload_cover(playlist_id, cover):
             print(f"✓ {book.title}")
             done += 1
         else:

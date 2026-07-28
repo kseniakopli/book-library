@@ -9,6 +9,7 @@ from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlmodel import Session, select
 
 import database
+import services.playlist as playlist_service
 import services.spotify as spotify_service
 from constants import EVENT_PLAYLIST_CREATED
 from deps import get_book_or_404, get_lang
@@ -37,7 +38,7 @@ def _collect_songs(session: Session, book_id: int) -> list[dict]:
     songs = []
     for row in rows:
         songs.extend(json.loads(row.payload))
-    return spotify_service.dedupe_songs(songs)
+    return playlist_service.dedupe_songs(songs)
 
 
 def _book_cover(session: Session, book_id: int) -> str | None:
@@ -57,7 +58,7 @@ def _create_and_save(session: Session, book, lang: str) -> dict:
     songs = _collect_songs(session, book.id)
     if not songs:
         raise HTTPException(status_code=400, detail=msg("no_music_for_playlist", lang))
-    result = spotify_service.create_playlist_from_songs(
+    result = playlist_service.create_playlist_from_songs(
         f"nocturne · {book.title}", songs, cover=_book_cover(session, book.id)
     )
     book.spotify_playlist_url = result["url"]
