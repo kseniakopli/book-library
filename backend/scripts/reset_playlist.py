@@ -36,7 +36,6 @@ def _update_covers(session: Session) -> None:
     Нужен токен со scope ugc-image-upload — если авторизация была до 20.07,
     Spotify ответит 403: удалите spotify_token.json и авторизуйтесь заново."""
     import services.playlist as playlist_service
-import services.spotify as spotify_service
     from models import AISelection
     from services.cover_art import build_cover
 

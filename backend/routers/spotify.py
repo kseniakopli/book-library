@@ -2,8 +2,10 @@
 # + QR-код плейлиста для печатной карточки (этап 10.4).
 import io
 import json
+import logging
 import os
 
+import requests
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse, StreamingResponse
 from sqlmodel import Session, select
@@ -17,6 +19,8 @@ from events import log_event
 from i18n import msg
 from models import AISelection, Book
 from services.cover_art import build_cover
+
+log = logging.getLogger("nocturne")
 
 router = APIRouter(tags=["spotify"])
 
@@ -58,9 +62,17 @@ def _create_and_save(session: Session, book, lang: str) -> dict:
     songs = _collect_songs(session, book.id)
     if not songs:
         raise HTTPException(status_code=400, detail=msg("no_music_for_playlist", lang))
-    result = playlist_service.create_playlist_from_songs(
-        f"nocturne · {book.title}", songs, cover=_book_cover(session, book.id)
-    )
+    # Отказ Spotify — это ВНЕШНИЙ сбой, а не поломка нашего сервиса: отвечаем 502
+    # с внятным текстом, а причину пишем в лог. Раньше RuntimeError («Spotify не
+    # создал плейлист: {...}») и сетевые ошибки долетали до пользователя как
+    # «Ошибка 500» — по такому сообщению чинить нечего (28.07).
+    try:
+        result = playlist_service.create_playlist_from_songs(
+            f"nocturne · {book.title}", songs, cover=_book_cover(session, book.id)
+        )
+    except (RuntimeError, requests.RequestException) as e:
+        log.warning("плейлист не создан (книга %s): %s", book.id, e)
+        raise HTTPException(status_code=502, detail=msg("spotify_failed", lang)) from e
     book.spotify_playlist_url = result["url"]
     session.add(book)
     session.commit()

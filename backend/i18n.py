@@ -44,6 +44,8 @@ MESSAGES = {
                              "en": "Track not found in the selection"},
     "auth_required":        {"ru": "Нужно войти",
                              "en": "Authentication required"},
+    "spotify_failed":       {"ru": "Spotify не дал создать плейлист. Подробности — в логах сервера",
+                             "en": "Spotify refused to create the playlist. See server logs for details"},
 }
 
 

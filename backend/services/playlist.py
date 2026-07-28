@@ -193,45 +193,33 @@ def create_playlist_with_uris(name: str, uris: list[str], cover: str | None = No
 
 def create_playlist_from_songs(name: str, songs: list[dict], cover: str | None = None) -> dict:
     """Ищет треки, создаёт публичный плейлист, возвращает
-    {"url", "found", "not_found": [...]}. Ссылка постоянна, пока плейлист жив."""
-    access = spotify._access_token()
-    headers = {"Authorization": f"Bearer {access}"}
+    {"url", "found", "not_found": [...]}. Ссылка постоянна, пока плейлист жив.
+
+    Резолв идёт через `resolve_songs` — то есть ЧЕРЕЗ КЭШ `TrackCache` (з.82 ч.1),
+    а не отдельным поиском на каждый трек. Так эта кнопка не тратит квоту Spotify
+    заново: атмосфера уже проверялась при генерации, результаты лежат в кэше.
+
+    ⚠ 28.07: здесь жил вызов `_search_track(...)` без префикса модуля — функция
+    осталась в `services/spotify.py` при рефакторинге 26.07, и любое нажатие
+    «Создать плейлист» падало с NameError → 500. Тесты не поймали: во всех
+    тестах роутера сама `create_playlist_from_songs` подменена заглушкой.
+    """
+    unique = dedupe_songs(songs)
+    resolved = resolve_songs(unique)
 
     uris = []
     not_found = []
-    for song in dedupe_songs(songs):
-        uri = _search_track(headers, song["title"], song["artist"])
-        if uri and uri not in uris:
-            uris.append(uri)
-        elif not uri:
-            not_found.append(f"{song['artist']} — {song['title']}")
+    for song, card in zip(unique, resolved):
+        uri = (card or {}).get("uri")
+        if uri:
+            if uri not in uris:
+                uris.append(uri)
+        else:
+            not_found.append(f"{song.get('artist', '')} — {song.get('title', '')}")
 
-    playlist = requests.post(
-        "https://api.spotify.com/v1/me/playlists",
-        headers=headers,
-        json={"name": name, "public": True},
-        timeout=spotify.TIMEOUT,
-    ).json()
-    if "external_urls" not in playlist:
-        raise RuntimeError(f"Spotify не создал плейлист: {playlist}")
-
-    if uris:
-        requests.post(
-            f"https://api.spotify.com/v1/playlists/{playlist['id']}/items",
-            headers=headers,
-            json={"uris": uris},
-            timeout=spotify.TIMEOUT,
-        )
-
-    # своя обложка (символ книги) — украшение: не вышло, плейлист всё равно живой
-    cover_set = upload_cover(playlist["id"], cover) if cover else False
-
-    return {
-        "url": playlist["external_urls"]["spotify"],
-        "found": len(uris),
-        "not_found": not_found,
-        "cover_set": cover_set,
-    }
+    result = create_playlist_with_uris(name, uris, cover=cover)
+    result["not_found"] = not_found
+    return result
 
 
 def upload_cover(playlist_id: str, jpeg_base64: str) -> bool:
@@ -327,5 +315,9 @@ async def rebuild_book_playlist(book_id: int, title: str, songs: list[dict]) -> 
     }.values())
     resolved = await asyncio.to_thread(resolve_songs, unique)
     uris = [item["uri"] for item in resolved if item and item.get("uri")]
-    await _sync_playlist(book_id, title, uris)
+    # ⚠ 28.07: здесь стояло `_sync_playlist` — имя, которого в модуле нет
+    # (второй такой же хвост рефакторинга 26.07). Пересборка плейлиста после
+    # удаления трека молча падала: вызов идёт фоновой задачей, исключение
+    # оставалось в логе, а пользователь видел «трек удалён» и старый плейлист.
+    await sync_book_playlist(book_id, title, uris)
 

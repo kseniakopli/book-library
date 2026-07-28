@@ -39,8 +39,15 @@ REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8000/callback
 # заработали, авторизацию надо пройти заново (удалить spotify_token.json).
 SCOPE = "playlist-modify-public playlist-modify-private ugc-image-upload"
 
-# refresh_token живёт рядом с .env и так же не попадает в git
-TOKEN_FILE = Path(__file__).resolve().parent.parent / "spotify_token.json"
+# refresh_token живёт рядом с .env и так же не попадает в git.
+# ⚠ На проде путь ОБЯЗАН указывать на volume (`SPOTIFY_TOKEN_FILE=/data/...`):
+# рядом с кодом файл лежит внутри образа, а образ пересобирается при каждом
+# деплое — авторизация Spotify молча слетала бы, и плейлисты переставали
+# создаваться до ручной переавторизации (найдено 28.07 при подготовке з.81а).
+TOKEN_FILE = Path(
+    os.getenv("SPOTIFY_TOKEN_FILE")
+    or Path(__file__).resolve().parent.parent / "spotify_token.json"
+)
 
 API = "https://api.spotify.com/v1"
 TIMEOUT = 10
@@ -74,6 +81,8 @@ def exchange_code(code: str) -> None:
     ).json()
     if "refresh_token" not in resp:
         raise RuntimeError(f"Spotify не выдал refresh_token: {resp}")
+    # каталог может не существовать (свой путь через SPOTIFY_TOKEN_FILE)
+    TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
     TOKEN_FILE.write_text(
         json.dumps({"refresh_token": resp["refresh_token"]}), encoding="utf-8"
     )

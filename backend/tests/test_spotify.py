@@ -412,3 +412,86 @@ def test_dedupe_songs_unit():
         {"title": "B", "artist": "X"},
     ]
     assert len(playlist_service.dedupe_songs(songs)) == 2
+
+
+class _PlaylistResponse:
+    """Ответ Spotify на создание плейлиста / добавление треков."""
+
+    def __init__(self, payload):
+        self.status_code = 200
+        self.headers = {}
+        self.text = ""
+        self._payload = payload
+
+    def json(self):
+        return self._payload
+
+
+def test_create_playlist_from_songs_builds_uris_and_reports_missing(monkeypatch):
+    """Регрессия 28.07: внутри функции вызывался `_search_track` без префикса
+    модуля — функция осталась в services/spotify.py после рефакторинга 26.07,
+    и КАЖДОЕ нажатие «Создать плейлист» падало с NameError → 500.
+
+    Мимо тестов прошло потому, что во всех тестах роутера подменялась сама
+    `create_playlist_from_songs` — её тело не выполнялось ни разу. Этот тест
+    гоняет именно тело: резолв (через кэш) + сборка uri + отчёт о ненайденных.
+    """
+    songs = [
+        {"title": "Song A", "artist": "Artist A"},
+        {"title": "Выдумка", "artist": "Никто"},
+    ]
+    # резолв возвращает карточки, выровненные по входу: вторая — «не найдено»
+    monkeypatch.setattr(
+        playlist_service,
+        "resolve_songs",
+        lambda items, **kw: [
+            {"title": "Song A", "artist": "Artist A", "uri": "spotify:track:a"},
+            None,
+        ],
+    )
+    monkeypatch.setattr(spotify_service, "_access_token", lambda: "token")
+
+    sent = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        sent[url] = json
+        if url.endswith("/me/playlists"):
+            return _PlaylistResponse({
+                "id": "pl1",
+                "external_urls": {"spotify": "https://open.spotify.com/playlist/pl1"},
+            })
+        return _PlaylistResponse({})
+
+    monkeypatch.setattr(playlist_service.requests, "post", fake_post)
+
+    result = playlist_service.create_playlist_from_songs("nocturne · Книга", songs)
+
+    assert result["url"] == "https://open.spotify.com/playlist/pl1"
+    assert result["found"] == 1
+    assert result["not_found"] == ["Никто — Выдумка"]
+    # найденный трек действительно ушёл в плейлист
+    assert sent["https://api.spotify.com/v1/playlists/pl1/items"] == {
+        "uris": ["spotify:track:a"]
+    }
+
+
+def test_token_saved_to_configured_path(tmp_path, monkeypatch):
+    """refresh_token пишется по TOKEN_FILE, создавая каталог при необходимости.
+
+    На проде путь ведёт на volume (`SPOTIFY_TOKEN_FILE=/data/spotify_token.json`):
+    рядом с кодом файл жил бы внутри образа и пропадал при каждом деплое —
+    авторизация Spotify молча слетала бы (28.07).
+    """
+    target = tmp_path / "data" / "spotify_token.json"   # каталога ещё нет
+    monkeypatch.setattr(spotify_service, "TOKEN_FILE", target)
+    monkeypatch.setattr(
+        spotify_service.requests,
+        "post",
+        lambda *a, **kw: type("R", (), {"json": lambda self: {"refresh_token": "r1"}})(),
+    )
+
+    assert spotify_service.has_token() is False
+    spotify_service.exchange_code("code-from-callback")
+
+    assert spotify_service.has_token() is True
+    assert json.loads(target.read_text(encoding="utf-8"))["refresh_token"] == "r1"

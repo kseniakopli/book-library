@@ -12,6 +12,9 @@ primary_region = 'ams'
 [env]
   DATABASE_URL = 'sqlite:////data/library.db'
   PORT = '8080'
+  # refresh_token Spotify — на volume, а не в образе: иначе авторизация
+  # слетала бы при каждом деплое (28.07, подготовка к з.81а)
+  SPOTIFY_TOKEN_FILE = '/data/spotify_token.json'
 
 [[mounts]]
   source = 'data'
