@@ -4,7 +4,7 @@
 // 401 — это не ошибка, а штатный ответ «не вошёл»: App по нему показывает
 // страницу входа. Поэтому запрос не повторяется (retry: false) и не считается
 // сломанным — иначе каждый гость видел бы «не удалось загрузить».
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 
@@ -27,9 +27,14 @@ export function useAuth() {
 }
 
 export function useLogout() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: api.logout,
-    onSuccess: () => queryClient.clear(),   // чужие книги в кэше не оставляем
+    // Полная перезагрузка страницы, а не queryClient.clear() (баг 26.07: кнопка
+    // «Выйти» пропадала, но библиотека оставалась на экране). Перезагрузка
+    // гарантированно стирает всё состояние в памяти — чужие книги не могут
+    // остаться в кэше, — а куку сервер к этому моменту уже погасил.
+    onSuccess: () => {
+      window.location.href = "/";
+    },
   });
 }
