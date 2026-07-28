@@ -139,6 +139,10 @@ function HomePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: keys.books });
       queryClient.invalidateQueries({ queryKey: keys.series });
+      // Книга легла на полку — выходим из поиска к полкам (баг 24.07: результаты
+      // оставались висеть, и было непонятно, добавилась книга или нет).
+      // Полка «Хочу прочитать» уже перечитана инвалидацией — новая книга видна.
+      setFilter("");
     },
   });
 
