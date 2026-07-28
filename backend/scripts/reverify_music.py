@@ -21,7 +21,7 @@ from sqlmodel import Session, select
 import database
 import services.spotify as spotify_service
 from models import AISelection, Book
-from services.ai import MusicResult, Song
+from services.ai_schemas import MusicResult, Song
 from services.atmosphere import CATEGORIES, verify_music_results, replace_selections
 
 

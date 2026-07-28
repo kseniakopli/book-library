@@ -8,7 +8,7 @@ import database
 from deps import current_user
 from models import Book, User, UserBook
 from main import app
-from services.ai import (
+from services.ai_schemas import (
     AromaResult,
     AtmosphereItem,
     DesignResult,

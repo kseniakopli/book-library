@@ -18,12 +18,8 @@ from deps import current_user_id, get_lang, get_session
 from events import log_event
 from google_books import search_books
 from models import Book, Recommendation, UserBook
-from services.ai import (
-    RecommendationsResult,
-    generate_recommendations,
-    start_ai_metrics,
-    take_ai_metrics,
-)
+from services.ai import generate_recommendations, start_ai_metrics, take_ai_metrics
+from services.ai_schemas import RecommendationsResult
 from services.taste import disliked_recommendations
 
 router = APIRouter(tags=["recommendations"])

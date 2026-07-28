@@ -26,7 +26,8 @@ from constants import SOURCE_CLAUDE
 from models import AISelection, Book
 from prompt_config import build_design_prompt
 from services.atmosphere import CATEGORIES, replace_selections
-from services.ai import DesignResult, _with_style
+from services.ai import _with_style
+from services.ai_schemas import DesignResult
 
 load_dotenv()
 client = anthropic.Anthropic()
