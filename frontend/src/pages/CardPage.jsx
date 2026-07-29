@@ -10,6 +10,13 @@ import { keys } from "../queryKeys";
 import { centeredSvgDataUri } from "../lib/svg";
 import "../styles/card.css";
 
+// Адрес в подвале карточки. ОДНА строка на весь проект, чтобы она не разъехалась
+// с QR рядом: сам QR — статичный файл `frontend/public/landing-qr.svg`,
+// он перегенерируется `backend/scripts/make_landing_qr.py` (там тот же адрес
+// по умолчанию). Меняется домен или слаг витрины — правим оба места и
+// ПЕРЕПРОВЕРЯЕМ QR телефоном до печати тиража.
+const SHOWCASE_URL = "nocturne-library.fly.dev/u/publiclib";
+
 const DEFAULT_PALETTE = {
   bg: "#171310",
   surface: "#221c17",
@@ -248,16 +255,17 @@ function CardPage() {
         </div>
         <div className="pc-footer">
           {symbolUri && <img src={symbolUri} alt="" />}
+          {/* Адрес обязан совпадать с тем, что закодировано в QR рядом
+              (28.07: тут оставался netlify-лендинг, а QR уже вёл на витрину).
+              Меняешь один — проверь второй: QR перегенерируется скриптом
+              backend/scripts/make_landing_qr.py */}
           <span contentEditable suppressContentEditableWarning>
-            <b>nocturne-library.netlify.app</b> — атмосферные литературные
-            вечера.
+            <b>{SHOWCASE_URL}</b> — атмосферные литературные вечера.
           </span>
-          {/* Статичный QR на лендинг (frontend/public/landing-qr.svg,
-              перегенерация — backend/scripts/make_landing_qr.py) */}
           <img
             className="pc-landing-qr"
             src="/landing-qr.svg"
-            alt="QR-код: сайт nocturne"
+            alt="QR-код: витрина nocturne"
           />
         </div>
       </div>
