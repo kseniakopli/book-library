@@ -87,23 +87,57 @@ def get_or_create(session: Session, name: str) -> Author:
 
 
 def link_book(session: Session, book_id: int, raw_author: str | None) -> list[Author]:
-    """Связать книгу с авторами из её строки. Идемпотентно: повторный вызов
-    не создаёт ни вторых авторов, ни вторых связей."""
-    authors = []
-    for position, name in enumerate(split_authors(raw_author)):
-        author = get_or_create(session, name)
-        exists = session.exec(
-            select(BookAuthor).where(
-                BookAuthor.book_id == book_id,
-                BookAuthor.author_id == author.id,
-            )
-        ).first()
-        if exists is None:
-            session.add(
-                BookAuthor(book_id=book_id, author_id=author.id, position=position)
-            )
-        authors.append(author)
+    """Связать книгу с авторами из её строки — ПОЛНОСТЬЮ, а не «добавить».
+
+    После вызова связей ровно столько, сколько имён в строке: лишние снимаются.
+    Идемпотентно — повторный вызов ничего не дублирует.
+
+    ⚠ Почему не «только добавлять» (баг 28.07): строка автора у книги меняется —
+    руками в правке или когда Google возвращает имя на другом языке. У «Года
+    магического мышления» так вышло два автора сразу: старая связь на «Джоан
+    Дидион» и новая на «Joan Didion», и на странице книги имя показывалось
+    дважды. Строка книги — источник истины, связи обязаны ей соответствовать.
+    """
+    names = split_authors(raw_author)
+    authors = [get_or_create(session, name) for name in names]
+    wanted = {author.id: position for position, author in enumerate(authors)}
+
+    existing = session.exec(
+        select(BookAuthor).where(BookAuthor.book_id == book_id)
+    ).all()
+
+    orphan_candidates = []
+    for link in existing:
+        if link.author_id in wanted:
+            link.position = wanted.pop(link.author_id)   # порядок мог измениться
+            session.add(link)
+        else:
+            orphan_candidates.append(link.author_id)
+            session.delete(link)
+
+    for author_id, position in wanted.items():
+        session.add(BookAuthor(book_id=book_id, author_id=author_id, position=position))
+
+    session.flush()
+    _drop_orphans(session, orphan_candidates)
     return authors
+
+
+def _drop_orphans(session: Session, author_ids: list[int]) -> None:
+    """Автор, у которого не осталось ни одной книги, удаляется.
+
+    Тот же принцип, что у книги-сироты при снятии с полки (`services/shelf.py`):
+    сущность существует ради связей, без них это мусор в базе и пустая
+    страница по прямой ссылке."""
+    for author_id in author_ids:
+        still_used = session.exec(
+            select(BookAuthor).where(BookAuthor.author_id == author_id)
+        ).first()
+        if still_used is None:
+            author = session.get(Author, author_id)
+            if author is not None:
+                session.delete(author)
+    session.flush()
 
 
 def display_name(author: Author) -> str:

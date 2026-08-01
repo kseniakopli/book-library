@@ -135,6 +135,76 @@ def test_link_book_creates_authors_in_cover_order(client):
         assert display_name(by_position[1]) == "Алёна Харитонова"
 
 
+def test_changed_author_string_replaces_links(client):
+    """Баг 28.07 на проде: у «Года магического мышления» строка сменилась
+    с «Джоан Дидион» на «Joan Didion», новая связь добавилась, старая осталась —
+    и на странице книги имя показывалось дважды.
+
+    Строка книги — источник истины: связей должно быть ровно столько,
+    сколько имён в ней сейчас."""
+    with Session(database.engine) as session:
+        book = Book(title="Год магического мышления", author="Джоан Дидион")
+        session.add(book)
+        session.commit()
+
+        link_book(session, book.id, book.author)
+        session.commit()
+
+        book.author = "Joan Didion"          # правка в интерфейсе
+        session.add(book)
+        link_book(session, book.id, book.author)
+        session.commit()
+
+        links = session.exec(
+            select(BookAuthor).where(BookAuthor.book_id == book.id)
+        ).all()
+        assert len(links) == 1
+        assert display_name(session.get(Author, links[0].author_id)) == "Джоан Дидион"
+
+
+def test_author_without_books_is_removed(client):
+    """Автор, потерявший последнюю книгу, удаляется — как книга-сирота при
+    снятии с полки. Иначе по прямой ссылке открывалась бы пустая страница."""
+    with Session(database.engine) as session:
+        book = Book(title="Временная", author="Никому Не Нужный")
+        session.add(book)
+        session.commit()
+
+        link_book(session, book.id, book.author)
+        session.commit()
+        orphan_id = session.exec(
+            select(Author).where(Author.sort_key == norm_key("Никому Не Нужный"))
+        ).one().id
+
+        book.author = "Другой Автор"
+        session.add(book)
+        link_book(session, book.id, book.author)
+        session.commit()
+
+        assert session.get(Author, orphan_id) is None
+
+
+def test_coauthor_kept_when_one_of_them_changes(client):
+    """Убрали одного соавтора — второй остаётся и не теряет книгу."""
+    with Session(database.engine) as session:
+        book = Book(title="Жнецы страданий", author="Екатерина Казакова, Алена Харитонова")
+        session.add(book)
+        session.commit()
+        link_book(session, book.id, book.author)
+        session.commit()
+
+        book.author = "Екатерина Казакова"
+        session.add(book)
+        link_book(session, book.id, book.author)
+        session.commit()
+
+        links = session.exec(
+            select(BookAuthor).where(BookAuthor.book_id == book.id)
+        ).all()
+        assert len(links) == 1
+        assert display_name(session.get(Author, links[0].author_id)) == "Екатерина Казакова"
+
+
 def test_relinking_does_not_duplicate(client):
     """Скрипт заполнения запускают повторно — он не должен плодить связи."""
     with Session(database.engine) as session:
