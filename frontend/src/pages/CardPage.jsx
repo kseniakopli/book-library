@@ -18,11 +18,11 @@ import "../styles/card.css";
 const SHOWCASE_URL = "nocturne-library.fly.dev/u/publiclib";
 
 const DEFAULT_PALETTE = {
-  bg: "#171310",
-  surface: "#221c17",
-  accent: "#e08b2d",
-  text: "#e9e1d3",
-  muted: "#a19585",
+  bg: "#161214",
+  surface: "#211a1e",
+  accent: "#cf7b93",
+  text: "#ece4e6",
+  muted: "#a3949a",
 };
 
 function dedupeSongs(songs) {
