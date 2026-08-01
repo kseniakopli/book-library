@@ -111,12 +111,13 @@ function CardPage() {
     "--c-accent": p.accent,
     "--c-text": p.text,
     "--c-muted": p.muted,
+    // задача 100: запасной — шрифт интерфейса, а не дефолт браузера
     "--c-serif": design
-      ? `'${design.title_font}', Georgia, serif`
-      : "Georgia, serif",
+      ? `'${design.title_font}', Spectral, Georgia, serif`
+      : "Spectral, Georgia, serif",
     "--c-sans": design
-      ? `'${design.body_font}', system-ui, sans-serif`
-      : "system-ui, sans-serif",
+      ? `'${design.body_font}', Commissioner, system-ui, sans-serif`
+      : "Commissioner, system-ui, sans-serif",
   };
 
   const ready =

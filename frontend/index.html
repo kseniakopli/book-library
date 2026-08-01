@@ -5,6 +5,28 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>nocturne - библиотека</title>
+
+    <!-- Шрифты интерфейса (задача 100). CSP уже разрешает эти адреса —
+         их добавили под шрифты паспортов книг (useBookDesign.js).
+
+         ⚠ Две ОТДЕЛЬНЫЕ ссылки, а не одна с двумя family. Запрос css2 работает
+         по принципу всё-или-ничего: одна невалидная семья или несуществующее
+         начертание — и Google отвечает 400, после чего не загружается НИ ОДИН
+         шрифт из запроса. Отдельными ссылками сбой изолируется.
+         Проверено 01.08 на docs/превью_шрифты.html.
+
+         font-display=swap: текст показывается запасным шрифтом сразу,
+         а не прячется на время загрузки. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;0,700;1,400&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400;500;600;700&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>

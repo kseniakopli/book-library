@@ -97,10 +97,14 @@ export function useBookDesign(bookId, theme) {
         "--muted": palette.muted,
         // задача 49: границы — полупрозрачный muted, чтобы не сливались с текстом
         "--border": withAlpha(palette.muted, "66"),
-        "--serif": `'${appliedDesign.title_font}', Georgia, serif`,
+        // Задача 100: запасной — шрифт интерфейса, а не Georgia. Шрифт паспорта
+        // называет модель, и он может не загрузиться (нет такого имени в Google
+        // Fonts, либо адрес заблокирован) — тогда книга должна откатываться
+        // на наше оформление, а не на дефолт браузера.
+        "--serif": `'${appliedDesign.title_font}', Spectral, Georgia, serif`,
         background: palette.bg,
         color: palette.text,
-        fontFamily: `'${appliedDesign.body_font}', system-ui, sans-serif`,
+        fontFamily: `'${appliedDesign.body_font}', Commissioner, system-ui, sans-serif`,
       }
     : {};
 

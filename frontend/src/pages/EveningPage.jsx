@@ -91,11 +91,12 @@ function EveningPage() {
         "--ev-accent": palette.accent,
         "--ev-on-accent": bestTextOn(palette.accent),
         "--ev-border": withAlpha(palette.muted, "44"),
+        // задача 100: запасной — шрифт интерфейса, а не дефолт браузера
         "--ev-serif": passport.title_font
-          ? `'${passport.title_font}', Georgia, serif`
+          ? `'${passport.title_font}', Spectral, Georgia, serif`
           : "var(--serif)",
         "--ev-sans": passport.body_font
-          ? `'${passport.body_font}', system-ui, sans-serif`
+          ? `'${passport.body_font}', Commissioner, system-ui, sans-serif`
           : "var(--sans)",
       }
     : {};
