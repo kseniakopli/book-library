@@ -10,7 +10,7 @@ import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useTheme } from "../hooks/useTheme";
 import { centeredSvgDataUri } from "../lib/svg";
-import { bestTextOn, withAlpha } from "../lib/contrast";
+import { accentPair, withAlpha } from "../lib/contrast";
 import { pickPalette } from "../lib/palette";
 
 const SOURCES = ["Claude", "ChatGPT"];
@@ -81,6 +81,11 @@ function EveningPage() {
   const loading =
     book.isLoading || music.isLoading || food.isLoading || aroma.isLoading;
 
+  // Аудит 01.08: акцент шёл в сцену как есть, без проверки контраста, —
+  // отсюда 3.84:1 у statement и 4.41:1 у текста на кнопках. Страница книги
+  // такую проверку делала, «вечер» нет. Теперь обе зовут общий accentPair.
+  const ink = palette ? accentPair(palette.accent, palette.bg) : null;
+
   // Палитра → CSS-переменные сцены (или базовая тема, если паспорта нет)
   const style = palette
     ? {
@@ -88,8 +93,8 @@ function EveningPage() {
         "--ev-surface": palette.surface,
         "--ev-text": palette.text,
         "--ev-muted": palette.muted,
-        "--ev-accent": palette.accent,
-        "--ev-on-accent": bestTextOn(palette.accent),
+        "--ev-accent": ink.accent,
+        "--ev-on-accent": ink.onAccent,
         "--ev-border": withAlpha(palette.muted, "44"),
         // задача 100: запасной — шрифт интерфейса, а не дефолт браузера
         "--ev-serif": passport.title_font

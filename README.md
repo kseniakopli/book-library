@@ -8,7 +8,7 @@ tracks reading status and ratings, imports an existing library from CSV, enriche
 with covers and metadata from Google Books, builds Spotify playlists, and prints an A6
 card to tuck into a book you give away.
 
-Landing page & waitlist: **https://nocturne-library.netlify.app**
+Public showcase & waitlist: **https://nocturne-library.fly.dev/u/publiclib**
 
 ## Features
 
@@ -211,7 +211,6 @@ book-library/
 │       ├── styles/           # design tokens (light/dark) + per-component css
 │       ├── api.js, queryKeys.js, lib/ (contrast, palette, svg)
 │       └── test/             # Vitest + MSW suite; ../e2e — Playwright
-├── landing/                  # public landing page with waitlist (deployed to Netlify)
 └── documentation/            # architecture, data model, test strategy,
                               # states & degradation, openapi.json snapshot
 ```

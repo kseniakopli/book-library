@@ -4,7 +4,7 @@
 // и в фон под белыми буквами. Проверка hasReadableContrast смотрела только пару
 // текст/фон, поэтому accent мог давать 3.6:1 при норме 4.5.
 import { test, expect } from "vitest";
-import { contrastRatio, ensureContrast } from "../lib/contrast";
+import { accentPair, contrastRatio, ensureContrast } from "../lib/contrast";
 
 test("читаемый цвет остаётся нетронутым", () => {
   // #b45309 на #faf7f2 — 4.7:1, норму проходит
@@ -48,4 +48,30 @@ test("очень светлый цвет на белом тоже дотягив
   const fixed = ensureContrast("#fff7cc", "#ffffff");
 
   expect(contrastRatio(fixed, "#ffffff")).toBeGreaterThanOrEqual(4.5);
+});
+
+// --- accentPair: акцент в двух ролях (аудит 01.08) ---
+//
+// Проверяем ОБЕ роли сразу. Прежняя проверка смотрела только «акцент как текст»,
+// и страница «вечера» уезжала с текстом на кнопке 4.41:1 при норме 4.5 —
+// мимо теста, потому что тест спрашивал не о том.
+test("accentPair даёт AA и как текст на фоне, и как фон под буквами", () => {
+  // реальный случай из отчёта аудита: акцент паспорта на светлой сцене
+  const { accent, onAccent } = accentPair("#96723a", "#f2eade");
+
+  expect(contrastRatio(accent, "#f2eade")).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(onAccent, accent)).toBeGreaterThanOrEqual(4.5);
+});
+
+test("accentPair не портит уже читаемый акцент", () => {
+  const { accent } = accentPair("#7a2740", "#f4f2f0"); // 8.6:1, трогать нечего
+
+  expect(accent).toBe("#7a2740");
+});
+
+test("accentPair работает и на тёмной сцене", () => {
+  const { accent, onAccent } = accentPair("#4a3a28", "#171310");
+
+  expect(contrastRatio(accent, "#171310")).toBeGreaterThanOrEqual(4.5);
+  expect(contrastRatio(onAccent, accent)).toBeGreaterThanOrEqual(4.5);
 });

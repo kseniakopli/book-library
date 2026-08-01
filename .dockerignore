@@ -6,7 +6,6 @@
 .git
 .github
 docs
-landing
 documentation
 venv
 **/__pycache__

@@ -21,7 +21,7 @@ python scripts/backup_db.py
 | `backup_db.py` | Консистентный снимок `library.db` + ротация (10 последних). Автозапуск — `../run_backup.bat` в Планировщике Windows |
 | `dump_openapi.py` | Снимок схемы API → `documentation/openapi.json`. **Обязательно после правок эндпоинтов** — иначе CI-проверка контракта покраснеет |
 | `reset_playlist.py` | Сброс ссылки на Spotify-плейлист (`--list` / `<id>` / `--all`), чтобы плейлист можно было собрать заново |
-| `make_landing_qr.py` | QR со ссылкой на лендинг → `frontend/public/landing-qr.svg`. Перегенерировать при смене домена |
+| `make_landing_qr.py` | QR со ссылкой на **витрину** → `frontend/public/landing-qr.svg`. Перегенерировать при смене домена или слага. ⚠ «landing» в имени историческое: лендинг удалён 01.08, QR ведёт на витрину с 28.07 |
 | `backfill_passports.py` | Пакетная генерация паспортов оформления через Anthropic Batch API (вдвое дешевле) |
 | `verify_music.py` | Чистка сохранённых подборок от несуществующих треков (`--dry-run` / `--book N`) |
 | `clear_atmosphere.py` | Удаление сохранённой атмосферы, чтобы сгенерировать заново (по умолчанию — только музыка) |

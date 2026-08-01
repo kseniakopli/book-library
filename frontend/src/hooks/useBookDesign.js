@@ -8,12 +8,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useImageFallback } from "./useImageFallback";
-import {
-  bestTextOn,
-  ensureContrast,
-  hasReadableContrast,
-  withAlpha,
-} from "../lib/contrast";
+import { accentPair, hasReadableContrast, withAlpha } from "../lib/contrast";
 import { pickPalette } from "../lib/palette";
 import { centeredSvgDataUri } from "../lib/svg";
 
@@ -83,16 +78,17 @@ export function useBookDesign(bookId, theme) {
   // Аудит 28.07 (находка 7): accent модель придумывает свободно, а он идёт и в
   // текст (statement), и в фон под белыми буквами. Проверка выше смотрит только
   // пару текст/фон, поэтому accent дотягиваем до нормы AA отдельно.
-  const accent = appliedDesign
-    ? ensureContrast(palette.accent, palette.bg)
-    : null;
+  // Аудит 01.08: считалась только роль «акцент как текст», а он ещё и фон под
+  // буквами. Обе роли теперь в общем accentPair — он же зовётся на «вечере»,
+  // чтобы правка снова не разъехалась по двум местам.
+  const ink = appliedDesign ? accentPair(palette.accent, palette.bg) : null;
 
   const themedStyle = appliedDesign
     ? {
         "--surface": palette.surface,
-        "--accent": accent,
+        "--accent": ink.accent,
         // задача 49: текст на accent — по контрасту (тема сюда не дотягивается)
-        "--on-accent": bestTextOn(accent),
+        "--on-accent": ink.onAccent,
         "--text": palette.text,
         "--muted": palette.muted,
         // задача 49: границы — полупрозрачный muted, чтобы не сливались с текстом

@@ -21,6 +21,11 @@ from pathlib import Path
 import qrcode
 import qrcode.image.svg
 
+# ⚠ Имя «landing» ИСТОРИЧЕСКОЕ. Лендинга больше нет (удалён 01.08: его роль
+# играет публичная витрина), а QR ведёт на витрину ещё с 28.07. Файл и скрипт
+# не переименованы сознательно: путь /landing-qr.svg зашит в печатную карточку,
+# и трогать её ради косметики — лишний риск.
+#
 # слаг задаётся scripts/set_showcase.py — адрес должен совпадать с ним
 # 28.07: ksenia → publiclib (витрина обезличена, отсылок к владельцу нет)
 DEFAULT_URL = "https://nocturne-library.fly.dev/u/publiclib"
