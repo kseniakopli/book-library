@@ -10,14 +10,19 @@
 // Бэкенд нужен с ALLOW_DEV_LOGIN=1 — иначе закрытые страницы упрутся во вход:
 //   cd backend; $env:ALLOW_DEV_LOGIN="1"; uvicorn main:app --reload
 //
-// Результат — в docs/audit-28.07/: PNG по странице на каждую ширину + report.json.
+// Результат — в docs/audit-<дата>/: PNG по странице на каждую ширину + report.json.
+//
+// Папка датирована СЕГОДНЯШНИМ днём (было жёстко «audit-28.07»). Иначе каждый
+// прогон затирал report.json предыдущего — то есть ровно ту базу, ради сравнения
+// с которой скрипт и написан. Своя дата: AUDIT_STAMP=2026-08-01.
 import { chromium } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const OUT = path.resolve(HERE, "../../docs/audit-28.07");
+const STAMP = process.env.AUDIT_STAMP || new Date().toISOString().slice(0, 10);
+const OUT = path.resolve(HERE, `../../docs/audit-${STAMP}`);
 const BASE = process.env.AUDIT_BASE || "http://localhost:5173";
 const DIRECT_API = process.env.AUDIT_API || "http://127.0.0.1:8000";
 const SLUG = process.env.AUDIT_SLUG || "publiclib";
@@ -100,6 +105,14 @@ function measure() {
   const boxOverflow = [];
   for (const el of all) {
     if (inScroller(el) || el.children.length > 0) continue;
+    // Элемент, поставленный absolute/fixed, вынесен за родителя НАМЕРЕННО:
+    // так сделаны стрелки ленты (.showcase-arrow, right: -14px) — карточки
+    // должны начинаться ровно по краю секции. Проверка ищет другое: содержимое,
+    // вылезшее за паддинг по ходу вёрстки. Переполнение самой страницы такими
+    // элементами всё равно поймает проверка 1. Ложная тревога держалась
+    // с 28.07 и уводила внимание с настоящих находок.
+    const pos = getComputedStyle(el).position;
+    if (pos === "absolute" || pos === "fixed") continue;
     const parent = el.parentElement;
     if (!parent) continue;
     const pr = parent.getBoundingClientRect();
@@ -427,12 +440,28 @@ async function run() {
               ]),
           )
           .catch(() => {});
+        // Задача 100: дождаться веб-шрифтов. Без этого замер и скриншот могут
+        // застать запасной шрифт — метрики Spectral/Commissioner другие, и
+        // «переполнение» окажется артефактом момента, а не находкой.
+        await page
+          .evaluate(() =>
+            Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 5000))]),
+          )
+          .catch(() => {});
+
+        // ⚠ ПОРЯДОК ВАЖЕН: сначала замер, потом скриншот.
+        // Скриншот с fullPage:true снимается через captureBeyondViewport, и это
+        // сбрасывает Emulation.setEmulatedMedia — то есть pointer:coarse, который
+        // мы включили выше. Замер после такого скриншота видит pointer:fine,
+        // правила @media (pointer: coarse) с тач-таргетами 44px не применяются,
+        // и smallTaps раздувается впустую. Проверено 01.08: pointerCoarse=true
+        // выходил ровно на трёх страницах — тех, у которых fullPage:false.
+        entry.metrics = await page.evaluate(measure);
+        if (p.rowsOf) entry.rows = await page.evaluate(measureRows, p.rowsOf);
 
         const shot = path.join(OUT, `${p.name}-${vp.name}.png`);
         await page.screenshot({ path: shot, fullPage: p.fullPage !== false });
         entry.screenshot = path.basename(shot);
-        entry.metrics = await page.evaluate(measure);
-        if (p.rowsOf) entry.rows = await page.evaluate(measureRows, p.rowsOf);
         entry.consoleErrors = consoleErrors.slice(0, 5);
       } catch (e) {
         entry.error = String(e).slice(0, 300);
