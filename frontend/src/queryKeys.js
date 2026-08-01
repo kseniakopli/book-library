@@ -18,4 +18,5 @@ export const keys = {
   feedback: ["feedback"],               // задача 26: 👍/👎 по AI-подборкам
   series: ["series"],                   // задача 89: полка циклов
   seriesOne: (id) => ["series", Number(id)],
+  author: (id) => ["authors", Number(id)],  // задача 97: страница автора
 };

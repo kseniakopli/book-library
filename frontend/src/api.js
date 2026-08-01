@@ -55,6 +55,8 @@ export const getShelf = async ({ status, offset = 0, limit = 30 }) => {
 // Задача 56б: лёгкий счётчик для поллинга фонового обогащения
 export const getPendingCount = () => request("/books/pending-count");
 export const getBook = (id) => request(`/books/${id}`);
+// Задача 97: страница автора — книги с полки + книги того же автора из каталога
+export const getAuthor = (id) => request(`/authors/${id}`);
 // Символьный режим полки (задача 66): символ+палитры паспорта для всех книг разом
 export const getDesignSummary = () => request("/books/design-summary");
 export const createBook = ({

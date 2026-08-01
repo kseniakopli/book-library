@@ -14,8 +14,8 @@
 
 import unicodedata
 
-from models import Author, BookAuthor
-from sqlmodel import Session, select
+from models import Author, Book, BookAuthor, UserBook
+from sqlmodel import Session, col, select
 
 # Строка ровно как в базе → авторы по порядку обложки.
 EXCEPTIONS: dict[str, list[str]] = {
@@ -109,3 +109,45 @@ def link_book(session: Session, book_id: int, raw_author: str | None) -> list[Au
 def display_name(author: Author) -> str:
     """Как показывать автора: по-русски, а если русского нет — как записано."""
     return author.name_ru or author.name_original or ""
+
+
+def authors_of(session: Session, book_ids: list[int]) -> dict[int, list[Author]]:
+    """Авторы для списка книг ОДНИМ запросом: полка на 200 книг иначе дала бы
+    двести обращений к базе. Порядок соавторов сохраняется (`position`)."""
+    if not book_ids:
+        return {}
+    rows = session.exec(
+        select(BookAuthor, Author)
+        .join(Author, Author.id == BookAuthor.author_id)
+        .where(col(BookAuthor.book_id).in_(book_ids))
+        .order_by(BookAuthor.book_id, BookAuthor.position)
+    ).all()
+    result: dict[int, list[Author]] = {}
+    for link, author in rows:
+        result.setdefault(link.book_id, []).append(author)
+    return result
+
+
+def books_of(session: Session, author_id: int, user_id: int) -> dict:
+    """Книги автора, разложенные на две стопки.
+
+    `shelf` — то, что у читателя на полке (со статусом и оценкой).
+    `catalog` — книги того же автора, которые есть в общем каталоге, но не
+    на полке: это тома циклов, добавленные как «что дальше». Ради них страница
+    и задумывалась — иначе она повторяла бы поиск по полке.
+    """
+    rows = session.exec(
+        select(Book, UserBook)
+        .join(BookAuthor, BookAuthor.book_id == Book.id)
+        .join(
+            UserBook,
+            (UserBook.book_id == Book.id) & (UserBook.user_id == user_id),
+            isouter=True,          # книга может быть в каталоге и не на полке
+        )
+        .where(BookAuthor.author_id == author_id)
+        .order_by(Book.title)
+    ).all()
+
+    shelf = [(book, user_book) for book, user_book in rows if user_book is not None]
+    catalog = [book for book, user_book in rows if user_book is None]
+    return {"shelf": shelf, "catalog": catalog}

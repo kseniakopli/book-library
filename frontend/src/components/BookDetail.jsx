@@ -132,7 +132,24 @@ function BookDetail({ book, onBack, onDeleted }) {
                 )}
                 <div className="detail-title-text">
                   <h1 className="detail-title">{book.title}</h1>
-                  <p className="detail-author">{book.author}</p>
+                  {/* Задача 97: имя ведёт на страницу автора. Список приходит
+                      с бэкенда: у книг, добавленных до таблицы авторов, он
+                      пуст — тогда показываем строку как раньше. Соавторы
+                      перечисляются по отдельности, каждый своей ссылкой. */}
+                  <p className="detail-author">
+                    {book.authors?.length ? (
+                      book.authors.map((author, i) => (
+                        <span key={author.id}>
+                          {i > 0 && ", "}
+                          <Link className="detail-author-link" to={`/authors/${author.id}`}>
+                            {author.name}
+                          </Link>
+                        </span>
+                      ))
+                    ) : (
+                      book.author
+                    )}
+                  </p>
                 </div>
               </div>
 

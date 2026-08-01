@@ -19,6 +19,7 @@ from logging_setup import request_id_var, setup_logging
 from routers import (
     atmosphere,
     auth,
+    authors,
     books,
     feedback,
     imports,
@@ -73,6 +74,7 @@ app.include_router(spotify.router, prefix=API_V1, dependencies=PROTECTED)     # 
 app.include_router(stats.router, prefix=API_V1, dependencies=PROTECTED)       # задачи 24/63: статистика
 app.include_router(feedback.router, prefix=API_V1, dependencies=PROTECTED)    # задача 26: 👍/👎 по подборкам
 app.include_router(series.router, prefix=API_V1, dependencies=PROTECTED)      # задача 89: циклы книг
+app.include_router(authors.router, prefix=API_V1, dependencies=PROTECTED)    # задача 97: страница автора
 # /callback — без префикса: адрес зарегистрирован в кабинете Spotify
 app.include_router(spotify.callback_router)
 

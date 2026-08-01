@@ -15,6 +15,7 @@ from google_books import search_books
 from i18n import msg
 from models import Book, UserBook
 from services.ai import map_csv_columns, start_ai_metrics, take_ai_metrics
+from services.authors import link_book
 from services.enrichment import backfill_in_background
 
 router = APIRouter(tags=["import"])
@@ -145,6 +146,9 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
                 book = Book(title=title, author=author, isbn=isbn)
                 session.add(book)
                 session.flush()               # нужен book.id до создания UserBook
+                # задача 97: связываем с авторами сразу — импорт это главный
+                # источник новых книг, без этого таблица авторов отстанет
+                link_book(session, book.id, author)
                 book_id = book.id
                 book_by_key[key] = book_id
                 if clean_isbn:

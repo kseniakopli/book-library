@@ -58,6 +58,13 @@ class BookUpdate(BaseModel):
         return v
 
 
+class AuthorBrief(BaseModel):
+    """Автор в ответе книги (задача 97): ровно столько, сколько нужно ссылке.
+    `name` уже разрешён — `name_ru`, а если русского нет, оригинальное написание."""
+    id: int
+    name: str
+
+
 class BookRead(BaseModel):
     """Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —
     полный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний).
@@ -90,9 +97,19 @@ class BookRead(BaseModel):
     series_index: Optional[int] = None
     series_name: Optional[str] = None
     featured: bool = False               # задача 30: книга в публичной витрине
+    # Задача 97: авторы как сущности — чтобы имя на странице книги стало ссылкой.
+    # Строка `author` остаётся: она нужна для показа и печатной карточки, а список
+    # может быть пустым у книг, добавленных до появления таблицы.
+    authors: list["AuthorBrief"] = []
 
     @classmethod
-    def from_pair(cls, book, user_book, series_name: Optional[str] = None) -> "BookRead":
+    def from_pair(
+        cls,
+        book,
+        user_book,
+        series_name: Optional[str] = None,
+        authors: Optional[list] = None,
+    ) -> "BookRead":
         """Склейка ответа: общие поля книги + личные поля полки.
         Контракт остаётся плоским — фронт читает как до разделения таблиц."""
         return cls(
@@ -119,4 +136,5 @@ class BookRead(BaseModel):
             series_id=book.series_id,
             series_index=book.series_index,
             series_name=series_name,
+            authors=authors or [],
         )

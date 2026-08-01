@@ -28,8 +28,9 @@ from deps import (
 from events import log_event
 from google_books import fetch_book_info
 from models import Book, Series, UserBook
-from schemas import BookCreate, BookRead, BookUpdate
+from schemas import AuthorBrief, BookCreate, BookRead, BookUpdate
 from services.atmosphere import generate_design_in_background, read_design_summary
+from services.authors import authors_of, display_name
 from services.enrichment import apply_enrichment, enrich_in_background
 from services.shelf import (
     add_to_shelf,
@@ -138,7 +139,14 @@ def get_book(
     if book.series_id is not None:
         series = session.get(Series, book.series_id)
         series_name = series.name if series else None
-    return BookRead.from_pair(book, user_book, series_name)
+    # Задача 97: авторы-сущности — только у ОДИНОЧНОЙ книги. В списке полки они
+    # не нужны (карточка показывает строку `author` и никуда не ведёт), а лишний
+    # JOIN на каждую из 30 книг страницы — плата ни за что.
+    authors = [
+        AuthorBrief(id=author.id, name=display_name(author))
+        for author in authors_of(session, [book_id]).get(book_id, [])
+    ]
+    return BookRead.from_pair(book, user_book, series_name, authors)
 
 
 @router.post("/books", response_model=BookRead)

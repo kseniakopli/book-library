@@ -16,6 +16,7 @@ from constants import ALLOWED_STATUSES, ENRICH_PENDING, STATUS_READ
 from deps import require_admin
 from i18n import msg
 from models import Book, UserBook
+from services.authors import link_book
 
 
 def norm_isbn(value: str | None) -> str | None:
@@ -69,6 +70,11 @@ def add_to_shelf(session: Session, data, user_id: int, lang: str) -> tuple[Book,
         session.add(book)
         session.commit()
         session.refresh(book)
+        # Задача 97: новая книга каталога — сразу связываем с авторами. Иначе
+        # таблица авторов застынет на дне бэкфилла, а всё добавленное позже
+        # окажется без страницы автора.
+        link_book(session, book.id, book.author)
+        session.commit()
 
     # уже на полке? (UNIQUE user+book это и гарантирует — отвечаем понятнее)
     already = session.exec(
@@ -127,6 +133,13 @@ def apply_book_fields(
         edited.append("description")
 
     session.add(book)
+    # Задача 97: поправили строку автора — перепривязываем. Старые связи НЕ
+    # удаляем: автор мог остаться прежним, а исправляли опечатку в названии.
+    # Полная перепривязка (со снятием лишнего) — вместе с ручным слиянием
+    # авторов, когда для него появится интерфейс.
+    if "author" in edited:
+        session.flush()
+        link_book(session, book.id, book.author)
     return edited
 
 

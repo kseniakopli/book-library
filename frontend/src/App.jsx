@@ -17,6 +17,8 @@ const EveningPage = lazy(() => import("./pages/EveningPage"));
 const StatsPage = lazy(() => import("./pages/StatsPage"));
 // Циклы (задача 89) — отдельный экран, открывается не каждую сессию
 const SeriesPage = lazy(() => import("./pages/SeriesPage"));
+// Страница автора (задача 97) — туда заходят по ссылке с книги, не каждый раз
+const AuthorPage = lazy(() => import("./pages/AuthorPage"));
 // Задача 30: публичная витрина — её открывают ГОСТИ, поэтому она тоже отдельным
 // чанком: владельцу сервиса этот код в бандле не нужен, и наоборот.
 const ShowcasePage = lazy(() => import("./pages/ShowcasePage"));
@@ -95,6 +97,17 @@ function App() {
             element={
               <RequireAuth>
                 <SeriesPage />
+              </RequireAuth>
+            }
+          />
+          {/* Задача 97: страница автора — за входом. Она показывает всю полку
+              по автору, включая книги вне витрины, поэтому публичной быть
+              не может: это был бы обход витрины. */}
+          <Route
+            path="/authors/:id"
+            element={
+              <RequireAuth>
+                <AuthorPage />
               </RequireAuth>
             }
           />

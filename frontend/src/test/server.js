@@ -16,6 +16,9 @@ function initialBooks() {
       enrich_status: "ready",
       created_at: "2026-07-01T10:00:00",
       read_at: "2026-07-10T10:00:00",
+      // задача 97: авторы-сущности приходят только у одиночной книги —
+      // именно из них страница книги строит ссылку
+      authors: [{ id: 7, name: "Томас Манн" }],
     },
     {
       id: 2,
@@ -147,6 +150,24 @@ export const handlers = [
     const book = findBook(params);
     return book ? HttpResponse.json(book) : notFound();
   }),
+
+  // задача 97: страница автора — две стопки, полка и каталог
+  http.get("/api/v1/authors/:id", ({ params }) =>
+    Number(params.id) === 7
+      ? HttpResponse.json({
+          id: 7,
+          name: "Томас Манн",
+          name_ru: "Томас Манн",
+          name_original: null,
+          shelf: [
+            { id: 1, title: "Волшебная гора", status: "read", rating: 9, cover_url: null },
+          ],
+          catalog: [
+            { id: 42, title: "Будденброки", cover_url: null, series_index: null },
+          ],
+        })
+      : notFound(),
+  ),
 
   http.post("/api/v1/books", async ({ request }) => {
     const body = await request.json();
