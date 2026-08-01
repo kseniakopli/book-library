@@ -156,5 +156,8 @@ as a plain diff.
 | Personal AI (recommendations, stats insights) is not admin-gated | those are computed from one's own shelf; gating them would answer 403 to every tester. Spend is capped by rate limits and provider budgets | per-user quotas are needed |
 | Series split into shared `series` + personal `userseries` | repeats the book/userbook split: a cycle exists objectively, the reading status does not | — |
 | Books outside the shelf are plain catalog rows | a cycle needs "what's next" without inventing a placeholder entity; search finds them anyway | — |
+| Author is an entity, but `book.author` remains a string | the string renders the book page and the printed card; adding links *beside* it makes the migration non-destructive and the rollback free | the string starts disagreeing with the links (needs a merge UI) |
+| Author strings split by an explicit exception list, not by rules | a survey of 150 strings found three glued ones and zero "Surname, Name" cases; a heuristic parser would be a silent-error generator, and "Аркадий и Борис Стругацкие" (one shared surname, plural) defeats any separator split anyway | co-authors become common in new data |
+| Author page is behind sign-in | it lists the whole shelf for an author, including books outside the showcase; public, it would be a way around the showcase, which shows only selected books | — |
 | Series data entered by hand, never by AI | a survey found zero series data in Google Books and OpenLibrary; models invent volume numbers confidently | a reliable source appears |
 | Feedback stored locally and injected into prompts | model APIs are stateless and cannot be taught our 👍/👎; the "taste memory" has to live on our side | profile outgrows a prompt (→ embeddings) |

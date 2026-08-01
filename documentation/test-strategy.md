@@ -38,6 +38,10 @@ and both test suites on every push; E2E and visual tests stay local.
   parallel searches (asserted as an observed *peak* of concurrent calls, not a call count).
 - `test_hardening.py` — rate limits and security headers, including the third-party
   permissions the app actually relies on.
+- `test_authors.py` — author identity (case, spacing, initials, ё/е), and the rule that
+  **unknown strings are never split**: "Гамсун, Кнут" and "Ильф и Петров" both look like
+  co-authors and both stay whole. Plus the author page: shelf and catalog kept apart,
+  401 without a session, and that newly added books get linked.
 
 **Frontend (by file):**
 - `app.test.jsx` — shelves render from API, library filter, routing (click & keyboard).
@@ -52,6 +56,8 @@ and both test suites on every push; E2E and visual tests stay local.
   visible on, and nudging an AI accent up to AA.
 - `playlist-embed.test.jsx` — playlist id parsing (including junk URLs) and the player
   living in the music tab only.
+- `author.test.jsx` — the jump from a book to its author, and the two piles on the author
+  page (shelf vs catalog): merged into one, the page would just repeat a shelf search.
 
 ## Where tests are blind (a real case, 2026-07-28)
 

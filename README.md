@@ -29,6 +29,10 @@ Landing page & waitlist: **https://nocturne-library.netlify.app**
   - *design passport*: dark + light palettes, font pair, an SVG ex-libris symbol and a
     short statement explaining it — generated automatically in the background when a book
     is added. Palettes are applied only after a WCAG contrast check.
+- **Author pages** — every author is an entity, not a string in a book row: `/authors/{id}`
+  lists their books on your shelf and, separately, the ones that are in the catalog but
+  not on it (cycle volumes you don't own yet). Co-authors are separate people; a name
+  keeps both its Russian and its original spelling.
 - **Book cycles** — a separate shelf for series: where you stopped, what comes next, and a
   progress count. Books you don't own yet live in the catalog without a shelf entry, so a
   cycle can show future volumes. Each cycle gets its own AI ex-libris, drawn from the

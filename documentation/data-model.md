@@ -203,7 +203,19 @@ Enforced in code and/or schema:
    The same rule applies to series: creating, renaming, describing, generating the
    ex-libris, changing the book list and deleting a cycle are admin-only, while the
    **reading status** (`userseries.status`) is a personal action available to everyone.
-6. **Events are append-only** — never updated or deleted; `book_id` has no FK so history
+6. **An author is an entity, but `book.author` stays a string** (revision 0015).
+   `author` (`name_ru`, `name_original`, unique `sort_key`) and `bookauthor`
+   (many-to-many, `position` keeps the cover order) were added *next to* the
+   string, not instead of it: the string is what the book page and the printed
+   card render, so the migration is non-destructive and the rollback loses nothing.
+   Identity is the normalised `sort_key` — case, extra spaces, dots in initials
+   and ё/е are noise, not differences — and it is unique, so a duplicate author
+   cannot be created even by accident during an import. Two name fields exist
+   because 148 of 150 authors are written in Cyrillic and two in Latin: without
+   the second field they either look foreign in a list or lose their original
+   spelling. Cross-alphabet pairs ("Ann Patchett" / "Энн Пэтчетт") are *not*
+   matched automatically — that is a human decision, kept in an explicit table.
+7. **Events are append-only** — never updated or deleted; `book_id` has no FK so history
    survives book deletion. `detail` is JSON (revision 0007), so it can be queried.
    Public showcase visits are events too (`showcase_viewed`, `showcase_book_viewed` with
    `book_id`) and deliberately carry **no** `detail`: a visitor is a stranger, and neither
@@ -211,20 +223,20 @@ Enforced in code and/or schema:
    `scripts/showcase_stats.py`. Note the honest limit — the owner's own visits are counted
    too; there is no way to tell them apart, and for the showcase there is no difference
    between an owner and a guest.
-7. **`cover_url` from clients must be `https://`** (schemas.py); AI palette colors must be
+8. **`cover_url` from clients must be `https://`** (schemas.py); AI palette colors must be
    hex, font names alphanumeric (services/ai.py validators).
-8. **One feedback per (user, target)** — unique `uq_feedback_user_ref`; repeating the same
+9. **One feedback per (user, target)** — unique `uq_feedback_user_ref`; repeating the same
    verdict removes the row (toggle off).
-9. **One cycle per (user, series)** — unique `uq_userseries_user_series`.
-10. **Music is saved only after Spotify resolution** — tracks that don't resolve are
+10. **One cycle per (user, series)** — unique `uq_userseries_user_series`.
+11. **Music is saved only after Spotify resolution** — tracks that don't resolve are
     dropped, the rest get canonical names. If Spotify is unavailable the selection is
     stored with `aiselection.verified = false` and `scripts/reverify_music.py` re-checks
     it later.
-11. **Registration is invite-only** (revision 0013) — an unknown Google account needs an
+12. **Registration is invite-only** (revision 0013) — an unknown Google account needs an
     unused `invite.code`; the code is then bound to the new user and cannot be reused.
     Exception: an account whose email matches `ADMIN_EMAIL`, or an email already present
     on a `user` row, is linked to that existing row instead of creating a new one.
-12. **Every request is scoped to the caller** — the user id comes from the signed session
+13. **Every request is scoped to the caller** — the user id comes from the signed session
     cookie (`deps.current_user`), never from the request body or query. All API routers
     are mounted with that dependency, so a new endpoint is authenticated by default.
 

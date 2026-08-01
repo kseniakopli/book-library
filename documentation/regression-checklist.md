@@ -49,6 +49,15 @@ in production (Vite serves pages without security headers).
 - [ ] Book page opens by click; direct URL `/books/N` works; **F5 shows the app, not raw
       API JSON** (Vite proxy bypass for text/html); browser Back works
 
+## Authors (task 97)
+- [ ] Book page: the author's name is a link; a book with co-authors shows each of them
+      as a separate link
+- [ ] Author page lists shelf books and, separately, books by the same author that are
+      in the catalog but not on the shelf (cycle volumes)
+- [ ] Add a new book → its author appears on the author page (linking happens on add,
+      not only in the backfill script)
+- [ ] Signed out (private window): `/authors/1` shows the login screen, not a list
+
 ## Add & import
 - [ ] Search modal: results appear after 3+ chars; candidate with cover adds instantly
       with the cover visible; description arrives within seconds without F5
