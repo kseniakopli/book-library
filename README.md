@@ -71,13 +71,15 @@ Public showcase & waitlist: **https://nocturne-library.fly.dev/u/publiclib**
   header), fail-fast startup check for required API keys, append-only event log storing
   per-call AI metrics (provider, latency, token usage).
 - **Light & dark ("evening") themes**, accessibility (keyboard, focus traps, aria,
-  contrast fallbacks), bilingual API messages (`ru` / `en`).
+  contrast fallbacks), bilingual API messages (`ru` / `en`). All interface colour and
+  typography lives in `frontend/src/styles/tokens.css`; a book's own palette overrides it
+  inline, so a theme change never touches the look of a book.
 
 ## Tech stack
 
 - **Backend:** Python, FastAPI, SQLModel, SQLite (WAL; `DATABASE_URL` env var ready for
-  Postgres), Alembic migrations (0001–0007). Data model: `User` / `Book` (shared catalog) /
-  `UserBook` (personal shelf).
+  Postgres), Alembic migrations (0001–0016). Data model: `User` / `Book` (shared catalog) /
+  `UserBook` (personal shelf), plus `Series`/`UserSeries` and `Author`/`BookAuthor`.
 - **Frontend:** React + Vite, React Query, React Router, recharts (stats page, lazy-loaded).
   Tests: Vitest + Testing Library + MSW; E2E: Playwright; lint: oxlint.
 - **External services:** Google Books API; Anthropic Claude & OpenAI (structured outputs);
