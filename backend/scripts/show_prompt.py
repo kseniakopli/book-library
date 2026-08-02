@@ -15,7 +15,10 @@ _build_with_context → _with_style. Печатает промпт целико�
 
 Ничего не меняет и токенов не тратит. Запуск из backend/:
     python scripts/show_prompt.py --book=42
+    python scripts/show_prompt.py --book=42 --category=design
     python scripts/show_prompt.py --book=42 --category=food --full
+
+Категории: music, design, food, aroma.
 """
 
 import sys
@@ -23,15 +26,45 @@ import sys
 import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path
 import database
 from models import Book
-from prompt_config import build_music_prompt, build_food_prompt, build_aroma_prompt
+from prompt_config import (
+    build_aroma_prompt,
+    build_design_prompt,
+    build_food_prompt,
+    build_music_prompt,
+)
 from services.ai import _build_with_context, _with_style
 from services.prompt_context import build_book_context
 from sqlmodel import Session, select
 
 BUILDERS = {
     "music": build_music_prompt,
+    "design": build_design_prompt,
     "food": build_food_prompt,
     "aroma": build_aroma_prompt,
+}
+
+# Что ищем в готовом тексте промпта. Проверяем именно ИТОГОВУЮ строку, а не
+# содержимое context: между ними стоит `_build_with_context`, который молча
+# глотает TypeError и зовёт билдер без контекста вовсе.
+CHECKS = {
+    "music": [
+        ("аннотация книги", "Аннотация книги"),
+        ("список avoid (треки)", "уже примелькались в других книгах"),
+        ("список avoid_artists", "НЕ бери у них"),
+    ],
+    "design": [
+        ("аннотация книги", "Аннотация книги"),
+        ("список avoid_fonts", "Эти шрифты уже стоят"),
+        ("статистика палитр", "имеют ТЁПЛЫЙ светлый фон"),
+    ],
+    "food": [
+        ("аннотация книги", "Аннотация книги"),
+        ("список avoid (блюда)", "уже примелькались в других книгах"),
+    ],
+    "aroma": [
+        ("аннотация книги", "Аннотация книги"),
+        ("список avoid (ароматы)", "уже примелькались в других книгах"),
+    ],
 }
 
 BOOK_ID = next((int(a.split("=", 1)[1]) for a in sys.argv if a.startswith("--book=")), None)
@@ -79,13 +112,11 @@ def main():
 
     # Главная проверка: доехали ли блоки запрета в ИТОГОВЫЙ текст.
     print("\n=== ЧТО ДОЕХАЛО ДО ПРОМПТА ===")
-    checks = [
-        ("аннотация книги", "Аннотация книги"),
-        ("список avoid (треки/блюда)", "уже примелькались в других книгах"),
-        ("список avoid_artists", "НЕ бери у них"),
-    ]
-    for label, needle in checks:
-        mark = "ЕСТЬ" if needle in prompt else "НЕТ  ← не доехало"
+    for label, needle in CHECKS.get(CATEGORY, []):
+        present = needle in prompt
+        # «НЕТ» не всегда ошибка: пустая аннотация или отсутствие перекоса —
+        # законные причины, поэтому подсказываем, где смотреть источник.
+        mark = "ЕСТЬ" if present else "НЕТ  ← смотри блок контекста выше"
         print(f"  {label:32} {mark}")
 
     print(f"\nДлина промпта: {len(prompt)} символов")

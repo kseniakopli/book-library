@@ -30,20 +30,31 @@ import database
 from constants import SOURCE_CLAUDE
 from models import AISelection, Book
 from prompt_config import build_design_prompt
+from services.prompt_context import build_book_context
+
+# Владелец: паспорт — общая для книги вещь, но профиль вкуса берётся по юзеру.
+USER_ID = 1
 from services.atmosphere import CATEGORIES, replace_selections
 from services.ai import _with_style
-from services.ai_schemas import DesignResult
+from services.ai_schemas import DesignResult, design_result_without, enforce_fonts
 
 load_dotenv()
 client = anthropic.Anthropic()
 
 # Инструмент = «верни паспорт по этой схеме». tool_choice форсирует его вызов,
 # модель отвечает строго по JSON-схеме DesignResult (палитры, шрифты, символ).
-DESIGN_TOOL = {
-    "name": "design_passport",
-    "description": "Паспорт оформления книги: две палитры, шрифты, символ-экслибрис, statement.",
-    "input_schema": DesignResult.model_json_schema(),
-}
+def design_tool(schema) -> dict:
+    """Инструмент батча под КОНКРЕТНУЮ книгу: схема сужается затасканными
+    шрифтами (02.08). Раньше здесь лежала одна общая схема на весь прогон,
+    и массовая пересборка ушла бы с полным списком шрифтов — то есть ровно
+    без того ограничения, ради которого затевалась."""
+    return {
+        "name": "design_passport",
+        "description": (
+            "Паспорт оформления книги: две палитры, шрифты, символ-экслибрис, statement."
+        ),
+        "input_schema": schema.model_json_schema(),
+    }
 
 
 def _books_without_passport(session) -> list[Book]:
@@ -110,6 +121,15 @@ def main():
     if not targets:
         return
 
+    # Контекст считается ДО батча и по одному разу на книгу: внутри он ходит
+    # в базу за паспортами всех остальных книг, и делать это в цикле построения
+    # запросов означало бы N прогонов по всей библиотеке.
+    with Session(database.engine) as session:
+        contexts = {
+            b.id: build_book_context(session, b.id, "design", USER_ID)
+            for b in targets
+        }
+
     # 1) собираем запросы батча (по одному на книгу)
     requests = [
         {
@@ -117,11 +137,23 @@ def main():
             "params": {
                 "model": "claude-sonnet-5",
                 "max_tokens": 8000,
-                "tools": [DESIGN_TOOL],
+                "tools": [
+                    design_tool(
+                        design_result_without(
+                            contexts[b.id].get("avoid_fonts"), seed=b.id
+                        )
+                    )
+                ],
                 "tool_choice": {"type": "tool", "name": "design_passport"},
+                # ⚠ Контекст здесь ОБЯЗАТЕЛЕН (02.08): без него батч уходит
+                # без запретов по шрифтам и без статистики палитр, то есть
+                # ровно та массовая генерация, ради разнообразия которой всё
+                # и затевалось, прошла бы по старым правилам. Раньше вызов был
+                # без context — и это было незаметно, потому что промпт всё
+                # равно строится и выглядит нормально.
                 "messages": [
                     {"role": "user", "content": _with_style(
-                        build_design_prompt(b.title, b.author, "ru")
+                        build_design_prompt(b.title, b.author, "ru", contexts[b.id])
                     )}
                 ],
             },
@@ -155,6 +187,14 @@ def main():
         )
         try:
             design = DesignResult(**tool_input) if tool_input else None
+            # enum в схеме инструмента — подсказка, а не гарантия: модель может
+            # вернуть запрещённый шрифт. Правим, а не выбрасываем паспорт.
+            if design is not None:
+                swaps = enforce_fonts(
+                    design, contexts.get(book_id, {}).get("avoid_fonts"), book_id
+                )
+                for swap in swaps:
+                    print(f"  ↻ book {book_id}: {swap}")
         except Exception as e:                       # невалидный/битый паспорт
             design = None
             print(f"  ✗ book {book_id}: валидация — {e}")

@@ -7,10 +7,11 @@
 #
 # ⚠ Порядок полей в модели = порядок генерации у модели. Поле-анализ объявляется
 # ПЕРВЫМ намеренно (reasoning-as-schema): иначе модель заполняет ответ, не подумав.
+import json
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # --- Схемы ответов AI (structured outputs строит по ним JSON-схему) ---
 
@@ -154,9 +155,17 @@ class Palette(BaseModel):
 # сначала проверь, потом вписывай.
 DESIGN_SERIF_FONTS = (
     "Spectral", "PT Serif", "Cormorant Garamond", "Playfair Display",
-    "Literata", "Alegreya", "Vollkorn", "Bitter", "Lora", "Merriweather",
+    "Literata", "Alegreya", "Vollkorn", "Lora", "Merriweather",
     "Old Standard TT", "Forum", "Oranienbaum", "IBM Plex Serif",
 )
+# ⚠ Проверено 02.08 на docs/превью_шрифты.html:
+# - `Bitter` УБРАН — кириллицы нет. Список изначально собирался по памяти,
+#   и это единственная гарнитура, которая не прошла проверку. Успела уехать
+#   двум книгам до проверки — их паспорта пересобраны.
+# - `Forum` и `Oranienbaum` есть, но БЕЗ жирного начертания: заголовки у них
+#   браузер подделает. Оставлены сознательно — оба характерные и с родной
+#   кириллицей, а синтетический жирный на дисплейных кеглях терпим.
+# Добавляешь шрифт — сначала прогони его через превью.
 DESIGN_SANS_FONTS = (
     "Commissioner", "Onest", "Manrope", "Inter", "IBM Plex Sans",
     "Golos Text", "Jost", "Rubik", "Oswald", "Fira Sans",
@@ -165,6 +174,27 @@ DESIGN_FONTS = DESIGN_SERIF_FONTS + DESIGN_SANS_FONTS
 
 
 class DesignResult(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_stringified(cls, data):
+        """Палитра, пришедшая СТРОКОЙ с JSON внутри, — разобрать, а не ронять.
+
+        Случай 02.08: в батче из десяти книг одна вернула `palette_light`
+        как `'{"bg": "#D7DEDC", ...}'` — валидная схема, но обёрнутая в строку.
+        Паспорт целиком отбрасывался из-за формы одного поля, книга оставалась
+        со старым оформлением. Модель здесь не ошиблась по существу, ошиблась
+        в упаковке — это чинится кодом, а не повторной генерацией."""
+        if not isinstance(data, dict):
+            return data
+        for key in ("palette_dark", "palette_light"):
+            value = data.get(key)
+            if isinstance(value, str):
+                try:
+                    data[key] = json.loads(value)
+                except (TypeError, ValueError):
+                    pass
+        return data
+
     base_mood: str
     # Задача 57: две палитры — паспорт живёт в обеих темах интерфейса.
     # Старые сохранённые паспорта имеют одно поле palette (тёмное) —
@@ -200,6 +230,100 @@ class DesignResult(BaseModel):
             raise ValueError("SVG содержит запрещённые элементы")
         return v
 
+
+DESIGN_FONT_WINDOW = 0.6   # какую долю списка книга видит при ротации
+DESIGN_FONT_MIN_CHOICES = 4
+
+
+def _rotate(pool: tuple[str, ...], seed: int | None) -> tuple[str, ...]:
+    """Поднабор списка, свой у каждой книги.
+
+    Зачем (02.08, перед пересборкой 183 книг). Запрет считается ОДИН раз перед
+    батчем, счётчики по ходу не обновляются — значит все книги прогона видят
+    одинаковый набор разрешённых шрифтов, и модель спокойно засыпает одним
+    именем половину библиотеки: на выборке в 10 книг `Vollkorn` взяли четыре.
+    Запрет убирает старых фаворитов, но не мешает завести нового.
+
+    Ротация решает это конструкцией, а не уговором: книга физически не видит
+    большей части списка, поэтому одинаковый выбор у соседних книг невозможен.
+    Тот же принцип, что и во всех сегодняшних правках, — сделать однообразие
+    непредставимым, а не просить его избегать."""
+    if seed is None or len(pool) <= DESIGN_FONT_MIN_CHOICES:
+        return pool
+    size = max(DESIGN_FONT_MIN_CHOICES, round(len(pool) * DESIGN_FONT_WINDOW))
+    start = seed % len(pool)
+    doubled = pool + pool          # окно может перехлёстывать через конец
+    return tuple(doubled[start:start + size])
+
+
+def design_result_without(fonts: list[str] | None, seed: int | None = None):
+    """`DesignResult`, в котором затасканные шрифты ВЫЧЕРКНУТЫ из Literal.
+
+    Зачем (з.101, замер 02.08). Список `avoid_fonts` в тексте промпта модель
+    проигнорировала: `IBM Plex Serif` лежал в запрете и всё равно оказался
+    у 8 книг из 10, уникальных вышло два на десять. Ровно то же было
+    с запретом исполнителей в музыке — перечисление в промпте не работает.
+    А `Literal` сработал с первого раза: выдуманные гарнитуры исчезли мгновенно,
+    потому что стали НЕПРЕДСТАВИМЫ в схеме. Значит и «не бери затасканное»
+    надо выражать так же — сузив сам список на время запроса, а не прося
+    воздержаться. Промпт задаёт направление, схема держит границы.
+
+    ⚠ Пустой набор недопустим: вычеркнув всё, мы не оставим модели допустимого
+    ответа. Долю ограничивает `prompt_context.AVOID_FONT_MAX_SHARE`, а здесь
+    стоит последняя страховка — при пустом остатке возвращаем полную схему."""
+    banned = {f.strip() for f in (fonts or [])}
+    serif = _rotate(tuple(f for f in DESIGN_SERIF_FONTS if f not in banned), seed)
+    # Текстовому шрифту сдвигаем окно иначе, иначе оба поля видят один участок
+    # списка и снова сходятся (та же ошибка, что была в enforce_fonts).
+    body = _rotate(
+        tuple(f for f in DESIGN_FONTS if f not in banned),
+        None if seed is None else seed + 5,
+    )
+    if not serif or not body:
+        return DesignResult
+
+    class NarrowedDesignResult(DesignResult):
+        title_font: Literal[serif]  # type: ignore[valid-type]
+        body_font: Literal[body]    # type: ignore[valid-type]
+
+    return NarrowedDesignResult
+
+
+def enforce_fonts(design, banned: list[str] | None, seed: int) -> list[str]:
+    """Заменить запрещённые шрифты разрешёнными. Правит `design` на месте,
+    возвращает список произведённых замен (для лога).
+
+    Зачем (02.08). `enum` в схеме инструмента — это ПОДСКАЗКА, а не гарантия:
+    модель может вернуть значение вне списка. В синхронном пути его отсекает
+    валидация, а батч разбирал ответ широкой схемой — и `IBM Plex Serif`,
+    лежавший в запрете, достался трём книгам из десяти.
+    Отвергать такой паспорт целиком жалко: книга осталась бы со старым
+    оформлением из-за одного поля. Поэтому исправляем, как с несуществующими
+    треками в Spotify, — код правит вывод модели, а не отказывается от него.
+
+    Выбор замены детерминированный (по id книги), чтобы прогон повторялся
+    и чтобы замены расходились по разным книгам, а не сходились в одну."""
+    blocked = {f.strip() for f in (banned or [])}
+    swaps = []
+    # Смещения разные, иначе оба поля попадают в один индекс: полный список
+    # НАЧИНАЕТСЯ с засечных, и при малых id заголовочный и текстовый шрифт
+    # выходили одинаковыми (5 случаев из 9 в прогоне 02.08). Плюс текстовый
+    # выбираем, исключив уже выбранный заголовочный.
+    for field, pool, offset in (
+        ("title_font", DESIGN_SERIF_FONTS, 0),
+        ("body_font", DESIGN_FONTS, 5),
+    ):
+        current = (getattr(design, field, "") or "").strip()
+        if current not in blocked:
+            continue
+        taken = {(getattr(design, "title_font", "") or "").strip()} if field == "body_font" else set()
+        allowed = [f for f in pool if f not in blocked and f not in taken]
+        if not allowed:
+            continue
+        replacement = allowed[(seed + offset) % len(allowed)]
+        object.__setattr__(design, field, replacement)
+        swaps.append(f"{field}: {current} → {replacement}")
+    return swaps
 
 
 class RecommendationItem(BaseModel):

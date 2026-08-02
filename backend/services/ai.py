@@ -15,6 +15,8 @@ from services.ai_schemas import (
     AromaResult,
     CsvMapping,
     DesignResult,
+    design_result_without,
+    enforce_fonts,
     FoodResult,
     InsightsResult,
     MusicResult,
@@ -334,9 +336,20 @@ async def generate_design(
     title: str, author: str, lang: str = "ru", context: dict | None = None
 ) -> DesignResult:
     """Дизайн-паспорт (палитра, шрифты, символ) — одним источником (Claude).
-    max_tokens с запасом: SVG-символ бывает многословным."""
-    return await ask_claude(
+    max_tokens с запасом: SVG-символ бывает многословным.
+
+    Схема сужается под книгу: затасканные по библиотеке шрифты вычёркиваются
+    из Literal, а не запрещаются просьбой — просьбу модель игнорирует
+    (замер 02.08: 8 книг из 10 взяли шрифт, лежавший в списке запрета)."""
+    banned = (context or {}).get("avoid_fonts")
+    seed = (context or {}).get("seed")
+    result = await ask_claude(
         _with_style(_build_with_context(build_design_prompt, title, author, lang, context)),
-        DesignResult,
+        design_result_without(banned, seed=seed),
         max_tokens=8000,
     )
+    # Страховка на случай, если провайдер пропустит значение вне enum:
+    # схема инструмента — подсказка, а не гарантия (см. enforce_fonts).
+    for swap in enforce_fonts(result, banned, seed=len(title)):
+        print(f"Паспорт «{title}»: шрифт заменён ({swap})")
+    return result
