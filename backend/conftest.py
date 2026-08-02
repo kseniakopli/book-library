@@ -103,6 +103,20 @@ def _no_basic_auth(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_spotify_readonly(monkeypatch):
+    """Задача 103: `SPOTIFY_READONLY=1` живёт в локальном `backend/.env`, чтобы
+    разработка не переписывала прод-плейлисты. Но флаг читается из окружения
+    на каждый вызов — и весь прогон начинал считать запись в Spotify
+    запрещённой: `create_playlist_with_uris` бросал RuntimeError в тестах,
+    которые про readonly ничего не знают.
+
+    Тот же приём, что с BASIC_AUTH_* выше: снимаем переменную для всех тестов.
+    Тесты самого режима выставляют её себе сами (`monkeypatch.setenv`) —
+    autouse-фикстура отрабатывает раньше и им не мешает."""
+    monkeypatch.delenv("SPOTIFY_READONLY", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _reset_rate_limits():
     """Счётчики лимитера (план деплоя п.1.3) живут в памяти процесса и общие
     для всех тестов — без сброса длинный прогон упёрся бы в лимит AI-вызовов."""
