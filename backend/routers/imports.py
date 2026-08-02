@@ -17,6 +17,7 @@ from models import Book, UserBook
 from services.ai import map_csv_columns, start_ai_metrics, take_ai_metrics
 from services.authors import link_book
 from services.enrichment import backfill_in_background
+from services.export import desanitize
 
 router = APIRouter(tags=["import"])
 
@@ -98,7 +99,11 @@ async def import_csv(file: UploadFile = File(...), lang: str = Depends(get_lang)
 
     def cell(row: dict, role: str) -> str:
         name = cols.get(role)
-        return (row.get(name) or "").strip() if name else ""
+        raw = (row.get(name) or "").strip() if name else ""
+        # задача 42: наш экспорт предваряет апострофом значения, которые Excel
+        # принял бы за формулу. Снимаем его обратно, иначе «выгрузил → загрузил»
+        # добавляло бы апостроф к названию на каждом круге.
+        return desanitize(raw) or ""
 
     imported = 0
     skipped = 0

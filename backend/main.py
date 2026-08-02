@@ -21,6 +21,7 @@ from routers import (
     auth,
     authors,
     books,
+    exports,
     feedback,
     imports,
     public,
@@ -69,6 +70,7 @@ app.include_router(books.router, prefix=API_V1, dependencies=PROTECTED)       # 
 app.include_router(atmosphere.router, prefix=API_V1, dependencies=PROTECTED)  # AI-атмосфера
 app.include_router(search.router, prefix=API_V1, dependencies=PROTECTED)      # поиск: каталог + Google Books
 app.include_router(imports.router, prefix=API_V1, dependencies=PROTECTED)     # импорт CSV и backfill
+app.include_router(exports.router, prefix=API_V1, dependencies=PROTECTED)    # задачи 35/42: выгрузка полки
 app.include_router(recommendations.router, prefix=API_V1, dependencies=PROTECTED)  # этап 8: советы книг
 app.include_router(spotify.router, prefix=API_V1, dependencies=PROTECTED)     # плейлисты и QR
 app.include_router(stats.router, prefix=API_V1, dependencies=PROTECTED)       # задачи 24/63: статистика

@@ -61,8 +61,24 @@ function LibraryHeader({
           aria-label="Файл CSV для импорта"
         />
         <button className="btn-ghost" onClick={csv.trigger} disabled={csv.importing}>
-          {csv.importing ? "Импортирую…" : "Импорт CSV"}
+          {/* стрелки парные (↑ загрузить / ↓ выгрузить) — иначе соседние
+              кнопки об одном и том же выглядят разнородными */}
+          {csv.importing ? "Импортирую…" : "↑ Импорт CSV"}
         </button>
+
+        {/* Задача 35: выгрузка полки. Обычная ссылка, а не fetch — браузер сам
+            приложит куку сессии и сам сохранит файл по Content-Disposition,
+            без Blob и URL.createObjectURL.
+            ⚠ В задаче 110 и эта кнопка, и «Импорт CSV» уедут в меню ЛК —
+            шапка уже переполнена, здесь она временно. */}
+        <a
+          className="btn-ghost"
+          href="/api/v1/export/shelf.csv"
+          download
+          title="Скачать свою полку в CSV"
+        >
+          ↓ Экспорт
+        </a>
 
         <button className="add-btn" onClick={onAddBook} ref={addButtonRef}>
           + Добавить книгу

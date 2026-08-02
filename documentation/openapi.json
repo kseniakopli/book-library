@@ -1684,6 +1684,26 @@
         ]
       }
     },
+    "/api/v1/export/shelf.csv": {
+      "get": {
+        "description": "Своя полка одним CSV-файлом.\n\nЛичное действие, не admin: выгружается ТОЛЬКО полка вызывающего\n(`UserBook.user_id == user_id`), общий каталог как таковой не отдаётся.\n\nОтдаём файл целиком, а не потоком: библиотека персональная (сотни книг,\nдесятки килобайт), а StreamingResponse усложнил бы обработку ошибок —\nисключение посреди потока клиент получил бы как оборванный файл с кодом\n200. Появятся тысячи книг — переделать.",
+        "operationId": "export_shelf_csv_api_v1_export_shelf_csv_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Export Shelf Csv",
+        "tags": [
+          "export"
+        ]
+      }
+    },
     "/api/v1/feedback": {
       "get": {
         "description": "Все оценки пользователя как {ref: verdict} — фронт рисует состояние кнопок\nодним запросом, не спрашивая по каждой подборке отдельно.",
@@ -2418,6 +2438,64 @@
           }
         },
         "summary": "Read Stats",
+        "tags": [
+          "stats"
+        ]
+      }
+    },
+    "/api/v1/stats/ai": {
+      "get": {
+        "description": "Задача 84: расход на AI и acceptance rate подборок.\n\nТолько admin: это цифры по СЕРВИСУ целиком (события всех пользователей\nи вся обратная связь), а не личная статистика полки. Тестеру они ничего\nне говорят, а расход показывать посторонним незачем.\n\n`days` — окно в днях; без параметра считаем за всё время.",
+        "operationId": "read_ai_stats_api_v1_stats_ai_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Days"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Ai Stats",
         "tags": [
           "stats"
         ]

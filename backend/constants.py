@@ -48,3 +48,4 @@ EVENT_PLAYLIST_CREATED = "spotify_playlist_created"
 EVENT_SHOWCASE_VIEWED = "showcase_viewed"
 EVENT_SHOWCASE_BOOK_VIEWED = "showcase_book_viewed"
 EVENT_BACKFILL = "backfill_scheduled"
+EVENT_EXPORT = "export_downloaded"     # задача 35: выгрузка полки
