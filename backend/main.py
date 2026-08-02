@@ -218,13 +218,31 @@ CSP = (
     # Spotify. Без этой строки браузер показывает пустую рамку, причём МОЛЧА.
     "frame-src https://open.spotify.com; "
     "frame-ancestors 'none'; "
+    # form-action НЕ наследуется от default-src (в отличие от большинства
+    # директив) — без этой строки форму с нашей страницы можно отправить
+    # куда угодно. Лист ожидания на витрине уходит через fetch, а не сабмитом,
+    # поэтому 'self' ничего не ломает.
+    "form-action 'self'; "
     "base-uri 'self'"
 )
+
+# Срок HSTS. Намеренно КОРОТКИЙ (двое суток), а не год.
+# `force_https` в fly.toml — это редирект: первый запрос по http всё равно
+# уходит в сеть открытым. HSTS убирает и его, но у него есть цена: браузер,
+# однажды увидевший заголовок, не пустит на домен по http до истечения срока.
+# Ошибка с годичным max-age при переезде на домен без https сделала бы сайт
+# недоступным для всех, кто уже заходил. Поднимать — после переезда на свой
+# домен, когда сертификат заведомо на месте.
+HSTS_MAX_AGE = 172_800
+
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+    # Браузеры игнорируют заголовок, пришедший по http, поэтому отдаём всегда:
+    # на проде TLS терминирует Fly, локально он просто не действует.
+    "Strict-Transport-Security": f"max-age={HSTS_MAX_AGE}",
     "Content-Security-Policy": CSP,
 }
 

@@ -3,6 +3,8 @@
 # (для дизайна словарь собирает обёртка в services/atmosphere.py).
 import asyncio
 import contextvars
+import inspect
+from functools import lru_cache
 from time import perf_counter
 
 from dotenv import load_dotenv
@@ -185,6 +187,24 @@ async def safe_ask(coro, fallback_factory):
         return fallback_factory()
 
 
+@lru_cache(maxsize=None)
+def _accepts_context(build_prompt) -> bool:
+    """Принимает ли функция промпта аргумент `context`.
+
+    Проверяем СИГНАТУРУ, а не ловим исключение от вызова. Разница
+    принципиальная — см. докстринг `_build_with_context`.
+    Кэшируем: сигнатура функции не меняется, а вызывается это на каждой
+    генерации."""
+    try:
+        params = inspect.signature(build_prompt).parameters
+    except (TypeError, ValueError):       # встроенные функции без сигнатуры
+        return False
+    if "context" in params:
+        return True
+    # **kwargs тоже считается: такой билдер контекст проглотит и не упадёт
+    return any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 def _build_with_context(build_prompt, title, author, lang, context):
     """Вызвать функцию промпта, передав контекст книги (описание, жанры, год,
     «уже использованное») — если она его принимает.
@@ -192,13 +212,22 @@ def _build_with_context(build_prompt, title, author, lang, context):
     Зачем: с 22.07 в промпты передаётся фактический контекст книги, иначе для
     малоизвестных книг модель угадывает по названию («Капля духов» → Дубай).
     Но prompt_config.py приватный: у пользователя может остаться старая
-    сигнатура (title, author, lang). Пробуем с контекстом, при TypeError —
-    зовём по-старому, чтобы ничего не сломалось."""
-    if context:
-        try:
-            return build_prompt(title, author, lang, context)
-        except TypeError:
-            pass
+    сигнатура (title, author, lang), и ломать ему генерацию нельзя.
+
+    ⚠ Раньше здесь стоял `try/except TypeError` вокруг вызова — и это был
+    молчаливый глушитель ошибок (з.104, найдено 02.08). Ловился ЛЮБОЙ
+    TypeError, в том числе случайный внутри самого промпта: опечатка
+    в f-строке, `None` вместо списка в `join`. Тогда билдер молча звался
+    по старой сигнатуре, генерация уходила БЕЗ контекста и без запретов,
+    в логах не оставалось ничего, а результат выглядел просто «модель
+    не слушается». Теперь несовпадение сигнатуры определяется заранее,
+    а настоящая ошибка внутри промпта летит наружу, как и должна."""
+    # Контекст передаём ПО ИМЕНИ, а не четвёртым позиционным. Иначе билдер
+    # с `**kwargs` (который мы выше признали подходящим) падает: позиционному
+    # аргументу в `**kwargs` попасть некуда. Поймано собственным тестом 02.08 —
+    # проверка «принимает ли» и способ вызова разошлись.
+    if context and _accepts_context(build_prompt):
+        return build_prompt(title, author, lang, context=context)
     return build_prompt(title, author, lang)
 
 

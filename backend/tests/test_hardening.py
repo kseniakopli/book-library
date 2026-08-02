@@ -63,6 +63,32 @@ def test_csp_allows_embedded_third_parties(client):
     assert "frame-ancestors 'none'" in csp
 
 
+def test_csp_restricts_form_action(client):
+    """`form-action` не наследуется от `default-src` — его легко забыть.
+
+    Без директивы форму с нашей страницы можно отправить на чужой адрес.
+    Лист ожидания уходит через `fetch`, поэтому 'self' безопасен; если когда-то
+    появится настоящий сабмит на сторонний приёмник, этот тест напомнит,
+    что адрес надо внести сюда явно."""
+    csp = client.get("/api/v1/books").headers["Content-Security-Policy"]
+
+    assert "form-action 'self'" in csp
+
+
+def test_hsts_present_and_not_overlong(client):
+    """HSTS есть, но срок короткий.
+
+    `force_https` в fly.toml — только редирект: первый запрос по http уходит
+    открытым. HSTS его убирает, но за это браузер запоминает домен, и годичный
+    `max-age` при переезде на домен без сертификата сделал бы сайт недоступным
+    для всех, кто уже заходил. Поднимать срок — осознанно, вместе с переездом,
+    поэтому верхняя граница проверяется тестом."""
+    value = client.get("/api/v1/books").headers["Strict-Transport-Security"]
+
+    assert value.startswith("max-age=")
+    assert 0 < int(value.split("=", 1)[1]) <= 604_800   # не больше недели
+
+
 def test_security_headers_on_errors(client):
     """Заголовки должны быть и на ошибочных ответах (middleware — самый внешний)."""
     r = client.get("/api/v1/books/999")
