@@ -115,6 +115,12 @@ copy prompt_config.example.py prompt_config.py   # then edit your prompts
 #       next to the code it lives inside the image and is wiped by every deploy.
 #   SPOTIFY_MAX_PARALLEL=4    # optional; concurrent searches. The quota is counted
 #     ^ per application, so this caps every thread and user together.
+#   SPOTIFY_READONLY=1        # optional; recommended for LOCAL development.
+#     ^ Blocks writes (creating playlists, replacing tracks, uploading covers)
+#       while keeping search and track resolution working. Dev and production
+#       share one Spotify account, and playlists are edited in place — without
+#       this flag a local music run silently rewrites the playlists production
+#       links to, including the ones behind the printed QR codes.
 #   DATABASE_URL=...          # optional, defaults to sqlite:///library.db
 #   --- sign-in (Google OAuth) ---
 #   GOOGLE_OAUTH_CLIENT_ID=... / GOOGLE_OAUTH_CLIENT_SECRET=...

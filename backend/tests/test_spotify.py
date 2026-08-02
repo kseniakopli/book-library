@@ -32,6 +32,52 @@ def _add_music(book_id=1):
         session.commit()
 
 
+# --- Задача 103: режим «только чтение» (дев и прод делят аккаунт Spotify) ---
+
+def test_readonly_blocks_playlist_replacement(monkeypatch):
+    """Локальная генерация музыки не должна переписывать плейлист, на который
+    ссылается прод (и QR печатной карточки)."""
+    monkeypatch.setenv("SPOTIFY_READONLY", "1")
+    called = []
+    monkeypatch.setattr(playlist_service.requests, "put",
+                        lambda *a, **kw: called.append(a))
+
+    ok = playlist_service.replace_playlist_items(
+        "https://open.spotify.com/playlist/abc", ["spotify:track:1"]
+    )
+    assert ok is False
+    assert called == []          # до сети дело не дошло
+
+
+def test_readonly_blocks_playlist_creation(monkeypatch):
+    """Создание плейлиста в readonly падает ГРОМКО: вызывающий пишет
+    result["url"] в базу, и тихая заглушка положила бы туда пустую ссылку."""
+    monkeypatch.setenv("SPOTIFY_READONLY", "1")
+    with pytest.raises(RuntimeError, match="SPOTIFY_READONLY"):
+        playlist_service.create_playlist_with_uris("nocturne · X", ["spotify:track:1"])
+
+
+def test_readonly_endpoint_answers_502(client, monkeypatch):
+    """Кнопка «Создать плейлист» при включённом флаге отвечает внятной
+    внешней ошибкой, а не 500: причина — в логе."""
+    _add_music()
+    monkeypatch.setenv("SPOTIFY_READONLY", "1")
+    monkeypatch.setattr(spotify_service, "has_token", lambda: True)
+    monkeypatch.setattr(playlist_service, "resolve_songs",
+                        lambda songs, workers=6: [{"uri": "spotify:track:1"}] * len(songs))
+    monkeypatch.setattr(playlist_service, "upload_cover", lambda *a, **kw: False)
+
+    r = client.post("/api/v1/books/1/playlist")
+    assert r.status_code == 502
+
+
+def test_readonly_off_by_default(monkeypatch):
+    """Без переменной ничего не меняется — иначе прод перестал бы собирать
+    плейлисты, а заметили бы это не сразу."""
+    monkeypatch.delenv("SPOTIFY_READONLY", raising=False)
+    assert spotify_service.readonly() is False
+
+
 def test_playlist_requires_auth(client, monkeypatch):
     monkeypatch.setattr(spotify_service, "has_token", lambda: False)
     r = client.post("/api/v1/books/1/playlist")

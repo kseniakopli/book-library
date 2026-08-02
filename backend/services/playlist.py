@@ -148,6 +148,13 @@ def replace_playlist_items(playlist_url: str, uris: list[str]) -> bool:
 
     ⚠ Путь именно `/items`: старый `/tracks` помечен deprecated, и замена по нему
     молча не срабатывала — в плейлисте оставались прежние треки (20.07)."""
+    if spotify.readonly():
+        # задача 103: на проде эта же ссылка живёт в QR печатной карточки
+        log.warning(
+            "SPOTIFY_READONLY=1 — плейлист %s НЕ обновлён (%s треков)",
+            playlist_url, len(uris),
+        )
+        return False
     playlist_id = playlist_url.rstrip("/").split("/")[-1].split("?")[0]
     headers = {"Authorization": f"Bearer {spotify._access_token()}"}
     try:
@@ -182,7 +189,20 @@ def replace_playlist_items(playlist_url: str, uris: list[str]) -> bool:
 
 
 def create_playlist_with_uris(name: str, uris: list[str], cover: str | None = None) -> dict:
-    """Создать плейлист из уже найденных uri (поиск сделан в resolve_songs)."""
+    """Создать плейлист из уже найденных uri (поиск сделан в resolve_songs).
+
+    ⚠ Задача 103: в режиме `SPOTIFY_READONLY=1` бросаем исключение, а не
+    возвращаем пустой результат. Вызывающий код записывает `result["url"]`
+    в `Book.spotify_playlist_url`; тихий возврат заглушки положил бы в базу
+    пустую ссылку — то есть локальный прогон испортил бы данные вместо того,
+    чтобы их не трогать. Исключение здесь ловится вызывающим (плейлист
+    необязателен) и попадает в лог понятной строкой.
+    """
+    if spotify.readonly():
+        raise RuntimeError(
+            "SPOTIFY_READONLY=1 — создание плейлиста пропущено "
+            f"(«{name}», {len(uris)} треков)"
+        )
     headers = {"Authorization": f"Bearer {spotify._access_token()}"}
     playlist = requests.post(
         "https://api.spotify.com/v1/me/playlists",
@@ -246,6 +266,9 @@ def upload_cover(playlist_id: str, jpeg_base64: str) -> bool:
     до 256 КБ; успех — 202. Обложка не критична: ошибки только логируем.
     Частый случай отказа (403) — токен выдан без scope ugc-image-upload,
     то есть авторизация была до 20.07: помогает переавторизация."""
+    if spotify.readonly():   # задача 103: обложка — тоже запись в чужой аккаунт
+        log.warning("SPOTIFY_READONLY=1 — обложка плейлиста %s не загружена", playlist_id)
+        return False
     try:
         response = requests.put(
             f"https://api.spotify.com/v1/playlists/{playlist_id}/images",
