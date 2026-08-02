@@ -119,9 +119,103 @@ function Chart({ data, dataKey, xKey, tickFormatter, labelFormatter, highlight }
   );
 }
 
+/** Задача 84: во что обходятся AI-вызовы и чьи подборки принимают чаще.
+ *  Цифры фактические (событийный лог + таблица Feedback), модель к этому
+ *  блоку не подключается.
+ *
+ *  ⚠ Токены НЕ переводим в деньги: прайс провайдера меняется без нас, и
+ *  зашитый коэффициент дал бы уверенно выглядящую устаревшую сумму. */
+function AiUsageBlock({ usage, feedback }) {
+  const nothing = usage.calls === 0 && feedback.total === 0;
+  return (
+    <section className="stat-block">
+      <h2 className="stat-title">
+        AI: расход и отклик
+        <span className="stat-note">видно только админу</span>
+      </h2>
+
+      {nothing ? (
+        <p className="muted">
+          Данные появятся после первых генераций и оценок подборок.
+        </p>
+      ) : (
+        <>
+          <table className="ai-table">
+            <thead>
+              <tr>
+                <th>Провайдер</th>
+                <th>Вызовов</th>
+                <th>Токены (вход / выход)</th>
+                <th>Средняя задержка</th>
+                <th>Ошибок</th>
+              </tr>
+            </thead>
+            <tbody>
+              {usage.providers.map((row) => (
+                <tr key={row.provider}>
+                  <td>{row.provider}</td>
+                  <td>{row.calls}</td>
+                  <td>
+                    {row.input_tokens.toLocaleString("ru-RU")} /{" "}
+                    {row.output_tokens.toLocaleString("ru-RU")}
+                  </td>
+                  <td>
+                    {row.avg_latency_ms == null
+                      ? "—"
+                      : `${(row.avg_latency_ms / 1000).toFixed(1)} с`}
+                  </td>
+                  <td>{row.errors || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h3 className="stat-subtitle">Принятые подборки</h3>
+          {feedback.total === 0 ? (
+            <p className="muted">
+              Оценок 👍/👎 пока нет — сравнивать источники не на чем.
+            </p>
+          ) : (
+            <ul className="top-list">
+              {feedback.sources.map((row) => (
+                <li key={row.source} className="top-row">
+                  <span className="top-name">{row.source}</span>
+                  <span className="top-bar-track">
+                    <span
+                      className="top-bar"
+                      // acceptance === null означает «оценок нет», а не «ноль»
+                      style={{ width: `${(row.acceptance ?? 0) * 100}%` }}
+                    />
+                  </span>
+                  <span className="top-count">
+                    {row.acceptance == null
+                      ? "—"
+                      : `${Math.round(row.acceptance * 100)}%`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="stat-hint">
+            Доля 👍 от всех оценок источника. Токены — фактические, в деньги
+            не переводим: прайс провайдера меняется без нас.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function StatsPage() {
   const stats = useQuery({ queryKey: keys.stats, queryFn: api.getStats });
   const insights = useMutation({ mutationFn: api.generateInsights });
+  // Задача 84: у не-админа эндпоинт отвечает 403. Не считаем это поломкой —
+  // просто не рисуем блок, поэтому повторные попытки отключены.
+  const aiStats = useQuery({
+    queryKey: keys.aiStats,
+    queryFn: api.getAiStats,
+    retry: false,
+  });
 
   const data = stats.data;
   const nothingRead = data && data.totals.read === 0;
@@ -173,6 +267,14 @@ function StatsPage() {
               <span className="stat-note">
                 в {data.this_year.year} году — {data.this_year.count}
               </span>
+              {/* задача 98: книги без даты прочтения ни в один столбик не
+                  попадают, и без этой подписи сумма графика не сходится
+                  с карточкой «Прочитано» — читается как ошибка расчёта */}
+              {data.undated_read ? (
+                <span className="stat-note">
+                  без даты — {data.undated_read}
+                </span>
+              ) : null}
             </h2>
             {nothingRead ? (
               <p className="muted">
@@ -217,6 +319,13 @@ function StatsPage() {
               empty="Жанры подтягиваются из данных о книге."
             />
           </div>
+
+          {aiStats.data ? (
+            <AiUsageBlock
+              usage={aiStats.data.usage}
+              feedback={aiStats.data.feedback}
+            />
+          ) : null}
 
           <section className="stat-block insights">
             <h2 className="stat-title">Наблюдения</h2>

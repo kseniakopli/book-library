@@ -101,6 +101,9 @@ export const generateRecommendations = () =>
 
 // Статистика (задачи 24/63): цифры считает бэкенд, инсайты — по кнопке (токены)
 export const getStats = () => request("/stats");
+// Задача 84: расход на AI и acceptance rate подборок. Только admin —
+// у обычного пользователя эндпоинт отвечает 403, и блок просто не рисуется.
+export const getAiStats = () => request("/stats/ai");
 export const generateInsights = () =>
   request("/stats/insights", { method: "POST" });
 

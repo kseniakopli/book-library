@@ -302,6 +302,35 @@ export const handlers = [
       streak_months: 1,
       top_authors: [{ author: "Томас Манн", count: 1 }],
       top_genres: [{ genre: "Роман", count: 1 }],
+      undated_read: 2,   // задача 98: прочитаны, но дата неизвестна
+    }),
+  ),
+  // Задача 84: расход на AI и acceptance rate (эндпоинт только для админа)
+  http.get("/api/v1/stats/ai", () =>
+    HttpResponse.json({
+      period_days: null,
+      usage: {
+        calls: 3,
+        input_tokens: 310,
+        output_tokens: 135,
+        providers: [
+          {
+            provider: "Claude", calls: 2, errors: 0,
+            input_tokens: 110, output_tokens: 55, avg_latency_ms: 1500,
+          },
+          {
+            provider: "ChatGPT", calls: 1, errors: 1,
+            input_tokens: 200, output_tokens: 80, avg_latency_ms: 3000,
+          },
+        ],
+      },
+      feedback: {
+        total: 4,
+        sources: [
+          { source: "Claude", up: 2, down: 1, total: 3, acceptance: 0.67 },
+          { source: "ChatGPT", up: 0, down: 1, total: 1, acceptance: 0.0 },
+        ],
+      },
     }),
   ),
   http.post("/api/v1/stats/insights", () =>

@@ -48,6 +48,25 @@ test("страница показывает итоги и топы", async () =>
   expect(screen.getByText("Роман")).toBeInTheDocument();
 });
 
+test("книги без даты прочтения показаны отдельной подписью", async () => {
+  // задача 98: они не попадают ни в один столбик графика, и без подписи
+  // сумма по месяцам не сходится с карточкой «Прочитано»
+  renderApp("/stats");
+  expect(await screen.findByText(/без даты — 2/, {}, SLOW)).toBeInTheDocument();
+});
+
+test("админу видны расход на AI и доля принятых подборок", async () => {
+  renderApp("/stats");
+
+  expect(
+    await screen.findByText("AI: расход и отклик", {}, SLOW),
+  ).toBeInTheDocument();
+  // средняя задержка переводится в секунды, токены — с разделителем разрядов
+  expect(screen.getByText("1.5 с")).toBeInTheDocument();
+  expect(screen.getByText("67%")).toBeInTheDocument();   // acceptance Claude
+  expect(screen.getByText("0%")).toBeInTheDocument();    // acceptance ChatGPT
+});
+
 test("AI-наблюдения появляются только после нажатия кнопки", async () => {
   renderApp("/stats");
   // кнопка появляется только вместе с данными — её и ждём

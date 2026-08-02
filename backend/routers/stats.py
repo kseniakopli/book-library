@@ -4,9 +4,10 @@ from sqlmodel import Session
 
 import database
 from constants import EVENT_AI_INSIGHTS
-from deps import current_user_id, get_lang, get_session
+from deps import current_user_id, get_lang, get_session, require_admin
 from events import log_event
 from services.ai import generate_insights, start_ai_metrics, take_ai_metrics
+from services.ai_stats import compute_ai_stats
 from services.stats import compute_stats, format_summary
 
 router = APIRouter(tags=["stats"])
@@ -19,6 +20,25 @@ def read_stats(session: Session = Depends(get_session),
     """Цифры по полке. Считается на лету: библиотека персональная, запрос дешёвый,
     а кэш пришлось бы сбрасывать на каждое изменение статуса или оценки."""
     return compute_stats(session, user_id)
+
+
+@router.get("/stats/ai")
+def read_ai_stats(
+    days: int | None = None,
+    session: Session = Depends(get_session),
+    lang: str = Depends(get_lang),
+    user_id: int = Depends(current_user_id),
+):
+    """Задача 84: расход на AI и acceptance rate подборок.
+
+    Только admin: это цифры по СЕРВИСУ целиком (события всех пользователей
+    и вся обратная связь), а не личная статистика полки. Тестеру они ничего
+    не говорят, а расход показывать посторонним незачем.
+
+    `days` — окно в днях; без параметра считаем за всё время.
+    """
+    require_admin(session, lang, user_id)
+    return compute_ai_stats(session, days)
 
 
 @router.post("/stats/insights")
