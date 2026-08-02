@@ -112,7 +112,10 @@ def test_edit_empty_strings_clear_optional_fields(client):
 
 
 def test_read_at_set_and_cleared_with_status(client):
-    """Задача 1: стал read без даты — ставится «сейчас»; ушёл из read — чистится."""
+    """Задача 1: ПЕРЕШЁЛ в read без даты — ставится «сейчас»; ушёл из read —
+    чистится. Задача 98 сузила первое правило до момента перехода: книга,
+    добавленная сразу прочитанной без даты, дату не получает (см.
+    test_later_edit_does_not_invent_read_date)."""
     r = client.patch("/api/v1/books/1", json={"status": "read"})
     assert r.json()["read_at"] is not None
 
@@ -229,16 +232,9 @@ def test_read_shelf_sorted_and_total_header(client, monkeypatch):
     client.post("/api/v1/books", json={
         "title": "Без даты", "author": "В", "status": "read",
     })
-    # прочитанной без даты бэкенд сам ставит read_at=now() (инвариант, задача 1);
-    # реальный NULL бывает у старых импортов — эмулируем его прямо в БД
-    with Session(database.engine) as session:
-        book = session.exec(select(Book).where(Book.title == "Без даты")).one()
-        ub = session.exec(
-            select(UserBook).where(UserBook.book_id == book.id)
-        ).one()
-        ub.read_at = None
-        session.add(ub)
-        session.commit()
+    # задача 98: книга, добавленная прочитанной без даты, так и лежит с NULL —
+    # раньше здесь приходилось эмулировать NULL правкой прямо в БД, потому что
+    # бэкенд подставлял сегодняшнюю дату
 
     r = client.get("/api/v1/books?status=read&limit=2")
     assert [b["title"] for b in r.json()] == ["Свежая", "Старая"]
@@ -336,13 +332,31 @@ def test_add_book_with_status_and_date(client, monkeypatch):
     assert r.json()["read_at"].startswith("2026-06-01")
 
 
-def test_add_book_read_without_date_gets_now(client, monkeypatch):
+def test_add_book_read_without_date_keeps_null(client, monkeypatch):
+    """Задача 98: «прочитана, но не помню когда» — это NULL, а не сегодня.
+    Раньше бэкенд подставлял now(), и чекбокс «Не помню» в модалке был
+    декоративным: интерфейс обещал одно, в базу писалось другое."""
     import services.enrichment as enrichment
     monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
     r = client.post("/api/v1/books", json={
-        "title": "Недавняя", "author": "Автор", "status": "read",
+        "title": "Давняя", "author": "Автор", "status": "read",
     })
-    assert r.json()["read_at"] is not None
+    assert r.json()["read_at"] is None
+
+
+def test_later_edit_does_not_invent_read_date(client, monkeypatch):
+    """Задача 98: дата не должна появляться исподтишка при следующей правке.
+    Проверка «статус read и даты нет» срабатывала на ЛЮБОМ PATCH — поставили
+    оценку через неделю, и книга получила дату этого дня."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    book_id = client.post("/api/v1/books", json={
+        "title": "Гарри Поттер", "author": "Роулинг", "status": "read",
+    }).json()["id"]
+
+    r = client.patch(f"/api/v1/books/{book_id}", json={"rating": 9})
+    assert r.json()["rating"] == 9
+    assert r.json()["read_at"] is None
 
 
 def test_add_book_bad_status_rejected(client):

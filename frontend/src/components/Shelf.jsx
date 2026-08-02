@@ -8,7 +8,12 @@ function useShelfLayout() {
     const w = window.innerWidth;
     if (w < 560) return { pageSize: 2, isMobile: true };
     if (w < 900) return { pageSize: 3, isMobile: false };
-    return { pageSize: 5, isMobile: false };
+    // Задача 109: контент расширился до 1360px, и без этой ступени пять
+    // карточек просто раздулись бы (250px вместо прежних 200) — полка
+    // стала бы крупнее, а книг на ней столько же. Смысл был обратный:
+    // показать больше. Порог 1400 — там, где .app упирается в свой максимум.
+    if (w < 1400) return { pageSize: 5, isMobile: false };
+    return { pageSize: 6, isMobile: false };
   };
   const [layout, setLayout] = useState(compute);
   useEffect(() => {

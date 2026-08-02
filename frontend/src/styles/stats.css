@@ -128,6 +128,50 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* --- AI: расход и отклик (задача 84) --- */
+.stat-subtitle {
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: normal;
+  margin: 20px 0 8px;
+}
+
+.ai-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  /* числа в колонках должны сравниваться взглядом по вертикали */
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-table th,
+.ai-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ai-table th {
+  font-weight: normal;
+  color: var(--muted);
+}
+
+.ai-table td:not(:first-child),
+.ai-table th:not(:first-child) {
+  text-align: right;
+}
+
+/* На телефоне пять колонок не помещаются. Таблица — единственное место,
+   где горизонтальная прокрутка уместна: ломать строки числами хуже.
+   ⚠ Прокрутка ТОЛЬКО у обёртки таблицы, не у страницы (аудит 28.07). */
+@media (max-width: 640px) {
+  .ai-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
 /* --- AI-наблюдения --- */
 .insights .btn-ghost {
   margin-top: 8px;

@@ -13,7 +13,10 @@ body {
 }
 
 .app {
-  max-width: 1100px;
+  /* задача 109: было жёстко 1100px. Ширину держит токен — страницы
+     и печатная карточка (card.css сбрасывает max-width в @media print)
+     ссылаются на одно значение. */
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 32px 20px 64px;
 }

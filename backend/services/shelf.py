@@ -85,13 +85,18 @@ def add_to_shelf(session: Session, data, user_id: int, lang: str) -> tuple[Book,
     if already:
         raise HTTPException(status_code=409, detail=msg("already_on_shelf", lang))
 
+    # Задача 98: дату НЕ выдумываем. Раньше здесь стояло
+    # `data.read_at or datetime.now()`, и чекбокс «Не помню» в модалке был
+    # декоративным: фронт честно слал `read_at: null`, а в базу ложилась
+    # сегодняшняя дата. Портились сразу три места — база, график по месяцам
+    # в статистике и сортировка полки. Нет даты — пусть будет NULL:
+    # сортировка это переживает (`nullslast`), а статистика показывает
+    # отдельной строкой «без даты».
     user_book = UserBook(
         user_id=user_id,
         book_id=book.id,
         status=data.status,
-        read_at=(data.read_at or datetime.now())
-        if data.status == STATUS_READ
-        else None,
+        read_at=data.read_at if data.status == STATUS_READ else None,
     )
     session.add(user_book)
     session.commit()
@@ -146,6 +151,13 @@ def apply_book_fields(
 def apply_shelf_fields(user_book: UserBook, data, lang: str) -> None:
     """Правка ЛИЧНЫХ полей полки: статус, оценка, дата прочтения, витрина —
     и инварианты."""
+    # Задача 98: запоминаем статус ДО правки. Дата «сейчас» ставится только
+    # в момент ПЕРЕХОДА в «прочитано» — то есть когда книгу действительно
+    # дочитали. Проверка «статус read и даты нет» без этого срабатывала на
+    # любой последующей правке (поставили оценку, отметили в витрину), и
+    # книга, добавленная как прочитанная без даты, молча получала дату.
+    prev_status = user_book.status
+
     # задача 30: отметка «в витрину» — личное решение владельца полки,
     # к общим данным книги отношения не имеет, поэтому здесь и без admin
     if getattr(data, "featured", None) is not None:
@@ -166,8 +178,13 @@ def apply_shelf_fields(user_book: UserBook, data, lang: str) -> None:
     # задача 1: явная дата прочтения (ISO из запроса)
     if data.read_at is not None:
         user_book.read_at = data.read_at
-    # стала прочитанной, дата не указана — «сейчас»
-    if user_book.status == STATUS_READ and user_book.read_at is None:
+    # только что стала прочитанной, дата не указана — «сейчас» (задача 98:
+    # именно переход, а не «статус read и пусто»)
+    elif (
+        user_book.status == STATUS_READ
+        and prev_status != STATUS_READ
+        and user_book.read_at is None
+    ):
         user_book.read_at = datetime.now()
     # инварианты: оценка и дата прочтения живут только у read
     if user_book.status != STATUS_READ:

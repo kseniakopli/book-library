@@ -80,6 +80,7 @@ def compute_stats(session: Session, user_id: int, today: date | None = None) -> 
     authors = Counter()
     genres = Counter()
     this_year = 0
+    undated = 0
 
     for author, page_count, categories, status, rating, read_at in rows:
         if status != STATUS_READ:
@@ -95,6 +96,12 @@ def compute_stats(session: Session, user_id: int, today: date | None = None) -> 
             by_month[_month_key(read_at)] += 1
             if read_at.year == today.year:
                 this_year += 1
+        else:
+            # Задача 98: книга прочитана, но когда — неизвестно («Не помню»,
+            # старый импорт). В график по месяцам она попасть не может, и без
+            # явного счётчика сумма столбиков не сходится с «прочитано» —
+            # выглядит как баг расчёта. Считаем и показываем отдельно.
+            undated += 1
 
     months = _recent_months(today)
     rated = sum(ratings.values())
@@ -115,6 +122,8 @@ def compute_stats(session: Session, user_id: int, today: date | None = None) -> 
         # не «плясала» от того, какие оценки уже проставлены
         "ratings": [{"rating": n, "count": ratings.get(n, 0)} for n in range(1, 11)],
         "by_month": [{"month": m, "count": by_month.get(m, 0)} for m in months],
+        # прочитанные книги без даты — не попадают ни в один столбик графика
+        "undated_read": undated,
         "this_year": {"year": today.year, "count": this_year},
         "streak_months": _streak(by_month, months),
         "top_authors": [
@@ -150,6 +159,10 @@ def format_summary(stats: dict) -> str:
         if average is not None else "Оценок пока нет.",
         f"Распределение оценок: {ratings}." if ratings else "",
         f"Прочитано по месяцам: {months}.",
+        # без этой строки модель считает, что сумма по месяцам и есть всё
+        # прочитанное, и делает выводы о «провалах» там, где просто нет даты
+        f"Прочитано без даты (не учтено в разбивке по месяцам): "
+        f"{stats['undated_read']}." if stats.get("undated_read") else "",
         f"В {stats['this_year']['year']} году прочитано: {stats['this_year']['count']}.",
         f"Месяцев подряд с чтением: {stats['streak_months']}.",
         f"Чаще всего читает авторов: {authors}." if authors else "",

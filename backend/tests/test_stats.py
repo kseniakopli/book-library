@@ -76,6 +76,29 @@ def test_by_month_covers_last_year(client):
     assert s["this_year"] == {"year": 2026, "count": 2}
 
 
+def test_undated_read_counted_separately(client):
+    """Задача 98: прочитанная книга без даты не попадает ни в один столбик
+    графика. Считаем её отдельно — иначе сумма по месяцам не сходится
+    с карточкой «Прочитано», и это выглядит багом расчёта."""
+    _seed([
+        ("A", "Автор", "read", 8, date(2026, 7, 1), None, None),
+        ("Гарри Поттер", "Роулинг", "read", 9, None, None, None),
+    ])
+    s = _stats()
+    assert s["undated_read"] == 1
+    assert s["totals"]["read"] == 2
+    assert sum(m["count"] for m in s["by_month"]) == 1   # в график попала одна
+    # книга без даты всё равно участвует в оценках и авторах
+    assert s["rated_count"] == 2
+    assert "Прочитано без даты" in format_summary(s)
+
+
+def test_summary_omits_undated_line_when_zero(client):
+    """Пустую строку в сводку не кладём — модель толкует лишний ноль."""
+    _seed([("A", "Автор", "read", 8, date(2026, 7, 1), None, None)])
+    assert "без даты" not in format_summary(_stats())
+
+
 def test_streak_counts_consecutive_months(client):
     _seed([
         ("A", "Автор", "read", 8, date(2026, 7, 2), None, None),
