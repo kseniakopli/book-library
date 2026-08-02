@@ -25,7 +25,7 @@ import services.playlist as playlist_service
 from services.playlist import resolve_songs
 # сборка плейлиста книги переехала в services/playlist.py (R3), контекст
 # промпта — в services/prompt_context.py; здесь остались только подборки
-from services.prompt_context import build_book_context
+from services.prompt_context import _overused_artists, artist_key, build_book_context
 
 
 async def _generate_design_selections(
@@ -41,6 +41,54 @@ async def _generate_design_selections(
 # Конфигурация категорий. Контракт генератора: async (title, author, lang) -> {source: BaseModel}.
 # payload — что кладём в AISelection.payload (JSON-строка),
 # explanation — короткий текст-пояснение для UI.
+# Сколько треков затасканных по библиотеке исполнителей допускается в одном
+# плейлисте. Не ноль: иногда запрещённый артист книге правда подходит, и
+# полный запрет обеднил бы подборку ради статистики.
+MAX_OVERUSED_PER_PLAYLIST = 2
+
+
+def _cap_overused_artists(results: dict, book_id: int) -> None:
+    """Ограничить долю затасканных исполнителей в свежем плейлисте. Меняет
+    results на месте.
+
+    Зачем кодом, а не промптом (02.08). Разнообразия просили четырьмя способами:
+    список запрещённых треков, список запрещённых исполнителей, признак канона
+    вместо имён, поле-самоконтроль в схеме. Результат — ноль или ухудшение:
+    модель называет замену и всё равно берёт запрещённых, а поле, просившее
+    пересказать ограничение, сработало повторным внушением (Agnes Obel 8→9).
+    Это ровно тот случай, для которого в проекте уже есть образец: выдуманные
+    треки лечатся не просьбой «не выдумывай», а проверкой в Spotify и
+    выбрасыванием несуществующих. Код не уговаривает — он отсекает.
+
+    Порядок треков модель выдаёт осмысленный (сначала точные попадания),
+    поэтому оставляем ПЕРВЫЕ MAX_OVERUSED_PER_PLAYLIST, а лишние убираем.
+
+    ⚠ Вызывается ДО резолва в Spotify: отсеянное не должно тратить квоту —
+    она считается на приложение и 21.07 уже стоила бана на 21 час."""
+    with Session(database.engine) as session:
+        overused = {
+            name.lower() for name in _overused_artists(session, exclude_book_id=book_id)
+        }
+    if not overused:
+        return
+
+    for source, result in results.items():
+        kept, dropped, seen = [], [], 0
+        for song in result.songs:
+            if artist_key(song.artist).lower() in overused:
+                seen += 1
+                if seen > MAX_OVERUSED_PER_PLAYLIST:
+                    dropped.append(f"{song.artist} — {song.title}")
+                    continue
+            kept.append(song)
+        if dropped:
+            print(
+                f"Атмосфера [{source}]: сверх лимита затасканных "
+                f"({MAX_OVERUSED_PER_PLAYLIST}) отброшено: {'; '.join(dropped)}"
+            )
+        result.songs = kept
+
+
 async def verify_music_results(results: dict, book_id: int, title: str) -> dict:
     """Постобработка музыки (20.07, идея Ксении): ОДИН проход поиска в Spotify
     и сразу — готовый плейлист.
@@ -56,6 +104,8 @@ async def verify_music_results(results: dict, book_id: int, title: str) -> dict:
     карточке) остаётся прежней. Пользовательской авторизации нет — просто
     отсеиваем несуществующее (поиск работает и по ключам приложения),
     плейлист создастся потом кнопкой."""
+    _cap_overused_artists(results, book_id)
+
     unique: dict[tuple[str, str], dict | None] = {}
     for result in results.values():
         for song in result.songs:
@@ -76,12 +126,23 @@ async def verify_music_results(results: dict, book_id: int, title: str) -> dict:
 
     for result in results.values():
         kept = []
+        # Дубли убираем ПОСЛЕ канонизации, а не до. Причины две: модель может
+        # выдать один трек дважды в одной подборке (наблюдалось 02.08 —
+        # «The Host of Seraphim» две строки подряд), а подстановка по
+        # исполнителю способна свести два выдуманных названия к одной реальной
+        # записи. До резолва такие пары выглядят разными.
+        seen: set[tuple[str, str]] = set()
         for song in result.songs:
             item = unique.get((song.title.strip(), song.artist.strip()))
-            if item:
-                song.title = item["title"]
-                song.artist = item["artist"]
-                kept.append(song)
+            if not item:
+                continue
+            song.title = item["title"]
+            song.artist = item["artist"]
+            key = (song.title.strip().lower(), song.artist.strip().lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            kept.append(song)
         result.songs = kept
 
     uris = [item["uri"] for item in resolved if item and item.get("uri")]
@@ -138,6 +199,17 @@ async def remove_music_track(
 
 
 
+# `analysis` (02.08) — рассуждение модели, которое она обязана заполнить ДО
+# ответа (reasoning-as-schema). Сохраняем как есть, JSON-строкой: оно не для
+# показа читателю, а для разбора качества и замеров. У дизайна отдельного
+# поля-анализа нет — там эту роль играет base_mood.
+def _analysis_json(result) -> str:
+    analysis = getattr(result, "analysis", None)
+    if analysis is None:
+        return ""
+    return analysis.model_dump_json()
+
+
 CATEGORIES = {
     "music": {
         "generate": generate_music,
@@ -147,12 +219,14 @@ CATEGORIES = {
             [s.model_dump() for s in r.songs], ensure_ascii=False
         ),
         "explanation": lambda r: r.explanation,
+        "analysis": _analysis_json,
         "event": EVENT_AI_MUSIC,
     },
     "design": {
         "generate": _generate_design_selections,
         "payload": lambda r: r.model_dump_json(),
         "explanation": lambda r: r.statement,
+        "analysis": lambda r: getattr(r, "base_mood", "") or "",
         "event": EVENT_AI_DESIGN,
     },
     "food": {
@@ -161,6 +235,7 @@ CATEGORIES = {
             [i.model_dump() for i in r.items], ensure_ascii=False
         ),
         "explanation": lambda r: r.explanation,
+        "analysis": _analysis_json,
         "event": EVENT_AI_FOOD,
     },
     "aroma": {
@@ -169,6 +244,7 @@ CATEGORIES = {
             [i.model_dump() for i in r.items], ensure_ascii=False
         ),
         "explanation": lambda r: r.explanation,
+        "analysis": _analysis_json,
         "event": EVENT_AI_AROMA,
     },
 }
@@ -242,6 +318,8 @@ def replace_selections(
                 source=source,
                 payload=payload,
                 explanation=cfg["explanation"](result),
+                # .get: у разовых скриптов (backfill_passports) свой cfg
+                analysis=cfg.get("analysis", lambda _r: "")(result),
                 verified=verified,
             ))
         session.commit()

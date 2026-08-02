@@ -13,8 +13,31 @@ from models import AISelection, Book
 from services.taste import atmosphere_taste
 
 MAX_DESCRIPTION = 1200   # символов аннотации в промпт (хватает, не раздувает)
-AVOID_LIMIT = 25         # столько «уже использованных» пунктов показываем модели
+# Замер 02.08 (scripts/explore_avoid.py): порог прошли 40 пунктов, а показывали
+# 25 — пятнадцать самых затасканных треков в промпт не уезжали вовсе.
+AVOID_LIMIT = 45
 AVOID_MIN_BOOKS = 3      # пункт попадает в список, если встречался у стольких книг
+
+# --- Повторы на уровне ИСПОЛНИТЕЛЯ (з.99, разбор 02.08) ---
+#
+# Замер по 52 плейлистам: Agnes Obel у 12 книг (23% библиотеки), Bon Iver у 8,
+# Radiohead / Sia / Portishead / Dead Can Dance по 7. При этом её треки Riverside,
+# The Curse и Familiar ВСЕ ТРИ уже лежали в avoid — и не помогали: запрет по
+# названию модель обходит следующим треком того же артиста.
+# Механизм работал (проверено: вся музыка сгенерирована после его появления
+# 22.07), но не на том уровне, на котором сходится модель.
+AVOID_ARTIST_MIN_BOOKS = 3
+AVOID_ARTIST_LIMIT = 20
+
+# Хвосты канонических названий Spotify: «The Host of Seraphim» и
+# «The Host of Seraphim - Remastered» для точного ключа были разными треками,
+# и счётчик дробился. Та же болезнь, что с перефразами еды 24.07, только здесь
+# её приносит не модель, а каталог.
+_SPOTIFY_SUFFIX = re.compile(
+    r"\s*-\s*(remaster(ed)?|.*\bremaster(ed)?|.*\bversion|.*\bedit|.*\bmix|"
+    r"single|mono|stereo|live|bonus track|deluxe)\b.*$",
+    re.IGNORECASE,
+)
 
 
 def build_book_context(
@@ -46,6 +69,9 @@ def build_book_context(
         "year": book.published_year,
         "avoid": _overused_items(session, category, exclude_book_id=book_id),
     }
+    # Только для музыки: коллапс там сидит на исполнителях, а не на треках.
+    if category == "music":
+        context["avoid_artists"] = _overused_artists(session, exclude_book_id=book_id)
     # задача 26 ч.4: «память вкуса» — что читателю заходило и не заходило
     # в этой категории. У моделей памяти нет, поэтому подкладываем её сами.
     context.update(atmosphere_taste(session, user_id, category))
@@ -62,6 +88,23 @@ def _item_key(name: str) -> str:
     у 5 книг из 19, в avoid — ни разу). Обрезка до двух слов ловит главный
     паттерн перефраза — стабильное начало + разные хвосты."""
     return " ".join(re.findall(r"\w+", name.lower())[:2])
+
+
+def track_key(artist: str, title: str) -> tuple[str, str]:
+    """Отображаемое имя трека и ключ повтора для него.
+
+    Вынесено наружу (02.08), чтобы разведочный скрипт `explore_avoid.py` не
+    держал СВОЮ копию правила: он её уже держал, и после правки ключа его отчёт
+    показывал старую картину. Считать и мерить обязано одно и то же место."""
+    name = f"{artist or ''} — {title or ''}".strip(" —")
+    return name, _SPOTIFY_SUFFIX.sub("", name).lower().strip()
+
+
+def artist_key(artist: str) -> str:
+    """Первый исполнитель трека. Spotify отдаёт коллаборации через запятую
+    («The Cinematic Orchestra, Patrick Watson»), и без обрезки каждая пара
+    считалась бы отдельным артистом."""
+    return (artist or "").split(",")[0].strip()
 
 
 def _overused_items(session: Session, category: str, exclude_book_id: int) -> list[str]:
@@ -88,8 +131,7 @@ def _overused_items(session: Session, category: str, exclude_book_id: int) -> li
             continue
         for item in items:
             if category == "music":
-                name = f"{item.get('artist', '')} — {item.get('title', '')}".strip(" —")
-                key = name.lower()
+                name, key = track_key(item.get("artist", ""), item.get("title", ""))
             else:
                 name = (item.get("title") or "").strip()
                 key = _item_key(name)
@@ -102,4 +144,44 @@ def _overused_items(session: Session, category: str, exclude_book_id: int) -> li
 
     ranked = sorted(books_by_item.values(), key=lambda e: len(e["books"]), reverse=True)
     return [e["name"] for e in ranked if len(e["books"]) >= AVOID_MIN_BOOKS][:AVOID_LIMIT]
+
+
+def _overused_artists(session: Session, exclude_book_id: int) -> list[str]:
+    """Исполнители, примелькавшиеся по библиотеке (у AVOID_ARTIST_MIN_BOOKS+ книг).
+
+    Считаем ПЕРВОГО исполнителя трека: в поле artist Spotify отдаёт всех
+    участников через запятую («The Cinematic Orchestra, Patrick Watson»),
+    и коллаборации иначе считались бы отдельными артистами.
+    Имя для промпта берём в исходном написании — самое частое из встреченных,
+    чтобы не показывать модели «agnes obel» строчными."""
+    rows = session.exec(
+        select(AISelection).where(
+            AISelection.category == "music",
+            AISelection.book_id != exclude_book_id,
+        )
+    ).all()
+
+    books_by_artist: dict[str, dict] = {}
+    for row in rows:
+        try:
+            items = json.loads(row.payload)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(items, list):
+            continue
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            artist = artist_key(item.get("artist", ""))
+            if not artist:
+                continue
+            entry = books_by_artist.setdefault(
+                artist.lower(), {"books": set(), "name": artist}
+            )
+            entry["books"].add(row.book_id)
+
+    ranked = sorted(books_by_artist.values(), key=lambda e: len(e["books"]), reverse=True)
+    return [
+        e["name"] for e in ranked if len(e["books"]) >= AVOID_ARTIST_MIN_BOOKS
+    ][:AVOID_ARTIST_LIMIT]
 

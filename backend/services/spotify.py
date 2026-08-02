@@ -13,7 +13,7 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
-from services.track_match import _matches
+from services.track_match import _matches, _normalize
 
 log = logging.getLogger("nocturne")
 
@@ -268,6 +268,53 @@ def find_track(headers: dict, title: str, artist: str):
             if _matches(item, title, artist):
                 return item
     return None if any_reliable else UNRELIABLE
+
+
+def find_any_by_artist(headers: dict, artist: str):
+    """Любой реальный трек этого исполнителя. Возвращает карточку, None или
+    UNRELIABLE — так же, как find_track.
+
+    Зачем (02.08). Замер показал, что два наших фильтра работают друг против
+    друга: промпт гонит модель прочь от заезженного канона, а проверка в Spotify
+    канон возвращает — потому что у известных исполнителей треки находятся
+    всегда, а у неочевидных модель придумывает названия. В одной генерации
+    отсеялось девять треков подряд, и все — у свежих имён (Kayhan Kalhor,
+    Namgar, Katie Kim, Beoga). Разнообразие создавалось и тут же уничтожалось
+    верификацией, поэтому уникальных исполнителей держалось на 320 при любых
+    правках промпта.
+    Замысел модели при этом был верным: исполнитель подходил книге, выдумано
+    было только НАЗВАНИЕ. Поэтому вместо выбрасывания берём реальную запись
+    того же артиста — Spotify отдаёт результаты поиска по популярности.
+
+    Совпадение проверяем только по исполнителю: название нам подойдёт любое,
+    но чужого артиста в подборку пускать нельзя (инцидент 20.07 с рэп-треком
+    в «Демоне из Пустоши» — как раз следствие свободного поиска без проверки).
+
+    ⚠ Омонимы (найдено 02.08 на живой генерации). Solas — ирландская фолк-группа,
+    но в Spotify есть и рэпер Solas: подстановка притащила в атмосферный плейлист
+    «Walk Around the Club (F**k Everybody)». Имя совпало буквально, поэтому
+    никакая сверка по имени такое не ловит. Отсюда два ограничения ниже —
+    точное совпадение имени вместо похожести и отказ от explicit-записей.
+    Полностью проблему это не решает: одноимённый артист того же жанра пройдёт.
+    Подстановки печатаются в лог именно поэтому — их стоит просматривать."""
+    items = _search_request(headers, f"artist:{artist}")
+    if items is None:
+        return UNRELIABLE
+
+    wanted = _normalize(artist)
+    for item in items:
+        # explicit — самый заметный признак «это не тот артист»: у нас
+        # литературные вечера, мат в подборке невозможен ни при каком совпадении
+        if item.get("explicit"):
+            continue
+        # точное совпадение, а не ARTIST_RATIO: при свободном подборе названия
+        # похожесть 0.6 пускает слишком многих. Транслит _normalize сохраняет.
+        if any(
+            _normalize(performer.get("name", "")) == wanted
+            for performer in item.get("artists", [])
+        ):
+            return item
+    return None
 
 
 def _search_track(headers: dict, title: str, artist: str) -> str | None:

@@ -217,22 +217,69 @@ def _no_user_token(monkeypatch):
     )
 
 
-def test_resolve_songs_marks_invented_tracks(client, monkeypatch):
-    """Выдуманный трек не должен попасть в сервис: у Ólafur Arnalds нет
-    «Familiar Ground» — Spotify отдаёт другие его вещи, значит None."""
+def test_resolve_songs_substitutes_invented_tracks(client, monkeypatch):
+    """Выдуманное НАЗВАНИЕ заменяется реальной записью того же исполнителя.
+
+    Контракт изменился 02.08 (был: «выдумка → None»). Причина — замер: два
+    фильтра работали друг против друга. Промпт гнал модель прочь от заезженного
+    канона, а проверка в Spotify канон возвращала, потому что у известных
+    исполнителей треки находятся всегда, а у неочевидных модель придумывает
+    названия. За одну генерацию отсеивалось девять треков подряд, и все —
+    у свежих имён. Разнообразие создавалось и тут же уничтожалось верификацией.
+    При этом исполнитель был выбран осмысленно, выдумано было только название.
+
+    Гарантия «несуществующий трек в сервис не попадёт» сохранена: подставляется
+    реальная запись, а не выдуманная. Изменилось лишь то, что вместо дырки
+    в подборке появляется живой трек нужного артиста."""
     _no_user_token(monkeypatch)
     monkeypatch.setattr(
         spotify_service.requests, "get",
         lambda *a, **kw: FakeResponse([_track("Near Light", "Ólafur Arnalds")]),
     )
     resolved = playlist_service.resolve_songs([
-        {"title": "Near Light", "artist": "Ólafur Arnalds"},
         {"title": "Familiar Ground", "artist": "Ólafur Arnalds"},
     ])
-    assert resolved[0]["title"] == "Near Light"
+    assert resolved[0]["artist"] == "Ólafur Arnalds"
+    assert resolved[0]["title"] == "Near Light"     # реальная вещь этого артиста
     assert resolved[0]["uri"] == "uri:Near Light"
-    assert resolved[1] is None            # выдумка
-    assert len(resolved) == 2             # результат выровнен по входу
+    assert len(resolved) == 1                       # результат выровнен по входу
+
+
+def test_resolve_songs_substitution_skips_explicit(client, monkeypatch):
+    """Омоним не должен притащить в подборку explicit-запись.
+
+    Реальный случай 02.08: Solas — ирландская фолк-группа, но в Spotify есть
+    и рэпер Solas, и подстановка взяла у него «Walk Around the Club
+    (F**k Everybody)». Имя совпало буквально, сверка по имени такое не ловит.
+    Explicit — самый заметный признак «это не тот артист»; у нас литературные
+    вечера, мат в подборке невозможен ни при каком совпадении."""
+    _no_user_token(monkeypatch)
+    rude = _track("Walk Around the Club", "Solas")
+    rude["explicit"] = True
+    monkeypatch.setattr(
+        spotify_service.requests, "get", lambda *a, **kw: FakeResponse([rude])
+    )
+    resolved = playlist_service.resolve_songs([
+        {"title": "The Merry Sisters of Fate", "artist": "Solas"},
+    ])
+    assert resolved[0] is None
+
+
+def test_resolve_songs_does_not_substitute_other_artist(client, monkeypatch):
+    """Подстановка не должна тащить чужого исполнителя.
+
+    Это главный риск послабления: свободный поиск без сверки уже приводил
+    к рэп-треку в плейлисте «Демона из Пустоши» (инцидент 20.07). Сверку
+    названия мы сняли намеренно, сверку артиста — нет."""
+    _no_user_token(monkeypatch)
+    monkeypatch.setattr(
+        spotify_service.requests, "get",
+        lambda *a, **kw: FakeResponse([_track("Some Rap Song", "Another Artist")]),
+    )
+    resolved = playlist_service.resolve_songs([
+        {"title": "Familiar Ground", "artist": "Ólafur Arnalds"},
+    ])
+    assert resolved[0] is None
 
 
 def test_resolve_songs_uses_canonical_names(client, monkeypatch):

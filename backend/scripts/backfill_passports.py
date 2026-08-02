@@ -11,6 +11,11 @@
 #   python backfill_passports.py --dry-run   # показать книги без паспорта
 #   python backfill_passports.py             # создать батч и дождаться (тратит токены)
 #
+# Пересборка существующих паспортов (после правки промпта, 01.08):
+#   python scripts/backfill_passports.py --regenerate --limit=10 --dry-run
+#   python scripts/backfill_passports.py --regenerate --limit=10
+# Книги витрины исключаются всегда: их палитры ушли в печатный тираж 28.07.
+#
 # Батч обрабатывается на стороне Anthropic асинхронно (обычно минуты, лимит 24ч);
 # скрипт опрашивает статус и по завершении сохраняет паспорта.
 import sys
@@ -50,13 +55,53 @@ def _books_without_passport(session) -> list[Book]:
     return [b for b in session.exec(select(Book)).all() if b.id not in have]
 
 
+# Задача 100, хвост 01.08: пересборка УЖЕ существующих паспортов после правки
+# промпта. Отдельный режим, потому что риски другие — не «добавить недостающее»,
+# а «переписать то, что человек уже видел».
+#
+# ⚠ Книги витрины исключаются ВСЕГДА. Печатный тираж 28.07 сделан с их нынешними
+# палитрами, карточки на руках, и расхождение бумаги с экраном не откатить.
+# Флага «включить витринные» нет намеренно: такую вещь нельзя сделать опечаткой.
+def _books_to_regenerate(session, limit: int | None) -> list[Book]:
+    from models import UserBook
+
+    featured = set(
+        session.exec(select(UserBook.book_id).where(UserBook.featured.is_(True))).all()
+    )
+    have = set(
+        session.exec(
+            select(AISelection.book_id).where(AISelection.category == "design")
+        ).all()
+    )
+    books = [
+        b for b in session.exec(select(Book)).all()
+        if b.id in have and b.id not in featured
+    ]
+    books.sort(key=lambda b: b.id)
+    return books[:limit] if limit else books
+
+
 def main():
     dry = "--dry-run" in sys.argv
+    regen = "--regenerate" in sys.argv
+    limit = None
+    for arg in sys.argv:
+        if arg.startswith("--limit="):
+            limit = int(arg.split("=", 1)[1])
+
     with Session(database.engine) as session:
-        targets = _books_without_passport(session)
+        if regen:
+            targets = _books_to_regenerate(session, limit)
+        else:
+            targets = _books_without_passport(session)
         info = {b.id: (b.title, b.author) for b in targets}
 
-    print(f"Книг без паспорта: {len(targets)}")
+    if regen:
+        print(f"Книг к ПЕРЕСБОРКЕ паспорта: {len(targets)}"
+              + (f" (ограничение --limit={limit})" if limit else "")
+              + "\nКниги витрины исключены — их палитры ушли в печать.")
+    else:
+        print(f"Книг без паспорта: {len(targets)}")
     if dry:
         for bid, (t, a) in sorted(info.items()):
             print(f"  {bid}: {t} — {a}")

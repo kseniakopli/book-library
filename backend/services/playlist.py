@@ -84,7 +84,26 @@ def resolve_songs(songs: list[dict], workers: int = 6) -> list[dict | None]:
 
     def resolve(item):
         i, song, key = item
-        found = spotify.find_track(headers, song.get("title", ""), song.get("artist", ""))
+        title, artist = song.get("title", ""), song.get("artist", "")
+        found = spotify.find_track(headers, title, artist)
+
+        # Модель иногда меняет поля местами: «Moonshine Freeze — This Is the Kit»
+        # (This Is the Kit — исполнитель, Moonshine Freeze — альбом). Один
+        # дешёвый повтор наоборот ловит такие случаи целиком.
+        if found is None:
+            found = spotify.find_track(headers, artist, title)
+
+        # Названия у неочевидных исполнителей модель выдумывает чаще, чем
+        # у известных, — и без подстановки верификация возвращала бы плейлист
+        # к канону (см. find_any_by_artist). Артист был выбран осмысленно,
+        # поэтому берём его реальную запись вместо несуществующей.
+        if found is None:
+            found = spotify.find_any_by_artist(headers, artist)
+            if found is not None and found is not spotify.UNRELIABLE:
+                print(
+                    f"Подстановка: «{artist} — {title}» не найден, "
+                    f"взят «{found['name']}» того же исполнителя"
+                )
         return i, key, found
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
