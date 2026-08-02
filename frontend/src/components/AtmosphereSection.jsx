@@ -58,8 +58,11 @@ function renderPayload(category, payload, onRemoveTrack) {
 
 function AtmosphereSection({ bookId, playlistUrl }) {
   const queryClient = useQueryClient();
-  // Этап 9: атмосфера общая для книги — генерация и удаление трека у админа
-  // (бэкенд это и так проверяет; здесь просто не показываем чужие кнопки)
+  // Этап 9: атмосфера общая для книги, поэтому её ПЕРЕсборка и удаление трека —
+  // у админа. Первое создание доступно любому вошедшему (решение 02.08):
+  // раньше книга без атмосферы была для тестировщика тупиком — фоном
+  // генерируется только паспорт оформления, а кнопки он не видел.
+  // Бэкенд проверяет то же самое; здесь просто не показываем чужие кнопки.
   const { isAdmin } = useAuth();
   const [activeCategory, setActiveCategory] = useState("music");
   const [activeSource, setActiveSource] = useState("Claude");
@@ -114,6 +117,11 @@ function AtmosphereSection({ bookId, playlistUrl }) {
   const hasAny = CATEGORY_IDS.some(
     (c) => (byCategory[c].data?.selections?.length ?? 0) > 0,
   );
+  // Не-админ жмёт кнопку только когда атмосферы нет вовсе — тогда все три
+  // запроса заведомо пройдут. Частичный случай (есть музыка, нет угощений)
+  // кнопку ему не показывает: бэкенд ответил бы 403 по заполненной категории,
+  // и одна неудача в Promise.all отменила бы весь результат.
+  const canGenerate = isAdmin || !hasAny;
 
   return (
     <section className="atmosphere">
@@ -121,7 +129,7 @@ function AtmosphereSection({ bookId, playlistUrl }) {
         <h2 className="atmosphere-title">Атмосфера</h2>
         {/* задача 47: accent — только пока атмосферы нет (главное действие
             страницы); повторная генерация — обычная кнопка */}
-        {isAdmin && (
+        {canGenerate && (
           <button
             className={hasAny ? "btn-ghost" : "add-btn"}
             onClick={() => generateAll.mutate()}
@@ -180,12 +188,21 @@ function AtmosphereSection({ bookId, playlistUrl }) {
       {!current.isLoading &&
         !current.isError &&
         !generateAll.isPending &&
-        selections.length === 0 && (
+        selections.length === 0 &&
+        /* ⚠ Текст зависит от того, есть ли у человека кнопка. Раньше здесь
+           всегда стояло «Нажмите „Подобрать атмосферу“» — в том числе для тех,
+           у кого этой кнопки нет: интерфейс обещал действие, которого не было
+           (жалоба тестировщика 02.08). */
+        (canGenerate ? (
           <p className="muted">
             Пока пусто. Нажмите «Подобрать атмосферу» — музыка, угощения и
             ароматы подберутся разом.
           </p>
-        )}
+        ) : (
+          <p className="muted">
+            Для этой книги подборка пока не собрана.
+          </p>
+        ))}
 
       {selections.length > 0 && (
         <>

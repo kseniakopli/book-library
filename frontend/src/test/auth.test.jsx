@@ -21,7 +21,8 @@ test("гость видит страницу входа вместо библи�
   expect(screen.queryByText("Волшебная гора")).not.toBeInTheDocument();
 });
 
-test("не-админ не видит кнопок правки общих данных", async () => {
+/** Вход «от имени» обычного пользователя без прав админа. */
+function asGuest() {
   server.use(
     http.get("/api/v1/auth/me", () =>
       HttpResponse.json({
@@ -33,17 +34,70 @@ test("не-админ не видит кнопок правки общих да�
       }),
     ),
   );
+}
+
+test("не-админ не видит кнопок правки общих данных", async () => {
+  asGuest();
 
   renderApp("/books/1");
   await screen.findByRole("heading", { name: "Волшебная гора" });
 
-  // общие данные книги и атмосфера — админские
+  // общие данные книги — админские
   expect(screen.queryByRole("button", { name: "Редактировать" })).toBeNull();
+  // а своё — на месте: удалить книгу со своей полки можно
+  expect(screen.getByRole("button", { name: /Удалить/ })).toBeInTheDocument();
+});
+
+test("не-админ может собрать атмосферу, которой ещё нет", async () => {
+  // Жалоба тестировщика 02.08: книга из каталога без атмосферы была тупиком —
+  // музыка и угощения фоном не генерируются, а кнопка требовала прав админа.
+  // По умолчанию мок отдаёт пустые подборки, то есть это и есть тот случай.
+  asGuest();
+
+  renderApp("/books/1");
+  await screen.findByRole("heading", { name: "Волшебная гора" });
+
+  expect(
+    screen.getByRole("button", { name: "Подобрать атмосферу" }),
+  ).toBeInTheDocument();
+});
+
+test("не-админ не может пересобрать готовую атмосферу", async () => {
+  // Перегенерация переписывает подборку для всех, включая витринные книги,
+  // чьи плейлисты уехали в печатные QR.
+  asGuest();
+  server.use(
+    http.get("/api/v1/books/:id/atmosphere/:category", ({ params }) => {
+      // паспорт оформления оставляем пустым: у него payload — ОБЪЕКТ с палитрами,
+      // и подмена его списком треков ломает раскраску страницы книги
+      const selections =
+        params.category === "design"
+          ? []
+          : [
+              {
+                source: "Claude",
+                payload: [{ title: "Song A", artist: "Artist A" }],
+                explanation: "готовая подборка",
+              },
+            ];
+      return HttpResponse.json({
+        book_id: Number(params.id),
+        category: params.category,
+        selections,
+      });
+    }),
+  );
+
+  renderApp("/books/1");
+  await screen.findByRole("heading", { name: "Волшебная гора" });
+  // ⚠ Дождаться именно ДАННЫХ: пока запросы атмосферы в полёте, подборок нет,
+  // и кнопка «Подобрать атмосферу» успевает отрисоваться — проверка сразу после
+  // заголовка ловила это промежуточное состояние
+  await screen.findByText("готовая подборка");
+
   expect(
     screen.queryByRole("button", { name: /Подобрать атмосферу|Обновить атмосферу/ }),
   ).toBeNull();
-  // а своё — на месте: удалить книгу со своей полки можно
-  expect(screen.getByRole("button", { name: /Удалить/ })).toBeInTheDocument();
 });
 
 test("админ видит имя в шапке и кнопку выхода", async () => {

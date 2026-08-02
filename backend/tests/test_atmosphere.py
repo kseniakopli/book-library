@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 import database
-from conftest import fake_generate_design, fake_generate_music
+from conftest import fake_generate_design, fake_generate_food, fake_generate_music
 from models import AISelection
 from routers import atmosphere as atmosphere_routes
 from services.ai_schemas import DesignResult
@@ -217,6 +217,55 @@ def test_remove_track_not_found(client, monkeypatch):
         json={"source": "Claude", "title": "Нет такого", "artist": "Никто"},
     )
     assert r.status_code == 404
+
+
+# --- права на генерацию (жалоба тестировщика 02.08) ---
+
+def _demote(client):
+    """Снять права админа с текущего пользователя."""
+    from models import User
+
+    with Session(database.engine) as session:
+        user = session.get(User, 1)
+        user.is_admin = False
+        session.add(user)
+        session.commit()
+
+
+def test_first_generation_allowed_for_any_user(client, monkeypatch):
+    """Книга без атмосферы была тупиком: фоном генерится только паспорт,
+    а кнопка и эндпоинт требовали admin. Первое создание чужого не портит —
+    до него здесь пусто."""
+    _mock_music(monkeypatch)
+    _demote(client)
+
+    r = client.post("/api/v1/books/1/atmosphere/music")
+    assert r.status_code == 200
+    assert len(r.json()["selections"]) == 2
+
+
+def test_regeneration_still_requires_admin(client, monkeypatch):
+    """Перегенерация переписывает атмосферу для ВСЕХ, включая витринные книги,
+    чьи плейлисты уехали в печатные QR."""
+    _mock_music(monkeypatch)
+    assert client.post("/api/v1/books/1/atmosphere/music").status_code == 200
+
+    _demote(client)
+    assert client.post("/api/v1/books/1/atmosphere/music").status_code == 403
+
+
+def test_permission_is_per_category(client, monkeypatch):
+    """Заполненная музыка не должна запирать пустые угощения: право считается
+    по своей категории, а не по книге целиком."""
+    _mock_music(monkeypatch)
+    client.post("/api/v1/books/1/atmosphere/music")
+    monkeypatch.setitem(
+        atmosphere_routes.CATEGORIES["food"], "generate", fake_generate_food
+    )
+    _demote(client)
+
+    assert client.post("/api/v1/books/1/atmosphere/music").status_code == 403
+    assert client.post("/api/v1/books/1/atmosphere/food").status_code == 200
 
 
 def test_remove_track_requires_admin(client, monkeypatch):
