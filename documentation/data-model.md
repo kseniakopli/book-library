@@ -101,6 +101,7 @@ erDiagram
         string payload "JSON string: songs list / design passport"
         string explanation
         bool verified "music only: false = saved during a Spotify ban (task 85)"
+        string analysis "JSON: the model's reasoning, filled before the answer (rev 0016)"
         datetime created_at
     }
     RECOMMENDATION {
@@ -228,15 +229,31 @@ Enforced in code and/or schema:
 9. **One feedback per (user, target)** — unique `uq_feedback_user_ref`; repeating the same
    verdict removes the row (toggle off).
 10. **One cycle per (user, series)** — unique `uq_userseries_user_series`.
-11. **Music is saved only after Spotify resolution** — tracks that don't resolve are
-    dropped, the rest get canonical names. If Spotify is unavailable the selection is
-    stored with `aiselection.verified = false` and `scripts/reverify_music.py` re-checks
-    it later.
-12. **Registration is invite-only** (revision 0013) — an unknown Google account needs an
+11. **Music is saved only after Spotify resolution** — every track is looked up before the
+    selection is stored, and the survivors carry Spotify's canonical names. If Spotify is
+    unavailable the selection is stored with `aiselection.verified = false` and
+    `scripts/reverify_music.py` re-checks it later.
+    Since 2026-08-02 an unresolved track is **substituted, not dropped**: the lookup falls
+    back to a real recording by the same artist (`spotify.find_any_by_artist`). Measurement
+    showed the old behaviour quietly undid the prompt's push away from the overused canon —
+    famous artists always resolve, obscure ones get invented titles, so verification kept
+    handing the playlist back to the canon. Substitution raised distinct artists across the
+    library from ~325 to 353. The invented *title* is discarded; the artist, which the model
+    chose deliberately, is kept. See `states-and-degradation.md` for the homonym risk this
+    introduces.
+12. **At most two tracks by library-wide overused artists per playlist**
+    (`services/atmosphere.MAX_OVERUSED_PER_PLAYLIST`). Not zero: sometimes an overused
+    artist genuinely fits a book, and a hard ban would impoverish the selection for the sake
+    of a statistic. Applied before Spotify lookup so rejected tracks don't spend quota.
+13. **The model's reasoning is stored, not just its answer** (`aiselection.analysis`,
+    revision 0016). Reasoning-as-schema forces the model to fill an analysis field before
+    the answer; until 0016 that field was thrown away, so there was no way to tell whether
+    the technique had worked. Not shown to readers — it is material for quality review.
+14. **Registration is invite-only** (revision 0013) — an unknown Google account needs an
     unused `invite.code`; the code is then bound to the new user and cannot be reused.
     Exception: an account whose email matches `ADMIN_EMAIL`, or an email already present
     on a `user` row, is linked to that existing row instead of creating a new one.
-13. **Every request is scoped to the caller** — the user id comes from the signed session
+15. **Every request is scoped to the caller** — the user id comes from the signed session
     cookie (`deps.current_user`), never from the request body or query. All API routers
     are mounted with that dependency, so a new endpoint is authenticated by default.
 

@@ -36,8 +36,30 @@ in production (Vite serves pages without security headers).
 - [ ] Book page in the showcase: the Spotify player renders — an **empty frame** means
       `frame-src https://open.spotify.com` is missing from CSP
 - [ ] Scan the printed card with a phone: the QR leads to the current showcase URL
-      (regenerate with `python scripts/make_landing_qr.py` after changing the slug)
+      (regenerate with `python scripts/make_landing_qr.py` after changing the slug — the
+      "landing" in that name is historical, the landing page was removed on 2026-08-01 and
+      the QR has pointed at the showcase since 2026-07-28)
 - [ ] `python scripts/showcase_stats.py` counts the visits just made
+- [ ] **Interface fonts arrived** — DevTools → Network → filter `gstatic`, expect 200s.
+      This cannot be checked locally: Vite serves pages without CSP, so a wrong `font-src`
+      shows up only in production, and a missing font fails silently — `<link>` raises
+      nothing and the whole interface quietly falls back to Georgia
+
+## Music generation (task 99, since 2026-08-02)
+- [ ] Generate music for a book and read the server log: `Подстановка: … взят … того же
+      исполнителя` lines are expected — that is an invented title being replaced by a real
+      recording, not an error
+- [ ] **Read those substitutions.** A namesake artist can slip through: Solas is an Irish
+      folk band and also a rapper. Explicit tracks are filtered and the name must match
+      exactly, but a same-genre namesake would pass
+- [ ] No duplicate tracks inside one selection (the model repeats itself, and two invented
+      titles can collapse onto one real recording after substitution)
+- [ ] ⚠ **Dev and production share one Spotify account.** Playlists are rebuilt in place, so
+      regenerating music locally rewrites the playlists production links to: the track list
+      on the page stays old while the embedded player already shows the new one. After a
+      local regeneration, carry the rows over with
+      `scripts/sync_music_to_prod.py` — do **not** replace the whole database, production
+      holds real users, invites and showcase events
 
 ## Library basics
 - [ ] Home page loads; shelves show correct counts

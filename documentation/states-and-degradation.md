@@ -117,6 +117,7 @@ and ratings live in the local database and are always available.
 | **OpenAI** (atmosphere) | error / refusal / truncation | same `safe_ask` fallback | Only the Claude variant in the source tabs | Regenerate |
 | **Spotify** (track resolution) | no credentials / network error | `resolve_songs` returns the songs unchanged | Atmosphere is saved unverified (may contain invented tracks); no playlist yet | Regenerate once Spotify works, or run `scripts/verify_music.py` |
 | **Spotify** (track resolution) | 429 / 5xx (short) | up to 3 attempts honouring `Retry-After` (capped at `MAX_WAIT` 5 s), then the track counts as missing | Fewer tracks in the list and the playlist | Regenerate the atmosphere |
+| **Model invents a track title** | title not found for that artist | fallback chain: exact search → retry with title/artist swapped → **any real recording by the same artist** (`find_any_by_artist`). Only if all three fail is the track dropped | A real track by the artist the model chose, instead of a hole in the selection | — (automatic) |
 | **Spotify** (track resolution) | 429 with long `Retry-After` (app quota ban) | **circuit breaker**: if `Retry-After` > `COOLDOWN_THRESHOLD` (30 s), the service enters a cooldown (`in_cooldown()`) and skips Spotify entirely until it passes — no waiting, no retries | Atmosphere saved unverified, no playlist; server stays responsive | Wait out the cooldown (usually an hour or two), then regenerate |
 | **Spotify** (playlist on generation) | no refresh token | playlist step is skipped; the atmosphere is still saved | Fallback button "Создать плейлист в Spotify" | One-time authorisation, then press the button |
 | **Spotify** (playlist on generation) | API error | logged, generation still succeeds | Fallback button as above | Retry via the button |
@@ -138,7 +139,22 @@ and ratings live in the local database and are always available.
 - Structured outputs (and tool schemas in the batch script) mean a malformed AI answer is
   rejected at the boundary rather than stored.
 - AI palettes are applied **only** if they pass a WCAG 4.5:1 contrast check; otherwise the
-  base theme is used.
+  base theme is used. The accent is not rejected but pulled up to AA, and it is checked in
+  **both** of its roles — as text on the scene background and as a background under letters
+  (`lib/contrast.accentPair`). The two roles used to be handled in two places, and a fix
+  applied to one of them was never carried to the other; the shared helper exists so that
+  cannot happen again.
+- **Substituting a track by the same artist can pick a homonym.** Solas is an Irish folk
+  band, but Spotify also has a rapper called Solas, and the substitution once pulled an
+  explicit rap track into an atmospheric playlist. The name matched *literally*, so no
+  name-based check catches this. Guards: exact name match instead of fuzzy similarity, and
+  explicit recordings are skipped. This does not close the hole — a same-genre namesake
+  would pass — so every substitution is printed to the log and is meant to be read.
+- **Two filters can quietly cancel each other out.** The prompt pushes the model away from
+  the overused canon; Spotify verification used to push it straight back, because famous
+  artists always resolve and obscure ones get invented titles. Neither component was broken,
+  and no measurement of either one alone would have shown it. Worth remembering when a
+  metric refuses to move: check the seam between stages, not only the stages.
 - Secrets live in `backend/.env`. Required keys (Anthropic, OpenAI, Google Books) are
   checked **at startup** — the app refuses to start with a clear message instead of
   failing later inside a generation (`SKIP_KEY_CHECK=1` bypasses this).

@@ -1,4 +1,7 @@
-"""Точечный перенос подборок музыки между базами (02.08).
+"""Точечный перенос подборок AI между базами: музыка, паспорта оформления (02.08).
+
+⚠ Имя файла историческое — скрипт начинался с музыки. Категория задаётся
+флагом `--category=`; для паспортов это `design`.
 
 ПРОБЛЕМА, ради которой написан. Прод и дев ходят в ОДИН сервисный аккаунт
 Spotify (`nctrnlib`), а плейлисты пересобираются по месту —
@@ -12,29 +15,40 @@ Spotify (`nctrnlib`), а плейлисты пересобираются по м
 `layout-audit.mjs` проставляет `featured` в локальной базе, и состав витрины
 уехал бы на прод сам собой, а витрина связана с печатным тиражом.
 
-Переносятся ТОЛЬКО строки AISelection категории music и ссылка на плейлист
-книги. Пользователи, события, инвайты, витрина и прочие категории атмосферы
-не трогаются.
+Для ПАСПОРТОВ (`--category=design`) причина другая, но следствие то же:
+пересборка идёт локально (`backfill_passports.py`), а прод остаётся со старым
+оформлением. Общего внешнего ресурса тут нет, поэтому «молча» ничего
+не ломается — просто дев и прод показывают разные книги.
+
+Переносятся ТОЛЬКО строки AISelection выбранной категории (и ссылка
+на плейлист книги — для музыки). Пользователи, события, инвайты, витрина
+и прочие категории не трогаются.
 
 --- Как пользоваться ---
 
 Локально (выгрузка изменённого):
     python scripts/sync_music_to_prod.py --export --since=2026-08-02
-    → music_sync.json
+    python scripts/sync_music_to_prod.py --export --since=2026-08-02 --category=design
+    → music_sync.json / design_sync.json
 
 Залить файл на прод (из КОРНЯ репозитория):
     fly ssh sftp shell
-    put backend/music_sync.json /data/music_sync.json
+    put backend/design_sync.json /data/design_sync.json
 
 На проде:
     fly ssh console
     cd /app/backend
-    python scripts/sync_music_to_prod.py --import=/data/music_sync.json --dry-run
-    python scripts/sync_music_to_prod.py --import=/data/music_sync.json
+    python scripts/sync_music_to_prod.py --import=/data/design_sync.json --dry-run
+    python scripts/sync_music_to_prod.py --import=/data/design_sync.json
 
 ⚠ Сопоставление идёт по book_id. Базы разошлись по идентификаторам —
 перенос делать нельзя; скрипт сверяет ещё и название книги и ругается
 на несовпадения, не применяя их.
+
+⚠ Витринные книги в выгрузку не попадут сами собой: их паспорта не
+пересобирались (исключены в `backfill_passports.py`), значит и `created_at`
+у них старый, а фильтр `--since` их отсечёт. Проверить это глазами
+в списке выгрузки — их палитры ушли в печатный тираж.
 """
 
 import json
@@ -52,13 +66,16 @@ IMPORT_PATH = next(
 )
 SINCE = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--since=")), None)
 DRY = "--dry-run" in sys.argv
-OUT = "music_sync.json"
+CATEGORY = next(
+    (a.split("=", 1)[1] for a in sys.argv if a.startswith("--category=")), "music"
+)
+OUT = f"{CATEGORY}_sync.json"
 
 
 def do_export() -> None:
     with Session(database.engine) as session:
         rows = session.exec(
-            select(AISelection).where(AISelection.category == "music")
+            select(AISelection).where(AISelection.category == CATEGORY)
         ).all()
         if SINCE:
             rows = [
@@ -75,13 +92,18 @@ def do_export() -> None:
             payload.append({
                 "book_id": row.book_id,
                 "book_title": book.title,          # страховка от расхождения id
+                "category": CATEGORY,
                 "source": row.source,
                 "payload": row.payload,
                 "explanation": row.explanation,
                 "analysis": row.analysis,
                 "verified": row.verified,
                 "created_at": row.created_at.isoformat() if row.created_at else None,
-                "spotify_playlist_url": book.spotify_playlist_url,
+                # Ссылка на плейлист — только для музыки: у паспортов её нет,
+                # и перезаписывать её пустым значением на проде нельзя.
+                "spotify_playlist_url": (
+                    book.spotify_playlist_url if CATEGORY == "music" else None
+                ),
             })
 
     with open(OUT, "w", encoding="utf-8") as f:
@@ -118,10 +140,15 @@ def do_import(path: str) -> None:
                 mismatched += 1
                 continue
 
+            # Категорию берём ИЗ ФАЙЛА, а не из флага командной строки:
+            # иначе файл паспортов, импортированный без `--category=design`,
+            # молча лёг бы в музыку.
+            category = item.get("category", "music")
+
             existing = session.exec(
                 select(AISelection).where(
                     AISelection.book_id == item["book_id"],
-                    AISelection.category == "music",
+                    AISelection.category == category,
                     AISelection.source == item["source"],
                 )
             ).first()
@@ -136,7 +163,7 @@ def do_import(path: str) -> None:
                 session.flush()   # DELETE до INSERT — уникальный индекс
             session.add(AISelection(
                 book_id=item["book_id"],
-                category="music",
+                category=category,
                 source=item["source"],
                 payload=item["payload"],
                 explanation=item["explanation"],

@@ -82,6 +82,43 @@ Practical rules that follow:
 - when moving code between modules, trust the linter, not the test run;
 - prefer a narrow rule set (`F`, `E9`) — errors, not style, so it never cries wolf.
 
+## When the measurement lies (2026-08-01 / 02)
+
+A worse failure than an untested branch is a check that reports confidently on the wrong
+thing. Four in two days, each one costing an hour of chasing the wrong cause:
+
+1. **A font preview loaded eight families in one Google Fonts request.** `css2` is
+   all-or-nothing, so one bad entry returned 400, nothing loaded, and the page reported
+   "no Cyrillic" for all eight — including families that certainly have it.
+2. **The layout audit measured after taking the screenshot.** A `fullPage` screenshot
+   resets `Emulation.setEmulatedMedia`, so `pointer: coarse` was gone by measuring time and
+   `@media (pointer: coarse)` rules never applied. 35 "tap targets under 44px" were an
+   artefact. The giveaway: exactly the three pages with `fullPage: false` reported
+   `pointerCoarse: true`.
+3. **A diversity report aggregated the whole corpus.** Ten freshly regenerated records
+   dissolved among two hundred old ones; the effect of the change was unreadable either way.
+4. **A colour metric counted distinct strings.** `#f3ecdd` and `#f4efe4` are different
+   values and the same cream; "152 unique backgrounds out of 201" hid the fact that 75% of
+   the library was one colour.
+
+What these have in common: each check answered a question adjacent to the one being asked,
+and none of them could fail loudly. Rules that came out of it:
+
+- **give every check a control sample with a known answer.** The font preview now tests
+  PT Serif alongside the candidates: if the control reports "no Cyrillic", the instrument is
+  broken, not the fonts.
+- **separate "the object is broken" from "the tool is broken"** in the output. The same
+  preview now distinguishes "the stylesheet never loaded" from "loaded, but this family has
+  no Cyrillic" — those demand opposite fixes.
+- **measure the delta, not the state.** Reports that answer "what do we have" cannot answer
+  "what did the change do"; add a filter by date or by batch from the start.
+- **let a diagnostic script call production code, never a copy of it.** `explore_avoid.py`
+  reimplemented the repeat key, and after the key changed it kept printing the old picture.
+  `track_key`/`artist_key` were extracted so counting and measuring share one definition.
+- **check the seam between stages.** The prompt pushed the model away from the overused
+  canon and Spotify verification pushed it back; both components worked exactly as
+  specified, and no test of either could have shown it.
+
 ## What automation deliberately does NOT cover
 
 Verified manually (see regression checklist):
