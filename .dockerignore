@@ -19,9 +19,16 @@ frontend/playwright-report
 
 # локальные данные и секреты
 **/.env
-backend/library.db
-backend/library.db-wal
-backend/library.db-shm
+# Любые SQLite-файлы, где бы они ни лежали. Было по точному пути
+# (backend/library.db) — и 02.08 обнаружилось, что в образ уехала
+# backend/scripts/library.db: скрипт, запущенный из папки scripts/, создал
+# там пустую базу, потому что DATABASE_URL задан относительным путём.
+# Прод ею не пользуется (DATABASE_URL указывает на /data), но в образе
+# лежала копия библиотеки, а сам факт означает, что скрипт мог молча
+# работать с пустой базой и выдать «0 записей» вместо ошибки.
+**/*.db
+**/*.db-wal
+**/*.db-shm
 backend/backups
 backend/spotify_token.json
 backend/livelib-*.csv
