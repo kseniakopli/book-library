@@ -47,12 +47,20 @@ function initialBooks() {
   ];
 }
 
-export const db = { books: initialBooks(), recommendations: [], feedback: {} };
+export const db = {
+  books: initialBooks(),
+  recommendations: [],
+  feedback: {},
+  authorBio: null,   // задача 111: биография правится на месте
+  wishes: null,      // задача 114: пожелания для рекомендаций
+};
 
 export function resetDb() {
   db.books = initialBooks();
   db.recommendations = [];
   db.feedback = {};
+  db.authorBio = null;
+  db.wishes = null;
 }
 
 function findBook(params) {
@@ -152,6 +160,7 @@ export const handlers = [
   }),
 
   // задача 97: страница автора — две стопки, полка и каталог
+  // задача 111: bio редактируется на месте, поэтому живёт в изменяемом db
   http.get("/api/v1/authors/:id", ({ params }) =>
     Number(params.id) === 7
       ? HttpResponse.json({
@@ -159,6 +168,7 @@ export const handlers = [
           name: "Томас Манн",
           name_ru: "Томас Манн",
           name_original: null,
+          bio: db.authorBio,
           shelf: [
             { id: 1, title: "Волшебная гора", status: "read", rating: 9, cover_url: null },
           ],
@@ -168,6 +178,11 @@ export const handlers = [
         })
       : notFound(),
   ),
+  http.patch("/api/v1/authors/:id", async ({ request }) => {
+    const body = await request.json();
+    db.authorBio = (body.bio ?? "").trim() || null;
+    return HttpResponse.json({ id: 7, bio: db.authorBio });
+  }),
 
   http.post("/api/v1/books", async ({ request }) => {
     const body = await request.json();
@@ -256,6 +271,35 @@ export const handlers = [
     HttpResponse.json({ imported: 2, duplicates: 1, skipped: 0 }),
   ),
 
+  // Жанры (задача 112): справочник по каталогу + правка набора у книги
+  http.get("/api/v1/genres", () =>
+    HttpResponse.json({
+      genres: [
+        { id: 1, name: "Детектив", books: 3 },
+        { id: 2, name: "Магический реализм", books: 1 },
+      ],
+    }),
+  ),
+  http.get("/api/v1/genres/:id", ({ params }) =>
+    HttpResponse.json({
+      id: Number(params.id),
+      name: "Детектив",
+      shelf: [
+        { id: 1, title: "Волшебная гора", status: "read", rating: 9, cover_url: null },
+      ],
+      catalog: [
+        { id: 42, title: "Будденброки", author: "Томас Манн", cover_url: null },
+      ],
+    }),
+  ),
+  http.put("/api/v1/books/:id/genres", async ({ params, request }) => {
+    const body = await request.json();
+    const genres = body.genres.map((name, i) => ({ id: 100 + i, name }));
+    const book = findBook(params);
+    if (book) book.genres = genres;
+    return HttpResponse.json({ book_id: Number(params.id), genres });
+  }),
+
   // Список авторов (задача 111): считаются только книги с полки
   http.get("/api/v1/authors", () =>
     HttpResponse.json({
@@ -268,8 +312,17 @@ export const handlers = [
 
   // Рекомендации (этап 8): пусто до генерации, POST наполняет набор
   http.get("/api/v1/recommendations", () =>
-    HttpResponse.json({ recommendations: db.recommendations }),
+    HttpResponse.json({
+      recommendations: db.recommendations,
+      wishes: db.wishes,          // задача 114
+    }),
   ),
+  http.put("/api/v1/recommendations/wishes", async ({ request }) => {
+    const body = await request.json();
+    // бэкенд возвращает ОЧИЩЕННЫЙ текст — здесь достаточно обрезки пробелов
+    db.wishes = (body.wishes ?? "").trim() || null;
+    return HttpResponse.json({ wishes: db.wishes });
+  }),
   http.post("/api/v1/recommendations", () => {
     // с 20.07 советуют обе модели — у каждой карточки есть источник
     db.recommendations = [

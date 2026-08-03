@@ -21,4 +21,8 @@ export const keys = {
   seriesOne: (id) => ["series", Number(id)],
   author: (id) => ["authors", Number(id)],  // задача 97: страница автора
   authors: ["authors"],                     // задача 111: список авторов
+  genres: ["genres"],                       // задача 112: справочник жанров
+  genre: (id) => ["genres", Number(id)],
+  dataGaps: ["admin", "data-gaps"],         // задача 113: заполнение данных
+  dataGapItems: (kind) => ["admin", "data-gaps", kind],
 };

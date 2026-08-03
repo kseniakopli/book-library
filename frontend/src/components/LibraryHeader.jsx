@@ -38,8 +38,9 @@ function LibraryHeader({
           <Link className="menu-item" to="/authors" role="menuitem">
             Авторы
           </Link>
-          {/* Жанры появятся здесь в задаче 112 — сущности пока нет,
-              и пункт вёл бы в никуда. */}
+          <Link className="menu-item" to="/genres" role="menuitem">
+            Жанры
+          </Link>
         </DropdownMenu>
 
         <button
@@ -122,6 +123,16 @@ function LibraryHeader({
             >
               Экспорт CSV
             </a>
+
+            {/* задача 113: служебный раздел — только админу */}
+            {isAdmin && (
+              <>
+                <div className="menu-sep" role="separator" />
+                <Link className="menu-item" to="/admin/data" role="menuitem">
+                  Заполнение данных
+                </Link>
+              </>
+            )}
 
             <div className="menu-sep" role="separator" />
 

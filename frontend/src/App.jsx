@@ -23,6 +23,11 @@ const AuthorPage = lazy(() => import("./pages/AuthorPage"));
 // Оба открываются намеренно и редко, поэтому тоже отдельными чанками.
 const AuthorsPage = lazy(() => import("./pages/AuthorsPage"));
 const RecommendationsPage = lazy(() => import("./pages/RecommendationsPage"));
+// Задача 112: жанры — справочник и страница жанра
+const GenresPage = lazy(() => import("./pages/GenresPage"));
+const GenrePage = lazy(() => import("./pages/GenrePage"));
+// Задача 113: админский раздел «Заполнение данных»
+const DataGapsPage = lazy(() => import("./pages/DataGapsPage"));
 // Задача 30: публичная витрина — её открывают ГОСТИ, поэтому она тоже отдельным
 // чанком: владельцу сервиса этот код в бандле не нужен, и наоборот.
 const ShowcasePage = lazy(() => import("./pages/ShowcasePage"));
@@ -120,6 +125,33 @@ function App() {
             element={
               <RequireAuth>
                 <RecommendationsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/genres"
+            element={
+              <RequireAuth>
+                <GenresPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/genres/:id"
+            element={
+              <RequireAuth>
+                <GenrePage />
+              </RequireAuth>
+            }
+          />
+          {/* Задача 113: доступ проверяет БЭКЕНД (403 не-админу).
+              Прятать маршрут во фронте бессмысленно — адрес всё равно
+              известен, а страница без данных ничего не покажет. */}
+          <Route
+            path="/admin/data"
+            element={
+              <RequireAuth>
+                <DataGapsPage />
               </RequireAuth>
             }
           />

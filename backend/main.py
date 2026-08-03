@@ -17,12 +17,14 @@ from deps import current_user
 from i18n import msg
 from logging_setup import request_id_var, setup_logging
 from routers import (
+    admin,
     atmosphere,
     auth,
     authors,
     books,
     exports,
     feedback,
+    genres,
     imports,
     public,
     recommendations,
@@ -77,6 +79,8 @@ app.include_router(stats.router, prefix=API_V1, dependencies=PROTECTED)       # 
 app.include_router(feedback.router, prefix=API_V1, dependencies=PROTECTED)    # задача 26: 👍/👎 по подборкам
 app.include_router(series.router, prefix=API_V1, dependencies=PROTECTED)      # задача 89: циклы книг
 app.include_router(authors.router, prefix=API_V1, dependencies=PROTECTED)    # задача 97: страница автора
+app.include_router(genres.router, prefix=API_V1, dependencies=PROTECTED)     # задача 112: жанры
+app.include_router(admin.router, prefix=API_V1, dependencies=PROTECTED)      # задача 113: заполнение данных
 # /callback — без префикса: адрес зарегистрирован в кабинете Spotify
 app.include_router(spotify.callback_router)
 
