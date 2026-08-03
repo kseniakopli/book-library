@@ -82,16 +82,28 @@ class BookRead(BaseModel):
 
     После разделения таблиц ответ склеивается из двух источников: общие поля
     книги (Book) + личные поля полки (UserBook). Сборка — в `from_pair`,
-    рядом с самим контрактом (ревью 19.07: раньше жила в роутере)."""
+    рядом с самим контрактом (ревью 19.07: раньше жила в роутере).
+
+    ⚠ С 03.08 личные поля НЕОБЯЗАТЕЛЬНЫ. Книга — общая сущность каталога,
+    и открыть её страницу можно, даже если на своей полке её нет: её завёл
+    другой читатель или это том цикла, попавший в базу вместе с серией.
+    Тогда `on_shelf=false`, а `status`/`rating`/`read_at` просто отсутствуют —
+    подставлять «хочу прочитать» значило бы врать контрактом.
+    Найдено Ксенией на проде 03.08: книга 211 отдавала 404 всем, кроме
+    того, кто её добавил."""
     id: int
-    user_id: int
+    # у книги вне полки нет владельца — поле остаётся ради обратной
+    # совместимости контракта, но может быть пустым
+    user_id: Optional[int] = None
     title: str
     author: str
     cover_url: Optional[str] = None
     description: Optional[str] = None
-    status: str
+    status: Optional[str] = None
     rating: Optional[int] = None
-    created_at: datetime
+    # created_at — это когда книга легла НА ПОЛКУ, а не когда появилась в базе
+    created_at: Optional[datetime] = None
+    on_shelf: bool = True
     page_count: Optional[int] = None
     categories: Optional[str] = None
     published_year: Optional[int] = None
@@ -127,18 +139,23 @@ class BookRead(BaseModel):
         genres: Optional[list] = None,
     ) -> "BookRead":
         """Склейка ответа: общие поля книги + личные поля полки.
-        Контракт остаётся плоским — фронт читает как до разделения таблиц."""
+        Контракт остаётся плоским — фронт читает как до разделения таблиц.
+
+        `user_book=None` — книга есть в каталоге, но не на полке спрашивающего
+        (03.08). Личные поля тогда не заполняются, `on_shelf=false`.
+        """
         return cls(
             id=book.id,
-            user_id=user_book.user_id,
+            user_id=user_book.user_id if user_book else None,
             title=book.title,
             author=book.author,
             cover_url=book.cover_url,
             description=book.description,
-            status=user_book.status,
-            rating=user_book.rating,
-            featured=user_book.featured,
-            created_at=user_book.created_at,      # когда книга легла на полку
+            status=user_book.status if user_book else None,
+            rating=user_book.rating if user_book else None,
+            featured=user_book.featured if user_book else False,
+            created_at=user_book.created_at if user_book else None,
+            on_shelf=user_book is not None,
             page_count=book.page_count,
             categories=book.categories,
             published_year=book.published_year,
@@ -147,8 +164,8 @@ class BookRead(BaseModel):
             isbn=book.isbn,
             enrich_status=book.enrich_status,
             spotify_playlist_url=book.spotify_playlist_url,
-            updated_at=user_book.updated_at,
-            read_at=user_book.read_at,
+            updated_at=user_book.updated_at if user_book else None,
+            read_at=user_book.read_at if user_book else None,
             series_id=book.series_id,
             series_index=book.series_index,
             series_name=series_name,

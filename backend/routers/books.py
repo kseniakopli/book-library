@@ -95,7 +95,27 @@ def list_books(
     query = query.options(defer(Book.raw_metadata)).offset(offset)
     if limit is not None:
         query = query.limit(limit)
-    return [BookRead.from_pair(b, ub) for b, ub in session.exec(query).all()]
+    rows = session.exec(query).all()
+
+    # ⚠ Авторы-сущности нужны и в СПИСКЕ (правка 03.08). Раньше их здесь
+    # намеренно не было: «карточка показывает строку `author` и никуда
+    # не ведёт». Но строка каталога хранит написание как в источнике, и на
+    # полке Ann Patchett осталась латиницей среди 150 кириллических имён —
+    # `name_ru` живёт только в таблице авторов (`ORIGINAL_NAMES`).
+    # Это ОДИН запрос на страницу, а не по одному на книгу: `authors_of`
+    # забирает всех разом.
+    by_book = authors_of(session, [book.id for book, _ in rows])
+    return [
+        BookRead.from_pair(
+            book,
+            user_book,
+            authors=[
+                AuthorBrief(id=a.id, name=display_name(a))
+                for a in by_book.get(book.id, [])
+            ],
+        )
+        for book, user_book in rows
+    ]
 
 
 @router.get("/books/design-summary")
@@ -134,7 +154,16 @@ def get_book(
     user_id: int = Depends(current_user_id),
 ):
     book = get_book_or_404(session, book_id, lang)
-    user_book = get_userbook_or_404(session, book_id, lang, user_id)
+    # ⚠ Книга — ОБЩАЯ сущность каталога, поэтому её страница открывается всем
+    # вошедшим (правка 03.08). Раньше здесь стоял `get_userbook_or_404`, и книга,
+    # добавленная другим читателем, отдавала 404: у Ксении на проде так
+    # не открывалась книга 211. Личные поля просто отсутствуют — их место
+    # занимает `on_shelf=false`, по которому фронт показывает «+ На полку».
+    user_book = session.exec(
+        select(UserBook).where(
+            UserBook.user_id == user_id, UserBook.book_id == book_id
+        )
+    ).first()
     # имя цикла — только для одиночной книги (в списке не грузим, лишний JOIN)
     series_name = None
     if book.series_id is not None:

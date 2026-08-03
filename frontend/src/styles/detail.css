@@ -178,6 +178,16 @@
   border-radius: 8px;
 }
 
+/* Книга из каталога, которой нет на своей полке (правка 03.08):
+   вместо статусов — предложение добавить */
+.detail-not-on-shelf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
 /* --- Жанры книги (задача 112) --- */
 .book-genres {
   display: flex;

@@ -148,7 +148,7 @@
         "type": "object"
       },
       "BookRead": {
-        "description": "Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —\nполный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний).\n\nПосле разделения таблиц ответ склеивается из двух источников: общие поля\nкниги (Book) + личные поля полки (UserBook). Сборка — в `from_pair`,\nрядом с самим контрактом (ревью 19.07: раньше жила в роутере).",
+        "description": "Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —\nполный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний).\n\nПосле разделения таблиц ответ склеивается из двух источников: общие поля\nкниги (Book) + личные поля полки (UserBook). Сборка — в `from_pair`,\nрядом с самим контрактом (ревью 19.07: раньше жила в роутере).\n\n⚠ С 03.08 личные поля НЕОБЯЗАТЕЛЬНЫ. Книга — общая сущность каталога,\nи открыть её страницу можно, даже если на своей полке её нет: её завёл\nдругой читатель или это том цикла, попавший в базу вместе с серией.\nТогда `on_shelf=false`, а `status`/`rating`/`read_at` просто отсутствуют —\nподставлять «хочу прочитать» значило бы врать контрактом.\nНайдено Ксенией на проде 03.08: книга 211 отдавала 404 всем, кроме\nтого, кто её добавил.",
         "properties": {
           "author": {
             "title": "Author",
@@ -185,9 +185,16 @@
             "title": "Cover Url"
           },
           "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
           },
           "description": {
             "anyOf": [
@@ -253,6 +260,11 @@
               }
             ],
             "title": "Language"
+          },
+          "on_shelf": {
+            "default": true,
+            "title": "On Shelf",
+            "type": "boolean"
           },
           "page_count": {
             "anyOf": [
@@ -344,8 +356,15 @@
             "title": "Spotify Playlist Url"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
           },
           "title": {
             "title": "Title",
@@ -364,17 +383,21 @@
             "title": "Updated At"
           },
           "user_id": {
-            "title": "User Id",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
           }
         },
         "required": [
           "id",
-          "user_id",
           "title",
           "author",
-          "status",
-          "created_at",
           "enrich_status"
         ],
         "title": "BookRead",

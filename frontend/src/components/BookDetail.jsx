@@ -59,6 +59,14 @@ function BookDetail({ book, onBack, onDeleted }) {
     onSuccess: onDeleted,   // BookPage: инвалидация + возврат на главную
   });
 
+  // Правка 03.08: книга из общего каталога, которой нет на своей полке.
+  // Кладём её с `book_id` — тогда бэкенд переиспользует существующую книгу
+  // вместе с готовой атмосферой, а не заводит дубль (см. `find_existing_book`).
+  const addToShelf = useMutation({
+    mutationFn: (body) => api.createBook(body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: keys.books }),
+  });
+
   function removeBook() {
     if (
       !window.confirm(
@@ -95,6 +103,7 @@ function BookDetail({ book, onBack, onDeleted }) {
           patchMutation.mutate({ featured: !book.featured })
         }
         featuredPending={patchMutation.isPending}
+        onShelf={book.on_shelf !== false}
       />
 
       {errors.length > 0 && <p className="error">{errors.join(" ")}</p>}
@@ -178,11 +187,40 @@ function BookDetail({ book, onBack, onDeleted }) {
                 </Link>
               )}
 
-              <BookStatusRow
-                book={book}
-                onChange={(body) => patchMutation.mutate(body)}
-                saving={patchMutation.isPending}
-              />
+              {/* Правка 03.08: книга общая, и её страницу открывает любой
+                  вошедший. Если на СВОЕЙ полке её нет — статусов и оценки
+                  быть не может, вместо них предложение добавить. */}
+              {book.on_shelf === false ? (
+                <div className="detail-not-on-shelf">
+                  <p className="muted">Этой книги нет на вашей полке.</p>
+                  <button
+                    className="add-btn"
+                    onClick={() =>
+                      addToShelf.mutate({
+                        book_id: book.id,
+                        title: book.title,
+                        author: book.author,
+                        cover_url: book.cover_url,
+                        status: "want",
+                      })
+                    }
+                    disabled={addToShelf.isPending}
+                  >
+                    {addToShelf.isPending ? "Добавляю…" : "+ В «Хочу прочитать»"}
+                  </button>
+                  {addToShelf.isError && (
+                    <p className="error">
+                      Не удалось добавить: {addToShelf.error.message}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <BookStatusRow
+                  book={book}
+                  onChange={(body) => patchMutation.mutate(body)}
+                  saving={patchMutation.isPending}
+                />
+              )}
 
               <SpotifyPlaylistBlock book={book} hasMusic={hasMusic} />
             </div>

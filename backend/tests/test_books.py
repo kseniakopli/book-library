@@ -176,6 +176,54 @@ def test_other_fields_still_mean_do_not_touch(client, monkeypatch):
     assert r.json()["rating"] == 9
 
 
+def test_book_opens_even_if_not_on_own_shelf(client):
+    """Правка 03.08 (найдено Ксенией на проде): книга — ОБЩАЯ сущность
+    каталога, и её страница обязана открываться у всех. Раньше книга,
+    добавленная другим читателем, отдавала 404."""
+    from models import User
+
+    with Session(database.engine) as session:
+        session.add(User(id=2, display_name="Другой"))
+        session.add(Book(id=300, title="Чужая книга", author="Автор"))
+        session.commit()
+        session.add(UserBook(user_id=2, book_id=300, status="read", rating=8))
+        session.commit()
+
+    r = client.get("/api/v1/books/300")
+
+    assert r.status_code == 200
+    body = r.json()
+    assert body["title"] == "Чужая книга"
+    assert body["on_shelf"] is False
+    # личных полей нет — подставлять чужие или выдуманные нельзя
+    assert body["status"] is None
+    assert body["rating"] is None
+    assert body["user_id"] is None
+
+
+def test_own_book_still_carries_shelf_fields(client):
+    """Контрольный образец: у своей книги личные поля на месте. Без этой
+    половины тест был бы зелёным и в случае, когда полка отвалилась совсем."""
+    body = client.get("/api/v1/books/1").json()
+    assert body["on_shelf"] is True
+    assert body["status"] == "want"
+
+
+def test_shelf_list_carries_author_entities(client, monkeypatch):
+    """Правка 03.08: в строке каталога написание как в источнике («Ann
+    Patchett»), а показывать надо русское имя — оно живёт только в таблице
+    авторов. Значит список полки обязан отдавать авторов-сущностей."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    client.post("/api/v1/books", json={"title": "Голландский дом", "author": "Ann Patchett"})
+
+    books = client.get("/api/v1/books?status=want").json()
+    book = next(b for b in books if b["title"] == "Голландский дом")
+
+    assert [a["name"] for a in book["authors"]] == ["Энн Пэтчетт"]
+    assert book["author"] == "Ann Patchett"   # строка каталога не тронута
+
+
 def test_db_enforces_rating_only_for_read(client):
     """Задача 7: CHECK в БД отбивает оценку у непрочитанной книги,
     даже если какой-то будущий код забудет про инвариант.

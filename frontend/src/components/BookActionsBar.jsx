@@ -16,6 +16,7 @@ function BookActionsBar({
   featured,
   onToggleFeatured,
   featuredPending,
+  onShelf = true,
 }) {
   const { isAdmin } = useAuth();
   return (
@@ -34,29 +35,39 @@ function BookActionsBar({
             </button>
           </>
         )}
-        {/* задача 30: витрина — личный выбор владельца полки, не admin-действие */}
-        <button
-          className={"btn-ghost" + (featured ? " pill-active" : "")}
-          onClick={onToggleFeatured}
-          disabled={featuredPending}
-          aria-pressed={Boolean(featured)}
-          title={
-            featured
-              ? "Книга показана в публичной витрине — нажмите, чтобы убрать"
-              : "Показать книгу в публичной витрине"
-          }
-        >
-          {featured ? "✓ В витрине" : "В витрину"}
-        </button>
+        {/* Правка 03.08: у книги, которой нет на СВОЕЙ полке, личных действий
+            быть не может — витрина и удаление живут в `userbook`, которого
+            для этого читателя не существует. «Вечер» и печатная карточка
+            остаются: они строятся из общей атмосферы книги. */}
+        {onShelf && (
+          <>
+            {/* задача 30: витрина — личный выбор владельца полки, не admin */}
+            <button
+              className={"btn-ghost" + (featured ? " pill-active" : "")}
+              onClick={onToggleFeatured}
+              disabled={featuredPending}
+              aria-pressed={Boolean(featured)}
+              title={
+                featured
+                  ? "Книга показана в публичной витрине — нажмите, чтобы убрать"
+                  : "Показать книгу в публичной витрине"
+              }
+            >
+              {featured ? "✓ В витрине" : "В витрину"}
+            </button>
+          </>
+        )}
         <Link className="btn-ghost playlist-link" to={`/books/${bookId}/evening`}>
           ☾ Начать вечер
         </Link>
         <Link className="btn-ghost playlist-link" to={`/books/${bookId}/card`}>
           Печатная карточка
         </Link>
-        <button className="btn-danger" onClick={onDelete} disabled={deleting}>
-          {deleting ? "Удаляю…" : "Удалить"}
-        </button>
+        {onShelf && (
+          <button className="btn-danger" onClick={onDelete} disabled={deleting}>
+            {deleting ? "Удаляю…" : "Удалить"}
+          </button>
+        )}
       </div>
     </div>
   );
