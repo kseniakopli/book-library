@@ -8,10 +8,12 @@
 // Страница ЗА ВХОДОМ (RequireAuth в App.jsx): она показывает всю полку по
 // автору, включая книги вне витрины. Публичной она стала бы обходным путём
 // к личной библиотеке мимо витрины, где показано только отобранное.
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
+import { useAuth } from "../hooks/useAuth";
 import { useImageFallback } from "../hooks/useImageFallback";
 import "../styles/author.css";
 
@@ -43,6 +45,82 @@ function BookTile({ book, note }) {
         {note && <span className="author-book-note">{note}</span>}
       </Link>
     </li>
+  );
+}
+
+/** Биография (задача 111): показ и правка на месте.
+ *  Заполняется ВРУЧНУЮ — AI-черновик не берём: это факты о живом человеке,
+ *  а выдуманная дата рождения в справочнике хуже пустого поля. */
+function Bio({ authorId, bio }) {
+  const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(bio ?? "");
+
+  const save = useMutation({
+    mutationFn: () => api.updateAuthor(authorId, { bio: draft }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.author(authorId) });
+      // список показывает, у кого биографии нет (задача 113) — он тоже устарел
+      queryClient.invalidateQueries({ queryKey: keys.authors });
+      setEditing(false);
+    },
+  });
+
+  if (editing) {
+    return (
+      <section className="author-bio">
+        <textarea
+          className="author-bio-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={6}
+          maxLength={4000}
+          aria-label="Биография автора"
+          autoFocus
+        />
+        <div className="author-bio-actions">
+          <button
+            className="add-btn"
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+          >
+            {save.isPending ? "Сохраняю…" : "Сохранить"}
+          </button>
+          <button
+            className="btn-ghost"
+            onClick={() => {
+              setDraft(bio ?? "");   // отмена возвращает исходный текст
+              setEditing(false);
+            }}
+          >
+            Отмена
+          </button>
+          {save.isError && (
+            <p className="error">Не удалось сохранить: {save.error.message}</p>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  // Не-админу пустую биографию не показываем вовсе: пустой блок с подписью
+  // «биографии нет» — это шум, а сделать он с ним ничего не может.
+  if (!bio && !isAdmin) return null;
+
+  return (
+    <section className="author-bio">
+      {bio ? (
+        <p className="author-bio-text">{bio}</p>
+      ) : (
+        <p className="muted">Биография не заполнена.</p>
+      )}
+      {isAdmin && (
+        <button className="btn-ghost" onClick={() => setEditing(true)}>
+          {bio ? "Изменить биографию" : "Добавить биографию"}
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -79,6 +157,8 @@ function AuthorPage() {
           {catalog.length > 0 ? ` · в каталоге ещё ${catalog.length}` : ""}
         </p>
       </header>
+
+      <Bio authorId={data.id} bio={data.bio} />
 
       {shelf.length > 0 && (
         <section className="author-section">

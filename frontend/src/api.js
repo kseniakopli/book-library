@@ -57,8 +57,30 @@ export const getPendingCount = () => request("/books/pending-count");
 export const getBook = (id) => request(`/books/${id}`);
 // Задача 97: страница автора — книги с полки + книги того же автора из каталога
 export const getAuthor = (id) => request(`/authors/${id}`);
-// Задача 111: список авторов, чьи книги есть на полке
+// Задача 111: справочник авторов (по общему каталогу) и правка биографии
 export const getAuthors = () => request("/authors");
+export const updateAuthor = (id, body) =>
+  request(`/authors/${id}`, json("PATCH", body));
+
+// Задача 112: жанры. Справочник считается по каталогу, как авторы.
+// PUT с полным набором: интерфейс показывает все жанры книги разом, значит
+// и сохранять надо целиком — иначе снятую метку нечем снять.
+export const getGenres = () => request("/genres");
+export const getGenre = (id) => request(`/genres/${id}`);
+export const setBookGenres = (bookId, genres) =>
+  request(`/books/${bookId}/genres`, json("PUT", { genres }));
+
+// Задача 114: пожелания для рекомендаций словами
+export const saveWishes = (wishes) =>
+  request("/recommendations/wishes", json("PUT", { wishes }));
+
+// Задача 113: что в каталоге не заполнено (только admin)
+export const getDataGaps = () => request("/admin/data-gaps");
+export const getDataGapItems = (kind) => request(`/admin/data-gaps/${kind}`);
+// Задача 116: догенерировать паспорта книгам без оформления — партией,
+// каждый паспорт это вызов Claude
+export const backfillDesign = () =>
+  request("/admin/backfill-design", { method: "POST" });
 // Символьный режим полки (задача 66): символ+палитры паспорта для всех книг разом
 export const getDesignSummary = () => request("/books/design-summary");
 export const createBook = ({

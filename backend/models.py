@@ -23,6 +23,10 @@ class User(SQLModel, table=True):
     public_slug: Optional[str] = Field(default=None, index=True)
     public_title: Optional[str] = None      # заголовок витрины («Библиотека Ксении»)
     public_intro: Optional[str] = None      # 1–2 предложения под заголовком
+    # Задача 114: пожелания для рекомендаций словами («не люблю антиутопии»).
+    # Тот же механизм, что профиль вкуса по 👍/👎, только вход текстом.
+    # ⚠ Уезжает в промпт — длина и очистка проверяются на входе (routers).
+    wishes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -206,7 +210,42 @@ class Author(SQLModel, table=True):
     # в инициалах и ё/е — шум, а не различие). Уникален, поэтому дубль автора
     # нельзя создать даже случайно при импорте.
     sort_key: str = Field(index=True, unique=True)
+    # Задача 111: биография. Заполняется вручную админом — AI-черновик не берём:
+    # биография это факты о живом человеке, и выдуманная дата рождения
+    # в справочнике хуже пустого поля.
+    # NULL значит «ещё не заполняли» — по нему же считается список
+    # незаполненного в задаче 113.
+    bio: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+# --- Жанр (задача 112). Общая сущность каталога, как автор и цикл.
+#
+# ⚠ Заводится ВРУЧНУЮ. Google Books отдаёт «Fiction / General» и подобное —
+# это шум, а не жанры, поэтому источником данных он тут не работает вовсе
+# (`Book.categories` остаётся только подсказкой админу в интерфейсе).
+# Значит жанр ближе к циклу (з.89), чем к автору (з.97): его не из чего
+# агрегировать, его создаёт человек.
+#
+# `slug` — ключ тождества, как `sort_key` у автора: уникален, поэтому
+# «Тёмное фэнтези» и «тёмное фэнтези» не разъедутся в два жанра.
+class Genre(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    slug: str = Field(index=True, unique=True)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+# --- Связка «книга ↔ жанр» (задача 112). Многие-ко-многим — решение Ксении:
+# «Демон из Пустоши» это и фэнтези, и детектив, и выбирать одно значило бы
+# врать о книге ради простоты схемы ---
+class BookGenre(SQLModel, table=True):
+    __table_args__ = (
+        UniqueConstraint("book_id", "genre_id", name="uq_bookgenre_book_genre"),
+    )
+    id: Optional[int] = Field(default=None, primary_key=True)
+    book_id: int = Field(foreign_key="book.id", index=True, ondelete="CASCADE")
+    genre_id: int = Field(foreign_key="genre.id", index=True, ondelete="CASCADE")
 
 
 # --- Связка «книга ↔ автор» (задача 97). Многие-ко-многим: у книги бывают

@@ -20,6 +20,38 @@
   margin: 4px 0 8px;
 }
 
+/* --- Биография (задача 111) --- */
+.author-bio {
+  margin: 0 0 8px;
+}
+.author-bio-text {
+  /* сплошной текст: та же мера строки, что у описания книги (задача 109) */
+  max-width: var(--reading-max);
+  line-height: 1.7;
+  margin: 0 0 12px;
+  white-space: pre-line;   /* абзацы, введённые руками, сохраняются */
+}
+.author-bio-input {
+  width: 100%;
+  max-width: var(--reading-max);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  resize: vertical;
+}
+.author-bio-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 .author-section {
   margin-top: 36px;
 }

@@ -290,6 +290,61 @@ def test_author_list_is_sorted(client):
     assert names.index("Анна Аннова") < names.index("Яков Яковлев")
 
 
+# --- биография (задача 111) ---
+
+def test_bio_is_empty_until_filled(client):
+    author_id = _author_with_books(client)
+    assert client.get(f"/api/v1/authors/{author_id}").json()["bio"] is None
+
+
+def test_admin_can_write_bio(client):
+    author_id = _author_with_books(client)
+
+    r = client.patch(
+        f"/api/v1/authors/{author_id}",
+        json={"bio": "Ирландская писательница, автор «Дублинского отдела убийств»."},
+    )
+    assert r.status_code == 200
+    assert client.get(f"/api/v1/authors/{author_id}").json()["bio"].startswith(
+        "Ирландская"
+    )
+
+
+def test_empty_bio_clears_the_field(client):
+    """Иначе заполненную по ошибке биографию нельзя убрать, не трогая базу."""
+    author_id = _author_with_books(client)
+    client.patch(f"/api/v1/authors/{author_id}", json={"bio": "Текст"})
+
+    client.patch(f"/api/v1/authors/{author_id}", json={"bio": "   "})
+    assert client.get(f"/api/v1/authors/{author_id}").json()["bio"] is None
+
+
+def test_bio_requires_admin(client):
+    """Автор один на всю базу: его справку видит каждый читатель, значит правка
+    общая — то же основание, что у полей книги."""
+    from models import User
+
+    author_id = _author_with_books(client)
+    with Session(database.engine) as session:
+        user = session.get(User, 1)
+        user.is_admin = False
+        session.add(user)
+        session.commit()
+
+    r = client.patch(f"/api/v1/authors/{author_id}", json={"bio": "Чужой текст"})
+    assert r.status_code == 403
+
+
+def test_too_long_bio_rejected(client):
+    author_id = _author_with_books(client)
+    r = client.patch(f"/api/v1/authors/{author_id}", json={"bio": "а" * 4001})
+    assert r.status_code == 422
+
+
+def test_bio_on_unknown_author_is_404(client):
+    assert client.patch("/api/v1/authors/999", json={"bio": "X"}).status_code == 404
+
+
 def test_author_list_requires_login(client):
     app.dependency_overrides.clear()
     assert client.get("/api/v1/authors").status_code == 401
