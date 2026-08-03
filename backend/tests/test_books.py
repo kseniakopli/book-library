@@ -130,6 +130,52 @@ def test_read_at_explicit_value_accepted(client):
     assert r.json()["read_at"].startswith("2026-05-01")
 
 
+def test_read_date_can_be_corrected(client, monkeypatch):
+    """Задача 115: дату прочтения можно поправить после факта — это ЛИЧНОЕ
+    действие, поэтому живёт рядом со статусом, а не в admin-модалке правки
+    общих данных."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    book_id = client.post("/api/v1/books", json={
+        "title": "Гарри Поттер", "author": "Роулинг",
+        "status": "read", "read_at": "2026-06-01T00:00:00",
+    }).json()["id"]
+
+    r = client.patch(f"/api/v1/books/{book_id}", json={"read_at": "2005-09-01"})
+    assert r.json()["read_at"].startswith("2005-09-01")
+
+
+def test_read_date_can_be_cleared(client, monkeypatch):
+    """`read_at: null` очищает дату, а не «не меняет»: «прочитана, но не помню
+    когда» — честное состояние (з.98), и вернуться к нему надо уметь."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    book_id = client.post("/api/v1/books", json={
+        "title": "Давняя", "author": "Автор",
+        "status": "read", "read_at": "2026-06-01T00:00:00",
+    }).json()["id"]
+
+    r = client.patch(f"/api/v1/books/{book_id}", json={"read_at": None})
+    assert r.json()["read_at"] is None
+
+
+def test_other_fields_still_mean_do_not_touch(client, monkeypatch):
+    """У остальных полей политика прежняя: None = «не менять». Иначе правка
+    одного поля обнуляла бы все остальные."""
+    import services.enrichment as enrichment
+    monkeypatch.setattr(enrichment, "fetch_book_info", fake_book_info)
+    book_id = client.post("/api/v1/books", json={
+        "title": "Книга", "author": "Автор", "status": "read",
+        "read_at": "2026-06-01T00:00:00",
+    }).json()["id"]
+    client.patch(f"/api/v1/books/{book_id}", json={"rating": 8})
+
+    # передаём только оценку — дата остаётся на месте
+    r = client.patch(f"/api/v1/books/{book_id}", json={"rating": 9})
+    assert r.json()["read_at"].startswith("2026-06-01")
+    assert r.json()["rating"] == 9
+
+
 def test_db_enforces_rating_only_for_read(client):
     """Задача 7: CHECK в БД отбивает оценку у непрочитанной книги,
     даже если какой-то будущий код забудет про инвариант.

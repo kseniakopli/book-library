@@ -175,8 +175,12 @@ def apply_shelf_fields(user_book: UserBook, data, lang: str) -> None:
             raise HTTPException(status_code=400, detail=msg("rating_needs_read", lang))
         user_book.rating = data.rating
 
-    # задача 1: явная дата прочтения (ISO из запроса)
-    if data.read_at is not None:
+    # Задача 1: явная дата прочтения (ISO из запроса).
+    # Задача 115: `read_at: null` — это «очистить», а не «не менять». Отличаем
+    # присланное поле от отсутствующего по `model_fields_set`: у остальных
+    # полей политика прежняя (None = «не трогать»), и менять её ради одного
+    # значило бы переписать всю правку книги.
+    if "read_at" in data.model_fields_set:
         user_book.read_at = data.read_at
     # только что стала прочитанной, дата не указана — «сейчас» (задача 98:
     # именно переход, а не «статус read и пусто»)
