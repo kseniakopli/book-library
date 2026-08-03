@@ -20,6 +20,25 @@ test("до генерации страница зовёт подобрать р�
   ).toBeInTheDocument();
 });
 
+test("пожелания сохраняются и остаются на странице", async () => {
+  // задача 114: тот же механизм, что профиль вкуса по 👍/👎, но словами
+  renderApp("/recommendations");
+
+  const field = await screen.findByLabelText(
+    "Пожелания для рекомендаций", {}, SLOW,
+  );
+  // кнопка неактивна, пока текст не изменён — незачем слать пустое сохранение
+  expect(screen.getByRole("button", { name: "Сохранить пожелания" })).toBeDisabled();
+
+  await userEvent.type(field, "не люблю антиутопии");
+  await userEvent.click(screen.getByRole("button", { name: "Сохранить пожелания" }));
+
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Сохранить пожелания" })).toBeDisabled(),
+  );
+  expect(field).toHaveValue("не люблю антиутопии");
+});
+
 test("рекомендации подбираются по кнопке и добавляются в «Хочу прочитать»", async () => {
   renderApp("/recommendations");
 
