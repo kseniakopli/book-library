@@ -188,6 +188,25 @@ async def safe_ask(coro, fallback_factory):
 
 
 @lru_cache(maxsize=None)
+def _prompt_params(build_prompt) -> frozenset[str]:
+    """Имена аргументов функции промпта (задача 114).
+
+    Нужно по той же причине, что и `_accepts_context`: prompt_config.py
+    приватный, и у пользователя может остаться билдер без новых параметров.
+    Смотрим сигнатуру, а не ловим `TypeError` от вызова, — иначе ошибка
+    ВНУТРИ промпта неотличима от «аргумент не принимается» (инцидент з.104).
+    """
+    try:
+        params = inspect.signature(build_prompt).parameters
+    except (TypeError, ValueError):
+        return frozenset()
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
+        # **kwargs проглотит что угодно — считаем, что принимает всё
+        return frozenset({"disliked", "wishes"})
+    return frozenset(params)
+
+
+@lru_cache(maxsize=None)
 def _accepts_context(build_prompt) -> bool:
     """Принимает ли функция промпта аргумент `context`.
 
@@ -297,21 +316,31 @@ async def generate_recommendations(
     count: int = 5,
     lang: str = "ru",
     disliked: list[str] | None = None,
+    wishes: str | None = None,
 ) -> dict:
     """Этап 8: рекомендации новых книг по высоко оценённым — от ОБОИХ моделей
     (20.07), как в атмосфере: интереснее сравнивать, и вкусы у них разные.
     `favorites` — «Название — Автор (оценка)», `exclude` — что уже в библиотеке
     (модель просят не повторять; дедуп между источниками — в роутере).
+    `disliked` (з.26 ч.4) — отклонённые советы, `wishes` (з.114) — пожелания
+    словами.
     Контракт как у генераторов атмосферы: {источник: RecommendationsResult}.
     Один провайдер упал — второй всё равно даст советы (safe_ask)."""
-    # disliked (з.26 ч.4) передаём, только если промпт его принимает —
-    # приватный prompt_config.py мог остаться со старой сигнатурой
-    try:
-        raw_prompt = build_recommendations_prompt(
-            favorites, exclude, count, lang, disliked or []
-        )
-    except TypeError:
-        raw_prompt = build_recommendations_prompt(favorites, exclude, count, lang)
+    # Промпты живут в ПРИВАТНОМ prompt_config.py, который у каждого свой,
+    # поэтому новые аргументы передаём, только если билдер их принимает.
+    #
+    # ⚠ Раньше здесь стоял `try/except TypeError` вокруг вызова — ровно тот
+    # глушитель, который чинили в задаче 104: он ловил и настоящую ошибку
+    # ВНУТРИ промпта, молча подставляя вызов без фидбека. Теперь смотрим
+    # сигнатуру заранее (`inspect.signature`), а исключения из тела промпта
+    # летят наружу, как и положено.
+    extra = {}
+    accepted = _prompt_params(build_recommendations_prompt)
+    if "disliked" in accepted:
+        extra["disliked"] = disliked or []
+    if "wishes" in accepted:
+        extra["wishes"] = wishes
+    raw_prompt = build_recommendations_prompt(favorites, exclude, count, lang, **extra)
     prompt = _with_style(raw_prompt)
     empty = lambda: RecommendationsResult(items=[])   # noqa: E731
     claude_result, openai_result = await asyncio.gather(

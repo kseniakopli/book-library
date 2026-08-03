@@ -5,6 +5,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 import database
@@ -17,12 +18,24 @@ from constants import (
 from deps import current_user_id, get_lang, get_session
 from events import log_event
 from google_books import search_books
-from models import Book, Recommendation, UserBook
+from models import Book, Recommendation, User, UserBook
 from services.ai import generate_recommendations, start_ai_metrics, take_ai_metrics
 from services.ai_schemas import RecommendationsResult
 from services.taste import disliked_recommendations
+from services.wishes import MAX_CHARS as WISHES_MAX
+from services.wishes import clean as clean_wishes
 
 router = APIRouter(tags=["recommendations"])
+
+
+class WishesIn(BaseModel):
+    """Пожелания словами (задача 114).
+
+    Длина ограничена дважды — схемой и `services.wishes.clean`. Это не
+    перестраховка: схема отбивает явно огромный запрос, а `clean` приводит
+    к виду, пригодному для промпта (управляющие символы, число строк).
+    """
+    wishes: str | None = Field(default=None, max_length=WISHES_MAX * 2)
 
 MIN_RATING = 7        # что считаем «понравилось»
 MAX_FAVORITES = 20    # столько любимых книг отдаём модели (промпт не резиновый)
@@ -60,8 +73,31 @@ def list_recommendations(
     session: Session = Depends(get_session),
     user_id: int = Depends(current_user_id),
 ):
-    """Сохранённые рекомендации (пусто — фронт зовёт подобрать)."""
-    return _stored(session, user_id)
+    """Сохранённые рекомендации (пусто — фронт зовёт подобрать).
+    Вместе с ними — пожелания (з.114): страница показывает их рядом с кнопкой,
+    и отдельный запрос ради одной строки был бы лишним."""
+    user = session.get(User, user_id)
+    return {**_stored(session, user_id), "wishes": user.wishes if user else None}
+
+
+@router.put("/recommendations/wishes")
+def save_wishes(
+    data: WishesIn,
+    session: Session = Depends(get_session),
+    user_id: int = Depends(current_user_id),
+):
+    """Сохранить пожелания словами (задача 114).
+
+    ЛИЧНОЕ действие: пожелания влияют только на свои советы, поэтому без
+    admin-гейта. Текст чистится перед сохранением, а не перед отправкой
+    в промпт: в базе должно лежать ровно то, что потом уедет модели, —
+    иначе интерфейс показывает одно, а работает другое (урок з.98).
+    """
+    user = session.get(User, user_id)
+    user.wishes = clean_wishes(data.wishes)
+    session.add(user)
+    session.commit()
+    return {"wishes": user.wishes}
 
 
 @router.post("/recommendations")
@@ -102,6 +138,9 @@ async def generate(lang: str = Depends(get_lang),
         known = {_norm(t, a) for t, a in shelf}
         # задача 26 ч.4: советы, помеченные 👎 — «такое не заходит»
         disliked = disliked_recommendations(session, user_id)
+        # задача 114: то же самое, но словами от самого читателя
+        user = session.get(User, user_id)
+        wishes = user.wishes if user else None
 
     if not favorites:
         # нечего анализировать — честно говорим, токены не тратим
@@ -110,7 +149,9 @@ async def generate(lang: str = Depends(get_lang),
     start_ai_metrics()   # задача 80: латентность и токены — в событие
     # 20.07: спрашиваем ОБЕ модели, по COUNT советов у каждой
     # 22.07: + disliked — обратная петля фидбека (з.26 ч.4)
-    results = await generate_recommendations(favorites, exclude, COUNT, lang, disliked)
+    results = await generate_recommendations(
+        favorites, exclude, COUNT, lang, disliked, wishes
+    )
 
     # 3) дедуп: (а) книги с полки — модель могла не заметить список исключений;
     #    (б) советы, совпавшие у обеих моделей — показываем один раз.

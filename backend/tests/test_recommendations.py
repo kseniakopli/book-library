@@ -7,7 +7,9 @@ from routers import recommendations as rec_routes
 from services.ai_schemas import RecommendationItem, RecommendationsResult
 
 
-def _fake_generate(favorites, exclude, count=5, lang="ru", disliked=None):
+def _fake_generate(
+    favorites, exclude, count=5, lang="ru", disliked=None, wishes=None
+):
     """Мгновенный «AI» от ДВУХ источников (контракт с 20.07):
     - Claude: новая книга + книга, которая уже на полке (дедуп её отбросит);
     - ChatGPT: своя новая книга + повтор совета Claude (дедуп между источниками)."""
@@ -105,7 +107,7 @@ def test_disliked_reaches_generation(client, monkeypatch):
     """Задача 26 ч.4: советы с 👎 доезжают до промпта как «уже отклонённое»."""
     captured = {}
 
-    def spy(favorites, exclude, count=5, lang="ru", disliked=None):
+    def spy(favorites, exclude, count=5, lang="ru", disliked=None, wishes=None):
         captured["disliked"] = disliked
         return _fake_generate(favorites, exclude, count, lang)
 

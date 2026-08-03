@@ -68,6 +68,38 @@
   color: var(--muted);
 }
 
+/* ===== Пожелания для рекомендаций (задача 114) ===== */
+.wishes {
+  margin: 24px 0 32px;
+  max-width: var(--reading-max);
+}
+.wishes-title {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: normal;
+  margin: 0 0 6px;
+}
+.wishes-input {
+  width: 100%;
+  margin-top: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  resize: vertical;
+}
+.wishes-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 /* ===== Полка «Рекомендации» (этап 8): карточка с причиной совета ===== */
 .rec-list {
   list-style: none;
