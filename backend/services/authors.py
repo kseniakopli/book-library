@@ -14,8 +14,9 @@
 
 import unicodedata
 
-from models import Author, Book, BookAuthor, UserBook
-from sqlmodel import Session, col, func, select
+from models import Author, BookAuthor
+from services.catalog import books_split, entity_directory
+from sqlmodel import Session, col, select
 
 # Строка ровно как в базе → авторы по порядку обложки.
 EXCEPTIONS: dict[str, list[str]] = {
@@ -174,42 +175,23 @@ def catalog_authors(session: Session) -> list[dict]:
 
     Следствие: список одинаков для всех пользователей, `user_id` не нужен.
 
-    Одним запросом с группировкой: авторов уже 152, и на каждого отдельный
-    COUNT превратился бы в полторы сотни обращений при открытии страницы.
+    Механика — общая с жанрами (`services/catalog.py`, ревью 03.08): здесь
+    остаётся только то, чем автор отличается от жанра, — имя собирается
+    из двух полей.
     """
-    rows = session.exec(
-        select(Author, func.count(col(BookAuthor.book_id)))
-        .join(BookAuthor, BookAuthor.author_id == Author.id)
-        .group_by(Author.id)
-        .order_by(Author.sort_key)
-    ).all()
-
-    return [
-        {"id": author.id, "name": display_name(author), "books": count}
-        for author, count in rows
-    ]
+    return entity_directory(
+        session,
+        Author,
+        BookAuthor,
+        BookAuthor.author_id,
+        Author.sort_key,      # сортируем по ключу тождества, а не по показу
+        display_name,
+    )
 
 
 def books_of(session: Session, author_id: int, user_id: int) -> dict:
-    """Книги автора, разложенные на две стопки.
+    """Книги автора: `shelf` — с полки читателя, `catalog` — остальные из базы.
 
-    `shelf` — то, что у читателя на полке (со статусом и оценкой).
-    `catalog` — книги того же автора, которые есть в общем каталоге, но не
-    на полке: это тома циклов, добавленные как «что дальше». Ради них страница
-    и задумывалась — иначе она повторяла бы поиск по полке.
+    Разложение общее с жанрами (`services/catalog.books_split`).
     """
-    rows = session.exec(
-        select(Book, UserBook)
-        .join(BookAuthor, BookAuthor.book_id == Book.id)
-        .join(
-            UserBook,
-            (UserBook.book_id == Book.id) & (UserBook.user_id == user_id),
-            isouter=True,          # книга может быть в каталоге и не на полке
-        )
-        .where(BookAuthor.author_id == author_id)
-        .order_by(Book.title)
-    ).all()
-
-    shelf = [(book, user_book) for book, user_book in rows if user_book is not None]
-    catalog = [book for book, user_book in rows if user_book is None]
-    return {"shelf": shelf, "catalog": catalog}
+    return books_split(session, BookAuthor, BookAuthor.author_id, author_id, user_id)

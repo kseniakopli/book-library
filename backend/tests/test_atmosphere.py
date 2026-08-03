@@ -280,40 +280,28 @@ def test_design_prompt_has_no_personal_taste(client, monkeypatch):
 
 # --- права на генерацию (жалоба тестировщика 02.08) ---
 
-def _demote(client):
-    """Снять права админа с текущего пользователя."""
-    from models import User
-
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
-
-
-def test_first_generation_allowed_for_any_user(client, monkeypatch):
+def test_first_generation_allowed_for_any_user(as_reader, monkeypatch):
     """Книга без атмосферы была тупиком: фоном генерится только паспорт,
     а кнопка и эндпоинт требовали admin. Первое создание чужого не портит —
     до него здесь пусто."""
     _mock_music(monkeypatch)
-    _demote(client)
 
-    r = client.post("/api/v1/books/1/atmosphere/music")
+    r = as_reader.post("/api/v1/books/1/atmosphere/music")
     assert r.status_code == 200
     assert len(r.json()["selections"]) == 2
 
 
-def test_regeneration_still_requires_admin(client, monkeypatch):
+def test_regeneration_still_requires_admin(client, demote, monkeypatch):
     """Перегенерация переписывает атмосферу для ВСЕХ, включая витринные книги,
     чьи плейлисты уехали в печатные QR."""
     _mock_music(monkeypatch)
     assert client.post("/api/v1/books/1/atmosphere/music").status_code == 200
 
-    _demote(client)
+    demote()          # права снимаются ПОСЛЕ первой генерации — в этом суть
     assert client.post("/api/v1/books/1/atmosphere/music").status_code == 403
 
 
-def test_permission_is_per_category(client, monkeypatch):
+def test_permission_is_per_category(client, demote, monkeypatch):
     """Заполненная музыка не должна запирать пустые угощения: право считается
     по своей категории, а не по книге целиком."""
     _mock_music(monkeypatch)
@@ -321,21 +309,16 @@ def test_permission_is_per_category(client, monkeypatch):
     monkeypatch.setitem(
         atmosphere_routes.CATEGORIES["food"], "generate", fake_generate_food
     )
-    _demote(client)
+    demote()
 
     assert client.post("/api/v1/books/1/atmosphere/music").status_code == 403
     assert client.post("/api/v1/books/1/atmosphere/food").status_code == 200
 
 
-def test_remove_track_requires_admin(client, monkeypatch):
-    from models import User
-
+def test_remove_track_requires_admin(client, demote, monkeypatch):
+    # трек добавляет админ, а удалить пробует уже обычный читатель
     _seed_music(client, monkeypatch)
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
+    demote()
     r = client.request(
         "DELETE", "/api/v1/books/1/atmosphere/music/tracks",
         json={"source": "Claude", "title": "Song A", "artist": "Artist A"},

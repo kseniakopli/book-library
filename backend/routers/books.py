@@ -27,11 +27,10 @@ from deps import (
 )
 from events import log_event
 from google_books import fetch_book_info
-from models import Book, Series, UserBook
-from schemas import AuthorBrief, BookCreate, BookRead, BookUpdate, GenreBrief
+from models import Book, UserBook
+from schemas import AuthorBrief, BookCreate, BookRead, BookUpdate, build_book_read
 from services.atmosphere import generate_design_in_background, read_design_summary
 from services.authors import authors_of, display_name
-from services.genres import genres_of
 from services.enrichment import apply_enrichment, enrich_in_background
 from services.shelf import (
     add_to_shelf,
@@ -102,8 +101,10 @@ def list_books(
     # не ведёт». Но строка каталога хранит написание как в источнике, и на
     # полке Ann Patchett осталась латиницей среди 150 кириллических имён —
     # `name_ru` живёт только в таблице авторов (`ORIGINAL_NAMES`).
-    # Это ОДИН запрос на страницу, а не по одному на книгу: `authors_of`
-    # забирает всех разом.
+    #
+    # Собираем ЗДЕСЬ, а не через `build_book_read`: тот работает по одной
+    # книге, а на странице их тридцать — нужен один запрос на всех
+    # (`authors_of` умеет батчем).
     by_book = authors_of(session, [book.id for book, _ in rows])
     return [
         BookRead.from_pair(
@@ -164,24 +165,9 @@ def get_book(
             UserBook.user_id == user_id, UserBook.book_id == book_id
         )
     ).first()
-    # имя цикла — только для одиночной книги (в списке не грузим, лишний JOIN)
-    series_name = None
-    if book.series_id is not None:
-        series = session.get(Series, book.series_id)
-        series_name = series.name if series else None
-    # Задача 97: авторы-сущности — только у ОДИНОЧНОЙ книги. В списке полки они
-    # не нужны (карточка показывает строку `author` и никуда не ведёт), а лишний
-    # JOIN на каждую из 30 книг страницы — плата ни за что.
-    authors = [
-        AuthorBrief(id=author.id, name=display_name(author))
-        for author in authors_of(session, [book_id]).get(book_id, [])
-    ]
-    # Задача 112: жанры — по той же причине только у одиночной книги
-    genres = [
-        GenreBrief(id=genre.id, name=genre.name)
-        for genre in genres_of(session, [book_id]).get(book_id, [])
-    ]
-    return BookRead.from_pair(book, user_book, series_name, authors, genres)
+    # full=True: страница книги показывает и жанры, и цикл — в списке полки
+    # они не нужны, а JOIN на каждую из 30 книг был бы платой ни за что
+    return build_book_read(session, book, user_book, full=True)
 
 
 @router.post("/books", response_model=BookRead)
@@ -193,7 +179,9 @@ def add_book(
     user_id: int = Depends(current_user_id),
 ):
     book, user_book, is_new = add_to_shelf(session, data, user_id, lang)
-    result = BookRead.from_pair(book, user_book)
+    # с авторами: фронт кладёт книгу на полку и сразу показывает карточку,
+    # а имя на ней должно быть русским (см. `build_book_read`)
+    result = build_book_read(session, book, user_book)
     book_id = book.id
 
     log_event(
@@ -225,7 +213,9 @@ def update_book(
     session.commit()
     session.refresh(user_book)
     session.refresh(book)
-    result = BookRead.from_pair(book, user_book)
+    # full=True: правка открыта со страницы книги, и ответ должен вернуть
+    # ровно тот же набор полей, что она показывала до правки
+    result = build_book_read(session, book, user_book, full=True)
 
     if data.status is not None:
         log_event(EVENT_STATUS_CHANGED, book_id, detail={"status": user_book.status})
@@ -275,4 +265,5 @@ def enrich_book(
     session.refresh(user_book)
 
     log_event(EVENT_ENRICHED, book_id, detail={"result": "ok" if found else "miss"})
-    return BookRead.from_pair(book, user_book)
+    # тоже со страницы книги — набор полей должен совпасть
+    return build_book_read(session, book, user_book, full=True)

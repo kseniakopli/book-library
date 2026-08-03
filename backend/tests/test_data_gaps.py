@@ -2,17 +2,9 @@
 from sqlmodel import Session
 
 import database
-from models import AISelection, Author, Book, User
+from models import AISelection, Author, Book
 
 SUMMARY = "/api/v1/admin/data-gaps"
-
-
-def _demote(client):
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
 
 
 def _add_book(book_id, **fields):
@@ -100,12 +92,11 @@ def test_unknown_kind_is_404(client):
     assert client.get(f"{SUMMARY}/no_such_gap").status_code == 404
 
 
-def test_section_requires_admin(client):
+def test_section_requires_admin(as_reader):
     """Цифры по общему каталогу; ссылки ведут на правку общих данных,
     которая обычному читателю всё равно запрещена."""
-    _demote(client)
-    assert client.get(SUMMARY).status_code == 403
-    assert client.get(f"{SUMMARY}/no_description").status_code == 403
+    assert as_reader.get(SUMMARY).status_code == 403
+    assert as_reader.get(f"{SUMMARY}/no_description").status_code == 403
 
 
 # --- догенерация паспортов (задача 116) ---
@@ -151,9 +142,8 @@ def test_backfill_design_batch_is_capped(client):
     assert r.status_code == 422
 
 
-def test_backfill_design_requires_admin(client):
-    _demote(client)
-    assert client.post("/api/v1/admin/backfill-design").status_code == 403
+def test_backfill_design_requires_admin(as_reader):
+    assert as_reader.post("/api/v1/admin/backfill-design").status_code == 403
 
 
 def test_summary_and_list_agree(client):

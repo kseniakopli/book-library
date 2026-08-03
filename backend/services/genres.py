@@ -13,9 +13,10 @@ Google Books же отдаёт «Fiction / General», «Juvenile Fiction» и п
 
 import unicodedata
 
-from sqlmodel import Session, col, func, select
+from sqlmodel import Session, col, select
 
-from models import Book, BookGenre, Genre, UserBook
+from models import BookGenre, Genre
+from services.catalog import books_split, entity_directory
 
 MAX_NAME_CHARS = 60      # «Магический реализм» — 18; 60 хватает с запасом
 
@@ -120,38 +121,25 @@ def catalog_genres(session: Session) -> list[dict]:
     Считается по ОБЩЕМУ каталогу, а не по полке спрашивающего — тем же
     правилом, что и авторы (решение Ксении 03.08): раздел отвечает
     на вопрос «что есть в библиотеке».
+
+    Механика общая (`services/catalog.py`); от автора жанр отличается только
+    тем, что имя у него одно и разрешать его не нужно.
     """
-    rows = session.exec(
-        select(Genre, func.count(col(BookGenre.book_id)))
-        .join(BookGenre, BookGenre.genre_id == Genre.id)
-        .group_by(Genre.id)
-        .order_by(Genre.slug)
-    ).all()
-    return [
-        {"id": genre.id, "name": genre.name, "books": count}
-        for genre, count in rows
-    ]
+    return entity_directory(
+        session,
+        Genre,
+        BookGenre,
+        BookGenre.genre_id,
+        Genre.slug,           # сортируем по ключу тождества, а не по показу
+        lambda genre: genre.name,
+    )
 
 
 def books_of(session: Session, genre_id: int, user_id: int) -> dict:
-    """Книги жанра, разложенные на две стопки — как на странице автора.
+    """Книги жанра: `shelf` — с полки читателя, `catalog` — остальные из базы.
 
-    `shelf` — то, что у читателя на полке; `catalog` — остальные книги жанра
-    из общей базы. Раздел справочный, поэтому вторая стопка здесь не бонус,
-    а половина смысла: по ней и выбирают, что читать дальше.
+    Вторая стопка здесь не бонус, а половина смысла: по ней и выбирают,
+    что читать дальше. Разложение общее с авторами
+    (`services/catalog.books_split`).
     """
-    rows = session.exec(
-        select(Book, UserBook)
-        .join(BookGenre, BookGenre.book_id == Book.id)
-        .join(
-            UserBook,
-            (UserBook.book_id == Book.id) & (UserBook.user_id == user_id),
-            isouter=True,
-        )
-        .where(BookGenre.genre_id == genre_id)
-        .order_by(Book.title)
-    ).all()
-
-    shelf = [(book, user_book) for book, user_book in rows if user_book is not None]
-    catalog = [book for book, user_book in rows if user_book is None]
-    return {"shelf": shelf, "catalog": catalog}
+    return books_split(session, BookGenre, BookGenre.genre_id, genre_id, user_id)

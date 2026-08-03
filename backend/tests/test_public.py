@@ -180,14 +180,8 @@ def test_missing_showcase_is_not_counted(client):
     assert events == []
 
 
-def test_featured_toggle_is_personal_not_admin(client):
+def test_featured_toggle_is_personal_not_admin(as_reader):
     """Отметка «в витрину» — личное решение владельца полки, не admin-действие."""
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
-
-    r = client.patch("/api/v1/books/1", json={"featured": True})
+    r = as_reader.patch("/api/v1/books/1", json={"featured": True})
     assert r.status_code == 200
     assert r.json()["featured"] is True

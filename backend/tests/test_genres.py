@@ -5,20 +5,12 @@ import json
 from sqlmodel import Session, select
 
 import database
-from models import Book, BookGenre, Genre, User, UserBook
+from models import Book, BookGenre, Genre, UserBook
 from services.genres import norm_slug, set_book_genres
 
 
 def _set(client, book_id, genres):
     return client.put(f"/api/v1/books/{book_id}/genres", json={"genres": genres})
-
-
-def _demote(client):
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
 
 
 # --- тождество жанра ---
@@ -100,10 +92,9 @@ def test_too_many_genres_rejected(client):
     assert r.status_code == 400
 
 
-def test_setting_genres_requires_admin(client):
+def test_setting_genres_requires_admin(as_reader):
     """Книга одна на всю базу, её жанры видят все читатели."""
-    _demote(client)
-    assert _set(client, 1, ["Детектив"]).status_code == 403
+    assert _set(as_reader, 1, ["Детектив"]).status_code == 403
 
 
 def test_genres_for_unknown_book_is_404(client):

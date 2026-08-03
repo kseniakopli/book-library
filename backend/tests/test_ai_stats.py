@@ -107,18 +107,10 @@ def test_acceptance_is_none_without_feedback(client):
     assert summary["sources"] == []
 
 
-def test_endpoint_requires_admin(client):
+def test_endpoint_requires_admin(as_reader):
     """Цифры по сервису целиком: события всех пользователей и вся обратная
     связь. Обычному тестеру их видеть незачем."""
-    from models import User
-
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
-
-    assert client.get(URL).status_code == 403
+    assert as_reader.get(URL).status_code == 403
 
 
 def test_endpoint_returns_both_sections(client):

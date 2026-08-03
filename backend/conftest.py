@@ -102,6 +102,41 @@ def _no_basic_auth(monkeypatch):
     monkeypatch.delenv("BASIC_AUTH_PASSWORD", raising=False)
 
 
+@pytest.fixture(name="demote")
+def demote_fixture(client):
+    """Функция «снять права админа» (ревью 03.08, пункт Б5).
+
+    Проверок «это действие только для admin» больше десяти, и в трёх файлах
+    жила своя копия `_demote`, а в семи — тот же код инлайном.
+
+    Именно ФУНКЦИЯ, а не готовый клиент: половине тестов права нужно снять
+    ПОСЕРЕДИНЕ — сначала admin создаёт атмосферу, и только потом проверяется,
+    что перегенерация ему уже недоступна. Фикстура, срабатывающая до теста,
+    такой сценарий не выражает.
+
+    Возвращать права не нужно: база у каждого теста своя (in-memory,
+    создаётся заново в `client`).
+    """
+    from models import User
+
+    def _demote():
+        with Session(database.engine) as session:
+            user = session.get(User, 1)
+            user.is_admin = False
+            session.add(user)
+            session.commit()
+
+    return _demote
+
+
+@pytest.fixture(name="as_reader")
+def as_reader_fixture(client, demote):
+    """Клиент БЕЗ прав админа — для тестов, где права не нужны с самого начала.
+    Ярлык поверх `demote`, чтобы не писать две строки там, где хватает одной."""
+    demote()
+    return client
+
+
 @pytest.fixture(autouse=True)
 def _no_spotify_readonly(monkeypatch):
     """Задача 103: `SPOTIFY_READONLY=1` живёт в локальном `backend/.env`, чтобы

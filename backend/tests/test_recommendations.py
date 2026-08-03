@@ -123,20 +123,14 @@ def test_disliked_reaches_generation(client, monkeypatch):
     assert captured["disliked"] == ["тень ветра — сафон"]
 
 
-def test_generate_allowed_for_any_logged_in_user(client, monkeypatch):
+def test_generate_allowed_for_any_logged_in_user(client, demote, monkeypatch):
     """Этап 9: рекомендации личные (по своим оценкам), поэтому подбирать их
     может каждый вошедший, не только админ. Раньше стоял require_admin —
     при одном пользователе это было неотличимо, а с тестерами кнопка у них
     всегда отвечала бы 403. Расходы держат rate limit и капы провайдеров."""
-    from models import User
-
     _mock(monkeypatch)
-    _make_favorite(client)
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
+    _make_favorite(client)     # оценку ставит ещё админ
+    demote()
 
     assert client.post("/api/v1/recommendations").status_code == 200
     assert client.get("/api/v1/recommendations").status_code == 200

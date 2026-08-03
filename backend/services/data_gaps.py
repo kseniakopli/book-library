@@ -25,12 +25,12 @@ AUTHOR_GAPS = ("no_bio",)
 ALL_GAPS = BOOK_GAPS + AUTHOR_GAPS
 
 
-def _books_with_genres(session: Session):
+def _books_with_genres():
     """Подзапрос: id книг, у которых есть хотя бы один жанр."""
     return select(BookGenre.book_id).distinct()
 
 
-def _books_with_design(session: Session):
+def _books_with_design():
     """Подзапрос: id книг с готовым паспортом оформления.
 
     ⚠ Именно `AISelection` категории `design`, а не «есть хоть какая-то
@@ -40,7 +40,7 @@ def _books_with_design(session: Session):
     return select(AISelection.book_id).where(AISelection.category == "design").distinct()
 
 
-def _book_gap_query(session: Session, kind: str):
+def _book_gap_query(kind: str):
     """Запрос книг с указанным пробелом. Одно место для условий — иначе
     сводка и список разъедутся, и цифра перестанет отвечать за содержимое."""
     query = select(Book)
@@ -52,9 +52,9 @@ def _book_gap_query(session: Session, kind: str):
     if kind == "no_cover":
         return query.where(col(Book.cover_url).is_(None))
     if kind == "no_genres":
-        return query.where(col(Book.id).not_in(_books_with_genres(session)))
+        return query.where(col(Book.id).not_in(_books_with_genres()))
     if kind == "no_design":
-        return query.where(col(Book.id).not_in(_books_with_design(session)))
+        return query.where(col(Book.id).not_in(_books_with_design()))
     raise ValueError(f"Неизвестный вид пробела: {kind}")
 
 
@@ -69,7 +69,7 @@ def summary(session: Session) -> dict:
 
     books = {}
     for kind in BOOK_GAPS:
-        query = _book_gap_query(session, kind).with_only_columns(func.count())
+        query = _book_gap_query(kind).with_only_columns(func.count())
         books[kind] = session.exec(query).one()
 
     authors_without_bio = session.exec(
@@ -105,7 +105,7 @@ def items(session: Session, kind: str, limit: int = PAGE_SIZE) -> list[dict]:
         ]
 
     rows = session.exec(
-        _book_gap_query(session, kind).order_by(Book.title).limit(limit)
+        _book_gap_query(kind).order_by(Book.title).limit(limit)
     ).all()
     return [
         {"id": book.id, "name": book.title, "author": book.author, "kind": "book"}

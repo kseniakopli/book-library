@@ -172,3 +172,44 @@ class BookRead(BaseModel):
             authors=authors or [],
             genres=genres or [],
         )
+
+
+def build_book_read(session, book, user_book, *, full: bool = False) -> "BookRead":
+    """Собрать ответ по книге со связанными сущностями (ревью 03.08, Б2).
+
+    До этого сборка жила в трёх местах роутера и различалась не по замыслу,
+    а по истории правок: список тянул авторов, одиночная книга — авторов,
+    жанры и цикл, добавление — ничего.
+
+    `full=False` (список полки) — только авторы: без них на карточке остаётся
+    строка каталога, а в ней написание как в источнике («Ann Patchett»).
+    `full=True` (страница книги) — плюс жанры и имя цикла: они нужны только
+    там, а в списке из 30 книг это лишние JOIN на каждую строку.
+
+    ⚠ Пакетный вызов (список) собирает авторов ОДНИМ запросом на страницу —
+    см. `list_books`. Здесь функция работает по одной книге и рассчитана
+    на одиночные ответы.
+    """
+    # локальные импорты: schemas не должен зависеть от сервисов на уровне
+    # модуля — иначе получаем круг (services → models → schemas)
+    from models import Series
+    from services.authors import authors_of, display_name
+    from services.genres import genres_of
+
+    authors = [
+        AuthorBrief(id=a.id, name=display_name(a))
+        for a in authors_of(session, [book.id]).get(book.id, [])
+    ]
+    if not full:
+        return BookRead.from_pair(book, user_book, authors=authors)
+
+    series_name = None
+    if book.series_id is not None:
+        series = session.get(Series, book.series_id)
+        series_name = series.name if series else None
+
+    genres = [
+        GenreBrief(id=g.id, name=g.name)
+        for g in genres_of(session, [book.id]).get(book.id, [])
+    ]
+    return BookRead.from_pair(book, user_book, series_name, authors, genres)

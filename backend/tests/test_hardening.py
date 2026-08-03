@@ -98,17 +98,6 @@ def test_security_headers_on_errors(client):
 
 # --- admin-гейт на backfill (план деплоя п.1.3) ---
 
-def test_backfill_requires_admin(client, monkeypatch):
-    from sqlmodel import Session
-
-    import database
-    from models import User
-
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False          # обычный тестер, не админ
-        session.add(user)
-        session.commit()
-
-    assert client.post("/api/v1/books/backfill-metadata").status_code == 403
-    assert client.post("/api/v1/books/backfill-covers").status_code == 403
+def test_backfill_requires_admin(as_reader):
+    assert as_reader.post("/api/v1/books/backfill-metadata").status_code == 403
+    assert as_reader.post("/api/v1/books/backfill-covers").status_code == 403

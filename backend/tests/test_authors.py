@@ -319,17 +319,11 @@ def test_empty_bio_clears_the_field(client):
     assert client.get(f"/api/v1/authors/{author_id}").json()["bio"] is None
 
 
-def test_bio_requires_admin(client):
+def test_bio_requires_admin(client, demote):
     """Автор один на всю базу: его справку видит каждый читатель, значит правка
     общая — то же основание, что у полей книги."""
-    from models import User
-
-    author_id = _author_with_books(client)
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
+    author_id = _author_with_books(client)   # книги заводит ещё админ
+    demote()
 
     r = client.patch(f"/api/v1/authors/{author_id}", json={"bio": "Чужой текст"})
     assert r.status_code == 403

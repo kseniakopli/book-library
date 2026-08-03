@@ -227,22 +227,10 @@ def test_delete_series_keeps_books(client):
 
 # --- права (з.90а): общие данные цикла — admin, личный статус — всем ---
 
-def _make_regular_user():
-    from sqlmodel import Session as S
-
-    from models import User
-
-    with S(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
-
-
-def test_shared_edits_require_admin(client):
+def test_shared_edits_require_admin(client, demote):
     """Название/автор/описание — общие данные цикла: правит только admin."""
-    series = _create_series(client)
-    _make_regular_user()
+    series = _create_series(client)   # цикл заводит ещё админ
+    demote()
 
     assert client.patch(
         f"/api/v1/series/{series['id']}", json={"name": "Другое имя"}
@@ -252,20 +240,20 @@ def test_shared_edits_require_admin(client):
     ).status_code == 403
 
 
-def test_status_change_allowed_for_everyone(client):
+def test_status_change_allowed_for_everyone(client, demote):
     """А статус — личное действие читателя, доступно и не-админу."""
     series = _create_series(client)
-    _make_regular_user()
+    demote()
 
     r = client.patch(f"/api/v1/series/{series['id']}", json={"status": "read"})
     assert r.status_code == 200
     assert r.json()["status"] == "read"
 
 
-def test_series_structure_requires_admin(client):
+def test_series_structure_requires_admin(client, demote):
     """Создание, состав и удаление цикла — тоже общие данные."""
     series = _create_series(client)
-    _make_regular_user()
+    demote()
 
     assert client.post("/api/v1/series", json={"name": "Новый"}).status_code == 403
     assert client.post(

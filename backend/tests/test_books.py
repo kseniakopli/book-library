@@ -535,19 +535,12 @@ def test_add_existing_catalog_book_is_reused(client):
     assert on_shelf is not None                      # книга легла на полку
 
 
-def test_book_field_edit_requires_admin(client):
+def test_book_field_edit_requires_admin(as_reader):
     """Правка общих полей книги — только admin; личные поля доступны всем."""
-    from models import User
-    with Session(database.engine) as session:
-        user = session.get(User, 1)
-        user.is_admin = False
-        session.add(user)
-        session.commit()
-
     # общее поле книги (название) — 403 для не-админа
-    assert client.patch("/api/v1/books/1", json={"title": "Новое"}).status_code == 403
+    assert as_reader.patch("/api/v1/books/1", json={"title": "Новое"}).status_code == 403
     # личное поле полки (статус) — по-прежнему можно
-    assert client.patch("/api/v1/books/1", json={"status": "reading"}).status_code == 200
+    assert as_reader.patch("/api/v1/books/1", json={"status": "reading"}).status_code == 200
 
 
 def test_design_summary_returns_symbols(client, monkeypatch):
