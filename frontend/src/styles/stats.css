@@ -20,10 +20,13 @@
   margin: 0;
 }
 
-/* --- карточки-итоги: auto-fit, поэтому на телефоне становятся в 2 колонки --- */
+/* --- карточки-итоги: auto-fit, поэтому на телефоне становятся в 2 колонки ---
+   ⚠ 170px, а не 150: с подписью в два слова («Книги без описания») колонка
+   в 150px рвёт заголовок на три строки, и соседние карточки выглядят
+   разнокалиберными (задача 113). */
 .stat-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
   margin-bottom: 32px;
 }
@@ -126,6 +129,52 @@
   text-align: right;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* --- Заполнение данных (задача 113): карточки-итоги кликабельные --- */
+.gap-card {
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* колонка с прижатым к низу пояснением: подписи разной длины, и без этого
+     «серая заглушка на полке» висит посередине, а соседняя — у самого низа */
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* число и доля в одной строке, по общей базовой линии */
+.gap-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.gap-percent {
+  font-size: 0.95rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.gap-hint {
+  margin-top: auto;   /* прижать пояснение к низу карточки */
+  padding-top: 6px;
+}
+.gap-card:hover,
+.gap-card:focus-visible {
+  border-color: var(--accent);
+}
+/* выбранная карточка: под ней показан список — связь должна быть видна */
+.gap-card-active {
+  border-color: var(--accent);
+  background: var(--chip-bg);
+}
+
+/* действие внутри списка неполноты (задача 116) */
+.gap-action {
+  margin-bottom: 16px;
+}
+.gap-action .stat-hint {
+  margin-top: 6px;
 }
 
 /* --- AI: расход и отклик (задача 84) --- */
