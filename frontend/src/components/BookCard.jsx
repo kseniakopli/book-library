@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { STATUS_LABELS } from "../constants";
 import { useImageFallback } from "../hooks/useImageFallback";
+import { authorLabel } from "../lib/authorLabel";
 import { centeredSvgDataUri } from "../lib/svg";
 import { pickPalette } from "../lib/palette";
 
@@ -60,7 +61,7 @@ function BookCard({
       tabIndex={0}
       onClick={() => onSelect(book)}
       onKeyDown={onKeyDown}
-      aria-label={`${book.title} — ${book.author}`}
+      aria-label={`${book.title} — ${authorLabel(book)}`}
     >
       <div
         className="cover"
@@ -84,7 +85,12 @@ function BookCard({
         )}
       </div>
       <h3 className="book-title">{book.title}</h3>
-      <p className="book-author">{book.author}</p>
+      {/* Правка 03.08: имя берём из сущности автора, а не из строки каталога.
+          В строке хранится написание как в источнике, и «Ann Patchett»
+          оставалась латиницей среди полутора сотен русских имён; `name_ru`
+          живёт только в таблице авторов. Список пуст у книг, заведённых
+          до появления таблицы, — для них показываем строку как раньше. */}
+      <p className="book-author">{authorLabel(book)}</p>
       <div className="book-meta">
         <span className="status">{STATUS_LABELS[book.status]}</span>
         {book.status === "read" && book.rating != null && (
