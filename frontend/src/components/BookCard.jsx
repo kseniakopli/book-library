@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { STATUS_LABELS } from "../constants";
 import { useImageFallback } from "../hooks/useImageFallback";
-import { authorLabel } from "../lib/authorLabel";
+import { authorLabel } from "../lib/bookLabels";
 import { centeredSvgDataUri } from "../lib/svg";
 import { pickPalette } from "../lib/palette";
 

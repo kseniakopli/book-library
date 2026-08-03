@@ -12,7 +12,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import "../styles/stats.css";
-import "../styles/authors.css";
+// список объектов рисуется теми же правилами, что справочники авторов
+// и жанров (ревью 03.08: раньше это был `authors.css` — чужие классы
+// на служебной странице)
+import "../styles/catalog.css";
 
 const CARDS = [
   {
@@ -180,20 +183,20 @@ function DataGapsPage() {
                 <p className="muted">Здесь всё заполнено.</p>
               )}
               {list.data?.items.length > 0 && (
-                <ul className="authors-list">
+                <ul className="catalog-list">
                   {list.data.items.map((item) => (
                     <li key={`${item.kind}-${item.id}`}>
                       <Link
-                        className="authors-item"
+                        className="catalog-item"
                         to={
                           item.kind === "author"
                             ? `/authors/${item.id}`
                             : `/books/${item.id}`
                         }
                       >
-                        <span className="authors-name">{item.name}</span>
+                        <span className="catalog-item-name">{item.name}</span>
                         {item.author && (
-                          <span className="authors-count">{item.author}</span>
+                          <span className="catalog-item-count">{item.author}</span>
                         )}
                       </Link>
                     </li>
