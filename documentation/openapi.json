@@ -20,6 +20,24 @@
         "title": "AuthorBrief",
         "type": "object"
       },
+      "AuthorUpdate": {
+        "properties": {
+          "bio": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          }
+        },
+        "title": "AuthorUpdate",
+        "type": "object"
+      },
       "Body_import_csv_api_v1_import_post": {
         "properties": {
           "file": {
@@ -113,6 +131,22 @@
         "title": "BookCreate",
         "type": "object"
       },
+      "BookGenresIn": {
+        "properties": {
+          "genres": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Genres",
+            "type": "array"
+          }
+        },
+        "required": [
+          "genres"
+        ],
+        "title": "BookGenresIn",
+        "type": "object"
+      },
       "BookRead": {
         "description": "Ответ API (R4/задача 34): всё, что знает Book, КРОМЕ raw_metadata —\nполный JSON Google Books наружу не отдаём (и он тяжёлый, и он внутренний).\n\nПосле разделения таблиц ответ склеивается из двух источников: общие поля\nкниги (Book) + личные поля полки (UserBook). Сборка — в `from_pair`,\nрядом с самим контрактом (ревью 19.07: раньше жила в роутере).",
         "properties": {
@@ -185,6 +219,14 @@
             "default": false,
             "title": "Featured",
             "type": "boolean"
+          },
+          "genres": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/GenreBrief"
+            },
+            "title": "Genres",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -473,6 +515,25 @@
         "title": "FeedbackIn",
         "type": "object"
       },
+      "GenreBrief": {
+        "description": "Жанр в ответе книги (задача 112): столько, сколько нужно ссылке.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "GenreBrief",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -712,6 +773,25 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WishesIn": {
+        "description": "Пожелания словами (задача 114).\n\nДлина ограничена дважды — схемой и `services.wishes.clean`. Это не\nперестраховка: схема отбивает явно огромный запрос, а `clean` приводит\nк виду, пригодному для промпта (управляющие символы, число строк).",
+        "properties": {
+          "wishes": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wishes"
+          }
+        },
+        "title": "WishesIn",
+        "type": "object"
       }
     }
   },
@@ -722,6 +802,163 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/backfill-design": {
+      "post": {
+        "description": "Задача 116: догенерировать паспорта книгам, у которых их нет.\n\nДыра нашлась 02.08 при разборе жалобы тестировщика: `routers/imports.py`\nсоздаёт `Book` напрямую и НЕ зовёт фоновую генерацию оформления — в отличие\nот добавления по одной. У владельца это незаметно (паспорта добраны\nскриптом), а новый пользователь после импорта своей библиотеки получал\nполку серых заглушек.\n\n⚠ Партиями по {DESIGN_BATCH}, а не «всё сразу»: каждый паспорт — вызов\nClaude. Автоматически при импорте не генерируем вовсе — сотня книг\nозначала бы сотню запросов на одно нажатие «Импорт CSV».\n\nИдемпотентно: `generate_design_in_background` сам выходит, если паспорт\nуже есть, поэтому повторное нажатие не тратит токены впустую.",
+        "operationId": "backfill_design_api_v1_admin_backfill_design_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 10,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Backfill Design",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/data-gaps": {
+      "get": {
+        "description": "Сколько в каталоге незаполненного. Сначала цифры — от них зависит,\nручная это работа или нужен ещё один источник данных.",
+        "operationId": "read_summary_api_v1_admin_data_gaps_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Summary",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/data-gaps/{kind}": {
+      "get": {
+        "description": "Конкретные объекты с пробелом — со ссылками на правку.",
+        "operationId": "read_items_api_v1_admin_data_gaps__kind__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Items",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/auth/google/callback": {
       "get": {
         "description": "Шаг 2: возврат от Google. Любая осечка — редирект на /login с причиной\n(страница входа покажет человеческий текст), а не голый JSON с 4xx.",
@@ -888,7 +1125,7 @@
     },
     "/api/v1/authors": {
       "get": {
-        "description": "Список авторов, чьи книги есть на полке (задача 111).\n\n⚠ Объявлен ДО `/authors/{author_id}`: FastAPI подбирает маршруты по порядку,\nи при обратном порядке `/authors` попал бы в маршрут с параметром, а `\"—\"`\nне превращается в int — вместо списка пришла бы 422.",
+        "description": "Справочник авторов сервиса (задача 111).\n\nСчитается по ОБЩЕМУ каталогу, а не по полке спрашивающего: раздел отвечает\nна вопрос «что вообще есть в библиотеке». Поэтому `user_id` здесь не нужен —\nответ одинаков для всех. Вход всё равно обязателен: роутер подключён\nс `dependencies=PROTECTED`, и наружу каталог не отдаётся.\n\n⚠ Объявлен ДО `/authors/{author_id}`: FastAPI подбирает маршруты по порядку,\nи при обратном порядке `/authors` попал бы в маршрут с параметром, а `\"—\"`\nне превращается в int — вместо списка пришла бы 422.",
         "operationId": "read_authors_api_v1_authors_get",
         "responses": {
           "200": {
@@ -942,6 +1179,65 @@
           }
         },
         "summary": "Read Author",
+        "tags": [
+          "authors"
+        ]
+      },
+      "patch": {
+        "description": "Правка биографии (задача 111) — только admin.\n\nБиография ОБЩАЯ: автор один на всю базу, и его справка видна каждому\nчитателю. Это то же основание, по которому под admin закрыта правка полей\nкниги (`apply_book_fields`), — личное живёт в `userbook`, общее правит\nвладелец каталога.\n\nПустая строка означает «очистить»: иначе заполненную по ошибке биографию\nнельзя было бы убрать, не трогая базу руками.",
+        "operationId": "update_author_api_v1_authors__author_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_id",
+            "required": true,
+            "schema": {
+              "title": "Author Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Author",
         "tags": [
           "authors"
         ]
@@ -1602,6 +1898,67 @@
         ]
       }
     },
+    "/api/v1/books/{book_id}/genres": {
+      "put": {
+        "description": "Заменить набор жанров книги — только admin.\n\nЖанры ОБЩИЕ: книга одна на всю базу, и её жанры видят все читатели.\nТо же основание, что у правки полей книги (`apply_book_fields`).\n\nPUT, а не PATCH: приходит полный набор, и это не оговорка — интерфейс\nпоказывает все жанры книги разом, значит и сохранять надо целиком,\nиначе снятую галочку нечем снять.",
+        "operationId": "set_genres_api_v1_books__book_id__genres_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "book_id",
+            "required": true,
+            "schema": {
+              "title": "Book Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookGenresIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Genres",
+        "tags": [
+          "genres"
+        ]
+      }
+    },
     "/api/v1/books/{book_id}/playlist": {
       "post": {
         "description": "Создать Spotify-плейлист по музыке книги. Если авторизации ещё не было —\nвозвращает ссылку на окно Spotify (фронт откроет её в новой вкладке).",
@@ -1802,6 +2159,67 @@
         ]
       }
     },
+    "/api/v1/genres": {
+      "get": {
+        "description": "Справочник жанров: считается по общему каталогу, ответ одинаков для всех\n(то же правило, что у авторов — решение Ксении 03.08).",
+        "operationId": "read_genres_api_v1_genres_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Genres",
+        "tags": [
+          "genres"
+        ]
+      }
+    },
+    "/api/v1/genres/{genre_id}": {
+      "get": {
+        "description": "Книги жанра: отдельно полка, отдельно каталог.\n\nКаталожные книги отдаются коротким словарём, а не `BookRead`: у них нет\nполки, значит нет ни статуса, ни оценки, и притворяться, что есть, —\nврать контрактом (то же решение, что на странице автора).",
+        "operationId": "read_genre_api_v1_genres__genre_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "genre_id",
+            "required": true,
+            "schema": {
+              "title": "Genre Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read Genre",
+        "tags": [
+          "genres"
+        ]
+      }
+    },
     "/api/v1/import": {
       "post": {
         "operationId": "import_csv_api_v1_import_post",
@@ -1946,7 +2364,7 @@
     },
     "/api/v1/recommendations": {
       "get": {
-        "description": "Сохранённые рекомендации (пусто — фронт зовёт подобрать).",
+        "description": "Сохранённые рекомендации (пусто — фронт зовёт подобрать).\nВместе с ними — пожелания (з.114): страница показывает их рядом с кнопкой,\nи отдельный запрос ради одной строки был бы лишним.",
         "operationId": "list_recommendations_api_v1_recommendations_get",
         "responses": {
           "200": {
@@ -1999,6 +2417,46 @@
           }
         },
         "summary": "Generate",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/api/v1/recommendations/wishes": {
+      "put": {
+        "description": "Сохранить пожелания словами (задача 114).\n\nЛИЧНОЕ действие: пожелания влияют только на свои советы, поэтому без\nadmin-гейта. Текст чистится перед сохранением, а не перед отправкой\nв промпт: в базе должно лежать ровно то, что потом уедет модели, —\nиначе интерфейс показывает одно, а работает другое (урок з.98).",
+        "operationId": "save_wishes_api_v1_recommendations_wishes_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WishesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Wishes",
         "tags": [
           "recommendations"
         ]
