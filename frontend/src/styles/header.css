@@ -69,6 +69,96 @@
   padding: 9px 12px;
 }
 
+/* Кнопки-иконки (тема, вид полки): одна литера вместо подписи —
+   в ряду разделов подпись у них только шумит */
+.icon-btn {
+  font-size: 16px;
+  line-height: 1;
+  padding: 9px 12px;
+}
+
+/* ===== Выпадающие меню шапки (задача 110) ===== */
+.menu {
+  position: relative;
+}
+
+.menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu-caret {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 30;   /* шапка sticky с z-index 20 — панель обязана быть выше */
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  /* тень нужна: панель ложится на карточки книг того же цвета,
+     без неё край теряется */
+  box-shadow: 0 8px 24px var(--overlay);
+}
+
+/* Панель выравнивается по краю СВОЕЙ кнопки, а не «куда придётся»
+   (правка 03.08: раньше все панели прижимались вправо, и меню «Книги»
+   уезжало влево от своей кнопки — было непонятно, чьё оно).
+   «Книги» раскрывается вправо от левого края кнопки. Личный кабинет —
+   правым краем: панель шире кнопки, и слева ей места больше, чем справа,
+   где остался только «+ Добавить книгу». */
+.menu-panel-left {
+  left: 0;
+}
+.menu-panel-right {
+  right: 0;
+}
+
+/* Пункт: и <a>, и <button> выглядят одинаково — человеку всё равно,
+   ссылка это или действие */
+.menu-item {
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: none;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--chip-bg);
+}
+.menu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.menu-item-quiet {
+  color: var(--muted);
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--border);
+}
+
+/* Чип пользователя как кнопка меню: рамка сохраняется, внутри — аватар и имя */
+.menu-account .menu-trigger {
+  padding: 6px 10px;
+}
+
 /* Мобильная шапка (аудит 18.07, P1): в одну строку не помещается —
    складываем в колонку; компактная после прокрутки — только заголовок */
 @media (max-width: 640px) {
@@ -142,14 +232,11 @@
   font-size: 13px;
 }
 
-/* --- Пользователь в шапке (этап 9) --- */
-.user-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 10px;
-  border-left: 1px solid var(--border);
-}
+/* --- Пользователь в шапке (этап 9) ---
+   Задача 110: `.user-chip` и `.user-logout` удалены вместе с самим чипом —
+   имя стало кнопкой меню (`.menu-account`), выход уехал внутрь. Мёртвые
+   правила не оставляем: следующий читатель потратит время, выясняя,
+   где они применяются. */
 .user-avatar {
   width: 26px;
   height: 26px;
@@ -167,12 +254,8 @@
 .user-role {
   color: var(--accent);
 }
-.user-logout {
-  font-size: 13px;
-  padding: 6px 10px;
-}
 @media (max-width: 640px) {
-  /* на телефоне имя не помещается — оставляем аватар и «Выйти» */
+  /* на телефоне имя не помещается — в кнопке меню остаётся один аватар */
   .user-name {
     display: none;
   }

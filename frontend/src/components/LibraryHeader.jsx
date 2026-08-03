@@ -1,11 +1,18 @@
 import { Link } from "react-router-dom";
 import { useAuth, useLogout } from "../hooks/useAuth";
+import DropdownMenu from "./DropdownMenu";
 
-// Шапка главной: заголовок и действия (вид полки, тема, импорт, добавить).
-// Вынесено из HomePage (ревью 19.07).
+// Шапка главной (задача 110: разделы вместо ряда из семи кнопок).
 //
-// На этапе 9 вид полки, импорт и язык переедут в личный кабинет — тогда этот
-// компонент похудеет до заголовка и кнопки «Добавить книгу».
+// Структура (решение Ксении 02.08):
+//   «Книги»  → авторы (жанры добавятся в з.112);
+//   чип ЛК   → рекомендации, статистика, импорт, экспорт, выход;
+//   иконками остаются тема и вид полки — ими переключают часто,
+//   прятать частое действие в меню значит менять один клик на два;
+//   «+ Добавить книгу» — главное действие страницы, всегда снаружи.
+//
+// ⚠ Меню одинаковые на всех ширинах, бургера нет (решение Ксении): одна
+// логика — одно место, где может разъехаться вёрстка.
 function LibraryHeader({
   compact,
   symbolMode,
@@ -27,21 +34,25 @@ function LibraryHeader({
       </div>
 
       <div className="header-actions">
-        <Link className="btn-ghost" to="/stats" title="Статистика чтения">
-          ◔ Статистика
-        </Link>
+        <DropdownMenu label="Книги" title="Разделы библиотеки">
+          <Link className="menu-item" to="/authors" role="menuitem">
+            Авторы
+          </Link>
+          {/* Жанры появятся здесь в задаче 112 — сущности пока нет,
+              и пункт вёл бы в никуда. */}
+        </DropdownMenu>
 
         <button
-          className="btn-ghost"
+          className="btn-ghost icon-btn"
           onClick={onToggleMode}
           title="Как показывать полку"
           aria-label={`Вид полки: ${symbolMode ? "символы" : "обложки"}. Переключить`}
         >
-          {symbolMode ? "◈ Символы" : "▦ Обложки"}
+          {symbolMode ? "◈" : "▦"}
         </button>
 
         <button
-          className="btn-ghost theme-toggle"
+          className="btn-ghost icon-btn theme-toggle"
           onClick={onToggleTheme}
           aria-pressed={theme === "dark"}
           aria-label={
@@ -52,6 +63,10 @@ function LibraryHeader({
           {theme === "dark" ? "☀" : "☾"}
         </button>
 
+        {/* Скрытый input живёт СНАРУЖИ меню: пункт «Импорт CSV» кликает его
+            программно, а меню к этому моменту уже закрыто — внутри панели
+            input размонтировался бы вместе с ней, и диалог выбора файла
+            не открылся бы вовсе. */}
         <input
           type="file"
           accept=".csv"
@@ -60,51 +75,74 @@ function LibraryHeader({
           className="file-input-hidden"
           aria-label="Файл CSV для импорта"
         />
-        <button className="btn-ghost" onClick={csv.trigger} disabled={csv.importing}>
-          {/* стрелки парные (↑ загрузить / ↓ выгрузить) — иначе соседние
-              кнопки об одном и том же выглядят разнородными */}
-          {csv.importing ? "Импортирую…" : "↑ Импорт CSV"}
-        </button>
 
-        {/* Задача 35: выгрузка полки. Обычная ссылка, а не fetch — браузер сам
-            приложит куку сессии и сам сохранит файл по Content-Disposition,
-            без Blob и URL.createObjectURL.
-            ⚠ В задаче 110 и эта кнопка, и «Импорт CSV» уедут в меню ЛК —
-            шапка уже переполнена, здесь она временно. */}
-        <a
-          className="btn-ghost"
-          href="/api/v1/export/shelf.csv"
-          download
-          title="Скачать свою полку в CSV"
-        >
-          ↓ Экспорт
-        </a>
-
-        <button className="add-btn" onClick={onAddBook} ref={addButtonRef}>
-          + Добавить книгу
-        </button>
-
-        {/* Этап 9: кто вошёл и выход. Аватар из Google — просто картинка
-            по ссылке, ничего от нас не требует. */}
+        {/* Этап 9: кто вошёл. Аватар из Google — просто картинка по ссылке.
+            Чип стал кнопкой меню: личные действия собраны под именем. */}
         {user && (
-          <span className="user-chip" title={user.email || ""}>
-            {user.avatar_url && (
-              <img className="user-avatar" src={user.avatar_url} alt="" />
-            )}
-            <span className="user-name">
-              {user.display_name}
-              {isAdmin && <span className="user-role"> · админ</span>}
-            </span>
+          <DropdownMenu
+            className="menu-account"
+            align="right"
+            title={user.email || ""}
+            label={
+              <>
+                {user.avatar_url && (
+                  <img className="user-avatar" src={user.avatar_url} alt="" />
+                )}
+                <span className="user-name">
+                  {user.display_name}
+                  {isAdmin && <span className="user-role"> · админ</span>}
+                </span>
+              </>
+            }
+          >
+            <Link className="menu-item" to="/recommendations" role="menuitem">
+              Рекомендации
+            </Link>
+            <Link className="menu-item" to="/stats" role="menuitem">
+              Статистика
+            </Link>
+
+            <div className="menu-sep" role="separator" />
+
             <button
-              className="btn-ghost user-logout"
+              className="menu-item"
+              onClick={csv.trigger}
+              disabled={csv.importing}
+              role="menuitem"
+            >
+              {csv.importing ? "Импортирую…" : "Импорт CSV"}
+            </button>
+            {/* Задача 35: выгрузка — обычная ссылка, а не fetch: браузер сам
+                приложит куку сессии и сохранит файл по Content-Disposition. */}
+            <a
+              className="menu-item"
+              href="/api/v1/export/shelf.csv"
+              download
+              role="menuitem"
+            >
+              Экспорт CSV
+            </a>
+
+            <div className="menu-sep" role="separator" />
+
+            <button
+              className="menu-item menu-item-quiet"
               onClick={() => logout.mutate()}
               disabled={logout.isPending}
-              title="Выйти"
+              role="menuitem"
             >
               Выйти
             </button>
-          </span>
+          </DropdownMenu>
         )}
+
+        {/* Главное действие — ПОСЛЕДНИМ (решение Ксении 03.08).
+            Стояло между «Книги» и личным меню и разрывало их: акцентная
+            заливка тяжелее соседей, и ряд читался как две несвязанные группы.
+            Теперь навигация идёт подряд, а действие завершает строку. */}
+        <button className="add-btn" onClick={onAddBook} ref={addButtonRef}>
+          + Добавить книгу
+        </button>
       </div>
     </header>
   );
