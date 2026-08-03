@@ -28,9 +28,10 @@ from deps import (
 from events import log_event
 from google_books import fetch_book_info
 from models import Book, Series, UserBook
-from schemas import AuthorBrief, BookCreate, BookRead, BookUpdate
+from schemas import AuthorBrief, BookCreate, BookRead, BookUpdate, GenreBrief
 from services.atmosphere import generate_design_in_background, read_design_summary
 from services.authors import authors_of, display_name
+from services.genres import genres_of
 from services.enrichment import apply_enrichment, enrich_in_background
 from services.shelf import (
     add_to_shelf,
@@ -146,7 +147,12 @@ def get_book(
         AuthorBrief(id=author.id, name=display_name(author))
         for author in authors_of(session, [book_id]).get(book_id, [])
     ]
-    return BookRead.from_pair(book, user_book, series_name, authors)
+    # Задача 112: жанры — по той же причине только у одиночной книги
+    genres = [
+        GenreBrief(id=genre.id, name=genre.name)
+        for genre in genres_of(session, [book_id]).get(book_id, [])
+    ]
+    return BookRead.from_pair(book, user_book, series_name, authors, genres)
 
 
 @router.post("/books", response_model=BookRead)

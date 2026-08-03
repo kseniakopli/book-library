@@ -32,7 +32,12 @@ class BookCreate(BaseModel):
 class BookUpdate(BaseModel):
     status: Optional[str] = None
     rating: Optional[int] = None
-    read_at: Optional[datetime] = None   # задача 1: явная дата прочтения (ISO)
+    # Задача 1: явная дата прочтения (ISO).
+    # ⚠ Задача 115: у этого поля `null` значит «очистить», а не «не менять» —
+    # «прочитана, но не помню когда» это честное состояние (з.98), и вернуться
+    # к нему надо уметь. Отличить одно от другого позволяет `model_fields_set`
+    # (см. `apply_shelf_fields`), поэтому тип менять не пришлось.
+    read_at: Optional[datetime] = None
     # Задача 3 (ручная правка): промахи обогащения исправляются руками.
     # None означает «не менять»; пустая строка в isbn/cover_url/description —
     # «очистить поле» (в title/author пустота запрещена — см. роутер).
@@ -61,6 +66,12 @@ class BookUpdate(BaseModel):
 class AuthorBrief(BaseModel):
     """Автор в ответе книги (задача 97): ровно столько, сколько нужно ссылке.
     `name` уже разрешён — `name_ru`, а если русского нет, оригинальное написание."""
+    id: int
+    name: str
+
+
+class GenreBrief(BaseModel):
+    """Жанр в ответе книги (задача 112): столько, сколько нужно ссылке."""
     id: int
     name: str
 
@@ -101,6 +112,10 @@ class BookRead(BaseModel):
     # Строка `author` остаётся: она нужна для показа и печатной карточки, а список
     # может быть пустым у книг, добавленных до появления таблицы.
     authors: list["AuthorBrief"] = []
+    # Задача 112: наши жанры (заведённые вручную). `categories` рядом остаётся —
+    # это рубрикатор Google Books, он показывается админу подсказкой при
+    # заполнении, но жанрами не считается.
+    genres: list["GenreBrief"] = []
 
     @classmethod
     def from_pair(
@@ -109,6 +124,7 @@ class BookRead(BaseModel):
         user_book,
         series_name: Optional[str] = None,
         authors: Optional[list] = None,
+        genres: Optional[list] = None,
     ) -> "BookRead":
         """Склейка ответа: общие поля книги + личные поля полки.
         Контракт остаётся плоским — фронт читает как до разделения таблиц."""
@@ -137,4 +153,5 @@ class BookRead(BaseModel):
             series_index=book.series_index,
             series_name=series_name,
             authors=authors or [],
+            genres=genres or [],
         )

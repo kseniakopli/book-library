@@ -12,6 +12,7 @@ from collections import Counter
 from sqlmodel import Session, select
 
 from models import AISelection, Book
+from services.genres import genres_of
 from services.taste import atmosphere_taste
 
 MAX_DESCRIPTION = 1200   # символов аннотации в промпт (хватает, не раздувает)
@@ -59,11 +60,15 @@ def build_book_context(
     if book is None:
         return {}
 
-    genres = ""
-    try:
-        genres = ", ".join((json.loads(book.categories) or [])[:3])
-    except (TypeError, ValueError):
-        genres = ""
+    # Задача 112: в промпт уходят НАШИ жанры, заведённые руками.
+    # Раньше здесь стоял `book.categories` от Google Books — «Fiction / General»,
+    # «Juvenile Fiction» и прочий рубрикатор магазина. Для модели это не сигнал,
+    # а шум: он одинаков у половины библиотеки и заметно ровнял генерации.
+    # Жанра нет — не передаём ничего: пустая строка честнее, чем «Fiction».
+    # `categories` остались в базе и видны админу в интерфейсе как подсказка
+    # при заполнении (решение Ксении 03.08).
+    own_genres = genres_of(session, [book_id]).get(book_id, [])
+    genres = ", ".join(genre.name for genre in own_genres[:3])
 
     context = {
         "description": (book.description or "")[:MAX_DESCRIPTION],
@@ -87,9 +92,18 @@ def build_book_context(
         # Зерно ротации набора шрифтов (см. ai_schemas._rotate). В промпт
         # не попадает — format_context печатает только известные ему ключи.
         context["seed"] = book_id
-    # задача 26 ч.4: «память вкуса» — что читателю заходило и не заходило
+    # Задача 26 ч.4: «память вкуса» — что читателю заходило и не заходило
     # в этой категории. У моделей памяти нет, поэтому подкладываем её сами.
-    context.update(atmosphere_taste(session, user_id, category))
+    #
+    # ⚠ Задача 117: кроме паспорта оформления. Паспорт — единственная категория,
+    # результат которой ОБЩИЙ и виден всем, включая гостей витрины: палитра
+    # и символ книги одни на всю базу. Подмешивать туда личные 👍/👎 того, кто
+    # первым добавил книгу, — значит закреплять его вкус в общем оформлении.
+    # Пока пользователей трое, эффект незаметен, но заложен, и разбирать его
+    # потом было бы нечем: в паспорте не остаётся следа, чей профиль повлиял.
+    # Музыка, угощения и ароматы остаются личными по духу — там вкус уместен.
+    if category != "design":
+        context.update(atmosphere_taste(session, user_id, category))
     return context
 
 

@@ -10,17 +10,8 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
+import { booksLabel } from "../lib/plural";
 import "../styles/authors.css";
-
-/** «5 книг» / «1 книга» / «2 книги» — без склонения число выглядит машинным. */
-function booksLabel(n) {
-  const tens = n % 100;
-  const ones = n % 10;
-  if (tens >= 11 && tens <= 14) return `${n} книг`;
-  if (ones === 1) return `${n} книга`;
-  if (ones >= 2 && ones <= 4) return `${n} книги`;
-  return `${n} книг`;
-}
 
 function AuthorsPage() {
   const { data, isLoading, isError } = useQuery({

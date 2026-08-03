@@ -35,7 +35,14 @@ def test_generate_music_two_sources(client, monkeypatch):
 
 def test_context_passed_to_prompt(client, monkeypatch):
     """22.07: в генерацию уходит фактический контекст книги — аннотация и жанры,
-    иначе модель угадывает сюжет по названию (инцидент «Капля духов» → Дубай)."""
+    иначе модель угадывает сюжет по названию (инцидент «Капля духов» → Дубай).
+
+    ⚠ Задача 112 (03.08) сузила «жанры» до НАШИХ, заведённых вручную. Раньше
+    здесь ждали «Fiction» из `book.categories` — это рубрикатор магазина,
+    одинаковый у половины библиотеки: модель получала шум под видом сигнала.
+    Проверка не снята, а перенаправлена: контекст по-прежнему обязан доезжать,
+    но теперь из своего источника.
+    """
     from sqlmodel import Session
 
     import database
@@ -44,9 +51,11 @@ def test_context_passed_to_prompt(client, monkeypatch):
     with Session(database.engine) as session:
         book = session.get(Book, 1)
         book.description = "История о парфюмерном мире Москвы"
-        book.categories = '["Fiction"]'
+        book.categories = '["Fiction"]'      # рубрика Google — в промпт не идёт
         session.add(book)
         session.commit()
+
+    client.put("/api/v1/books/1/genres", json={"genres": ["Магический реализм"]})
 
     captured = {}
 
@@ -58,7 +67,8 @@ def test_context_passed_to_prompt(client, monkeypatch):
     client.post("/api/v1/books/1/atmosphere/music")
 
     assert "парфюмерном мире Москвы" in captured["context"]["description"]
-    assert captured["context"]["genres"] == "Fiction"
+    assert captured["context"]["genres"] == "Магический реализм"
+    assert "Fiction" not in captured["context"]["genres"]
     assert "avoid" in captured["context"]
 
 
@@ -217,6 +227,55 @@ def test_remove_track_not_found(client, monkeypatch):
         json={"source": "Claude", "title": "Нет такого", "artist": "Никто"},
     )
     assert r.status_code == 404
+
+
+def test_design_prompt_has_no_personal_taste(client, monkeypatch):
+    """Задача 117: паспорт ОБЩИЙ — палитру и символ видят все, включая гостей
+    витрины. Подмешивать туда 👍/👎 того, кто первым добавил книгу, значит
+    закреплять его вкус в общем оформлении. У музыки и угощений результат
+    личный по духу, там профиль остаётся."""
+    from sqlmodel import Session
+
+    import database
+    from models import Feedback
+
+    with Session(database.engine) as session:
+        session.add(Feedback(
+            user_id=1, ref="atmosphere:1:design:Claude",
+            source="Claude", verdict="down",
+        ))
+        session.commit()
+
+    captured = {}
+
+    async def spy_design(title, author, lang="ru", context=None):
+        captured["design"] = context
+        return await fake_generate_design(title, author, lang)
+
+    async def spy_music(title, author, lang="ru", context=None):
+        captured["music"] = context
+        return await fake_generate_music(title, author, lang)
+
+    monkeypatch.setitem(atmosphere_routes.CATEGORIES["design"], "generate", spy_design)
+    monkeypatch.setitem(atmosphere_routes.CATEGORIES["music"], "generate", spy_music)
+    client.post("/api/v1/books/1/atmosphere/design")
+    client.post("/api/v1/books/1/atmosphere/music")
+
+    assert "liked" not in captured["design"]
+    assert "disliked" not in captured["design"]
+
+    # Контрольный образец: у музыки тот же механизм ОБЯЗАН работать.
+    # Без этой половины тест был бы зелёным и в случае, когда профиль вкуса
+    # сломался целиком, — то есть отличал бы правку от поломки никак
+    # (см. `Уроки.md`, раздел 2).
+    with Session(database.engine) as session:
+        session.add(Feedback(
+            user_id=1, ref="atmosphere:1:music:Claude",
+            source="Claude", verdict="up",
+        ))
+        session.commit()
+    client.post("/api/v1/books/1/atmosphere/music")
+    assert "liked" in captured["music"]
 
 
 # --- права на генерацию (жалоба тестировщика 02.08) ---

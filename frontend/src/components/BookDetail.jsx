@@ -10,6 +10,7 @@ import { useBookDesign } from "../hooks/useBookDesign";
 import { useImageFallback } from "../hooks/useImageFallback";
 import AtmosphereSection from "./AtmosphereSection";
 import BookActionsBar from "./BookActionsBar";
+import BookGenres from "./BookGenres";
 import BookStatusRow from "./BookStatusRow";
 import EditBookModal from "./EditBookModal";
 import SpotifyPlaylistBlock from "./SpotifyPlaylistBlock";
@@ -186,6 +187,13 @@ function BookDetail({ book, onBack, onDeleted }) {
               <SpotifyPlaylistBlock book={book} hasMusic={hasMusic} />
             </div>
           </div>
+
+          {/* задача 112: жанры — ссылками в справочник, правка у админа */}
+          <BookGenres
+            bookId={book.id}
+            genres={book.genres}
+            categories={book.categories}
+          />
 
           {book.description && (
             <p className="detail-description">{book.description}</p>

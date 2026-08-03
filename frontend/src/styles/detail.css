@@ -178,6 +178,79 @@
   border-radius: 8px;
 }
 
+/* --- Жанры книги (задача 112) --- */
+.book-genres {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+/* в режиме правки блок вертикальный: ввод, подсказки и кнопки — это шаги,
+   а не однородный ряд */
+.book-genres-editing {
+  display: block;
+}
+
+.book-genres-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+/* ссылка-жанр выглядит пилюлей, как вкладки источников */
+.book-genres-list a.pill {
+  text-decoration: none;
+  display: inline-block;
+}
+
+.book-genres-remove {
+  margin-left: 6px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  /* ⚠ тач-таргет добирается правилом (pointer: coarse) в base.css —
+     промах по крестику удаляет жанр у книги для всех */
+}
+
+.book-genres-input-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.book-genres-input {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.book-genres-suggest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.book-genres-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
 .detail-description {
   margin-top: 24px;
   line-height: 1.7;
