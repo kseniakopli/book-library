@@ -19,6 +19,10 @@ const StatsPage = lazy(() => import("./pages/StatsPage"));
 const SeriesPage = lazy(() => import("./pages/SeriesPage"));
 // Страница автора (задача 97) — туда заходят по ссылке с книги, не каждый раз
 const AuthorPage = lazy(() => import("./pages/AuthorPage"));
+// Задача 110: разделы из меню — список авторов и рекомендации.
+// Оба открываются намеренно и редко, поэтому тоже отдельными чанками.
+const AuthorsPage = lazy(() => import("./pages/AuthorsPage"));
+const RecommendationsPage = lazy(() => import("./pages/RecommendationsPage"));
 // Задача 30: публичная витрина — её открывают ГОСТИ, поэтому она тоже отдельным
 // чанком: владельцу сервиса этот код в бандле не нужен, и наоборот.
 const ShowcasePage = lazy(() => import("./pages/ShowcasePage"));
@@ -97,6 +101,25 @@ function App() {
             element={
               <RequireAuth>
                 <SeriesPage />
+              </RequireAuth>
+            }
+          />
+          {/* ⚠ Задача 110: «/authors» объявлен ДО «/authors/:id».
+              react-router выбирает более специфичный маршрут сам, но порядок
+              оставлен читаемым: список — раздел, страница автора — его лист. */}
+          <Route
+            path="/authors"
+            element={
+              <RequireAuth>
+                <AuthorsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/recommendations"
+            element={
+              <RequireAuth>
+                <RecommendationsPage />
               </RequireAuth>
             }
           />

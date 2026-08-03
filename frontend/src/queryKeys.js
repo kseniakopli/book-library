@@ -20,4 +20,5 @@ export const keys = {
   series: ["series"],                   // задача 89: полка циклов
   seriesOne: (id) => ["series", Number(id)],
   author: (id) => ["authors", Number(id)],  // задача 97: страница автора
+  authors: ["authors"],                     // задача 111: список авторов
 };

@@ -15,7 +15,11 @@ const recRef = (item) =>
     .trim()
     .toLowerCase()}`;
 
-function RecommendationShelf() {
+// `heading` — уровень заголовка. Задача 110: полка уехала с главной на свою
+// страницу и стала там главным блоком, значит её заголовок — h1. На главной
+// (если вернётся) это h2 рядом с другими полками. Уровень задаётся снаружи,
+// потому что смысл заголовка зависит от окружения, а не от компонента.
+function RecommendationShelf({ heading: Heading = "h2" }) {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -50,10 +54,10 @@ function RecommendationShelf() {
   return (
     <section className="shelf">
       <div className="shelf-head">
-        <h2 className="shelf-title">
+        <Heading className="shelf-title">
           Рекомендации{" "}
           {items.length > 0 && <span className="shelf-count">{items.length}</span>}
-        </h2>
+        </Heading>
         <button
           className={items.length > 0 ? "btn-ghost" : "add-btn"}
           onClick={() => generate.mutate()}

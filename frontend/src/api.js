@@ -57,6 +57,8 @@ export const getPendingCount = () => request("/books/pending-count");
 export const getBook = (id) => request(`/books/${id}`);
 // Задача 97: страница автора — книги с полки + книги того же автора из каталога
 export const getAuthor = (id) => request(`/authors/${id}`);
+// Задача 111: список авторов, чьи книги есть на полке
+export const getAuthors = () => request("/authors");
 // Символьный режим полки (задача 66): символ+палитры паспорта для всех книг разом
 export const getDesignSummary = () => request("/books/design-summary");
 export const createBook = ({

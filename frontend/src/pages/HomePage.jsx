@@ -17,7 +17,6 @@ import { useShelfPositions } from "../hooks/useShelfPositions";
 import BookCard from "../components/BookCard";
 import LibraryHeader from "../components/LibraryHeader";
 import Onboarding from "../components/Onboarding";
-import RecommendationShelf from "../components/RecommendationShelf";
 import SearchModal from "../components/SearchModal";
 import SeriesShelf from "../components/SeriesShelf";
 import Shelf from "../components/Shelf";
@@ -268,9 +267,11 @@ function HomePage() {
             {...shelfCards}
             {...shelfProps("Хочу прочитать")}
           />
-          {/* задача 89: полка циклов — между книгами и рекомендациями */}
+          {/* задача 89: полка циклов — последняя на главной.
+              ⚠ Задача 110: полка рекомендаций отсюда УЕХАЛА на /recommendations
+              (пункт меню ЛК). Главная теперь только про то, что уже есть
+              на полке, а советы — отдельный экран, куда заходят намеренно. */}
           <SeriesShelf />
-          <RecommendationShelf />
         </>
       )}
 
