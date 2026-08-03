@@ -254,6 +254,47 @@ def test_author_page_splits_shelf_and_catalog(client):
     assert [b["title"] for b in body["catalog"]] == ["Дублинский отдел убийств"]
 
 
+# --- список авторов (задача 111) ---
+
+def test_author_list_counts_whole_catalog(client):
+    """Раздел справочный: он про то, что есть в БАЗЕ, а не на полке
+    спрашивающего (решение Ксении 03.08). У Тана Френч две книги — одна
+    на полке, вторая только в каталоге, — и в списке должно стоять «2»."""
+    _author_with_books(client)
+
+    body = client.get("/api/v1/authors").json()
+    френч = next(a for a in body["authors"] if a["name"] == "Тана Френч")
+
+    assert френч["books"] == 2
+
+
+def test_author_list_includes_catalog_only_authors(client):
+    """Автор, чьих книг нет ни у кого на полке, всё равно в справочнике:
+    его книги существуют в каталоге, и раздел обязан их показывать."""
+    with Session(database.engine) as session:
+        book = Book(title="Только в каталоге", author="Никому Неизвестный")
+        session.add(book)
+        session.commit()
+        link_book(session, book.id, book.author)
+        session.commit()
+
+    names = [a["name"] for a in client.get("/api/v1/authors").json()["authors"]]
+    assert "Никому Неизвестный" in names
+
+
+def test_author_list_is_sorted(client):
+    client.post("/api/v1/books", json={"title": "Раз", "author": "Яков Яковлев"})
+    client.post("/api/v1/books", json={"title": "Два", "author": "Анна Аннова"})
+
+    names = [a["name"] for a in client.get("/api/v1/authors").json()["authors"]]
+    assert names.index("Анна Аннова") < names.index("Яков Яковлев")
+
+
+def test_author_list_requires_login(client):
+    app.dependency_overrides.clear()
+    assert client.get("/api/v1/authors").status_code == 401
+
+
 def test_author_page_requires_login(client):
     """Страница показывает всю полку по автору, включая книги вне витрины.
     Публичной она стала бы обходным путём к личной библиотеке."""

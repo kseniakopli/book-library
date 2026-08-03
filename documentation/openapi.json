@@ -886,6 +886,26 @@
         ]
       }
     },
+    "/api/v1/authors": {
+      "get": {
+        "description": "Список авторов, чьи книги есть на полке (задача 111).\n\n⚠ Объявлен ДО `/authors/{author_id}`: FastAPI подбирает маршруты по порядку,\nи при обратном порядке `/authors` попал бы в маршрут с параметром, а `\"—\"`\nне превращается в int — вместо списка пришла бы 422.",
+        "operationId": "read_authors_api_v1_authors_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Read Authors",
+        "tags": [
+          "authors"
+        ]
+      }
+    },
     "/api/v1/authors/{author_id}": {
       "get": {
         "description": "Автор и его книги: отдельно полка, отдельно каталог.\n\nКаталожные книги (тома циклов, которых у читателя нет) отдаются коротким\nсловарём, а не `BookRead`: у них нет полки, значит нет ни статуса, ни оценки,\nи притворяться, что есть, — врать контрактом.",

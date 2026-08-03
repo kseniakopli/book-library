@@ -10,9 +10,25 @@ from sqlmodel import Session
 from deps import current_user_id, get_session
 from models import Author
 from schemas import BookRead
-from services.authors import books_of, display_name
+from services.authors import books_of, catalog_authors, display_name
 
 router = APIRouter(tags=["authors"])
+
+
+@router.get("/authors")
+def read_authors(session: Session = Depends(get_session)):
+    """Справочник авторов сервиса (задача 111).
+
+    Считается по ОБЩЕМУ каталогу, а не по полке спрашивающего: раздел отвечает
+    на вопрос «что вообще есть в библиотеке». Поэтому `user_id` здесь не нужен —
+    ответ одинаков для всех. Вход всё равно обязателен: роутер подключён
+    с `dependencies=PROTECTED`, и наружу каталог не отдаётся.
+
+    ⚠ Объявлен ДО `/authors/{author_id}`: FastAPI подбирает маршруты по порядку,
+    и при обратном порядке `/authors` попал бы в маршрут с параметром, а `"—"`
+    не превращается в int — вместо списка пришла бы 422.
+    """
+    return {"authors": catalog_authors(session)}
 
 
 @router.get("/authors/{author_id}")

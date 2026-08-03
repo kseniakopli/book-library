@@ -15,7 +15,7 @@
 import unicodedata
 
 from models import Author, Book, BookAuthor, UserBook
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, func, select
 
 # Строка ровно как в базе → авторы по порядку обложки.
 EXCEPTIONS: dict[str, list[str]] = {
@@ -160,6 +160,34 @@ def authors_of(session: Session, book_ids: list[int]) -> dict[int, list[Author]]
     for link, author in rows:
         result.setdefault(link.book_id, []).append(author)
     return result
+
+
+def catalog_authors(session: Session) -> list[dict]:
+    """Все авторы КАТАЛОГА с числом книг (задача 111).
+
+    ⚠ Считаем по общей базе, а не по полке спрашивающего (решение Ксении
+    03.08). `/authors` — справочный раздел сервиса, а не срез личной полки:
+    он отвечает на вопрос «что вообще есть в библиотеке», и у Донато Карризи
+    здесь честные семь книг, даже если читатель завёл у себя две. Что из этого
+    лежит на полке лично у него, показывает страница автора — там книги
+    разложены на две стопки.
+
+    Следствие: список одинаков для всех пользователей, `user_id` не нужен.
+
+    Одним запросом с группировкой: авторов уже 152, и на каждого отдельный
+    COUNT превратился бы в полторы сотни обращений при открытии страницы.
+    """
+    rows = session.exec(
+        select(Author, func.count(col(BookAuthor.book_id)))
+        .join(BookAuthor, BookAuthor.author_id == Author.id)
+        .group_by(Author.id)
+        .order_by(Author.sort_key)
+    ).all()
+
+    return [
+        {"id": author.id, "name": display_name(author), "books": count}
+        for author, count in rows
+    ]
 
 
 def books_of(session: Session, author_id: int, user_id: int) -> dict:
