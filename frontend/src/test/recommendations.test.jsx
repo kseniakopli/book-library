@@ -1,25 +1,30 @@
-// Полка «Рекомендации» (этап 8): подбор по кнопке и добавление совета в библиотеку.
+// Рекомендации (этап 8) на своей странице (задача 110): подбор по кнопке
+// и добавление совета в библиотеку.
+//
+// ⚠ С задачи 110 полка живёт НЕ на главной, а на /recommendations — попасть
+// туда можно через меню ЛК. Тесты открывают страницу напрямую; сам путь через
+// меню проверяется в menu.test.jsx.
 import { test, expect } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderApp } from "./utils";
 
-test("до генерации полка зовёт подобрать рекомендации", async () => {
-  renderApp();
-  await screen.findByText("Волшебная гора");
+// страница за React.lazy — первый рендер ждёт загрузки чанка
+const SLOW = { timeout: 5000 };
 
-  // ждём, пока догрузится запрос рекомендаций — до этого полка ещё «пустая»
+test("до генерации страница зовёт подобрать рекомендации", async () => {
+  renderApp("/recommendations");
+
   expect(
-    await screen.findByText(/Нажмите «Подобрать рекомендации»/),
+    await screen.findByText(/Нажмите «Подобрать рекомендации»/, {}, SLOW),
   ).toBeInTheDocument();
 });
 
 test("рекомендации подбираются по кнопке и добавляются в «Хочу прочитать»", async () => {
-  renderApp();
-  await screen.findByText("Волшебная гора");
+  renderApp("/recommendations");
 
   await userEvent.click(
-    screen.getByRole("button", { name: "Подобрать рекомендации" }),
+    await screen.findByRole("button", { name: "Подобрать рекомендации" }, SLOW),
   );
 
   // советы с обоснованием — от обеих моделей (с 20.07)
@@ -39,8 +44,10 @@ test("рекомендации подбираются по кнопке и до�
     within(card).getByRole("button", { name: /В «Хочу прочитать»/ }),
   );
 
-  // книга появилась и на полке «Хочу прочитать» (осталась и в рекомендациях)
+  // и книга действительно легла на полку — проверяем на главной, потому что
+  // полок на странице рекомендаций больше нет
+  await userEvent.click(screen.getByRole("link", { name: /К библиотеке/ }));
   await waitFor(() =>
-    expect(screen.getAllByText("Тень ветра").length).toBeGreaterThan(1),
+    expect(screen.getByText("Тень ветра")).toBeInTheDocument(),
   );
 });

@@ -85,10 +85,12 @@ test("AI-наблюдения появляются только после на�
 });
 
 test("из библиотеки есть переход в статистику", async () => {
+  // задача 110: ссылка уехала из шапки в меню под именем пользователя
   renderApp();
   await screen.findByText("Волшебная гора");
 
-  await userEvent.click(screen.getByRole("link", { name: /Статистика/ }));
+  await userEvent.click(screen.getByRole("button", { name: /Ксения/ }));
+  await userEvent.click(screen.getByRole("menuitem", { name: "Статистика" }));
 
   expect(
     await screen.findByRole("heading", { name: "Статистика" }, SLOW),

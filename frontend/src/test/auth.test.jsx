@@ -2,6 +2,7 @@
 import { test, expect } from "vitest";
 import { http, HttpResponse } from "msw";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderApp } from "./utils";
 import { server } from "./server";
 
@@ -100,11 +101,14 @@ test("не-админ не может пересобрать готовую ат
   ).toBeNull();
 });
 
-test("админ видит имя в шапке и кнопку выхода", async () => {
+test("админ видит имя в шапке, выход — в его меню", async () => {
+  // задача 110: чип пользователя стал кнопкой меню, выход уехал внутрь
   renderApp();
   await screen.findByText("Волшебная гора");
   expect(screen.getByText(/Ксения/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Выйти" })).toBeInTheDocument();
+
+  await userEvent.click(screen.getByRole("button", { name: /Ксения/ }));
+  expect(screen.getByRole("menuitem", { name: "Выйти" })).toBeInTheDocument();
 });
 
 // Проверки самого выхода здесь НЕТ намеренно. После logout приложение делает

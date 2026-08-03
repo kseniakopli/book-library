@@ -8,15 +8,17 @@ test("переключатель полки: обложки ↔ символы, 
   renderApp();
   await screen.findByText("Волшебная гора");
 
-  // по умолчанию — обложки
+  // По умолчанию — обложки. ⚠ Задача 110: у кнопки осталась одна иконка
+  // (▦ / ◈), поэтому состояние читаем из aria-label, а не из текста, —
+  // и заодно проверяем то, что услышит скринридер.
   const toggle = screen.getByRole("button", { name: /Вид полки/ });
-  expect(toggle).toHaveTextContent("Обложки");
+  expect(toggle).toHaveAccessibleName(/обложки/);
 
   // переключаем на символы — подтягивается design-summary, кнопка меняет подпись
   await userEvent.click(toggle);
   expect(
     screen.getByRole("button", { name: /Вид полки/ }),
-  ).toHaveTextContent("Символы");
+  ).toHaveAccessibleName(/символы/);
 
   // выбор сохранён в localStorage (на этапе 9 переедет в кабинет)
   expect(localStorage.getItem("displayMode")).toBe("symbols");

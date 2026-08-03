@@ -256,6 +256,16 @@ export const handlers = [
     HttpResponse.json({ imported: 2, duplicates: 1, skipped: 0 }),
   ),
 
+  // Список авторов (задача 111): считаются только книги с полки
+  http.get("/api/v1/authors", () =>
+    HttpResponse.json({
+      authors: [
+        { id: 7, name: "Анна Аннова", books: 1 },
+        { id: 3, name: "Томас Манн", books: 2 },
+      ],
+    }),
+  ),
+
   // Рекомендации (этап 8): пусто до генерации, POST наполняет набор
   http.get("/api/v1/recommendations", () =>
     HttpResponse.json({ recommendations: db.recommendations }),

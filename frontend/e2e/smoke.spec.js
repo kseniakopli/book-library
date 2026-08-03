@@ -85,7 +85,11 @@ test("выход возвращает на страницу входа", async (
   await page.goto("/");
   await expect(page.getByRole("button", { name: "+ Добавить книгу" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Выйти" }).click();
+  // Задача 110: выход теперь в меню под именем пользователя.
+  // Локатор по классу, а не по имени: dev-login входит первым админом из базы,
+  // и его имя у каждого своё («Ксения» локально, другое в CI).
+  await page.locator(".menu-account .menu-trigger").click();
+  await page.getByRole("menuitem", { name: "Выйти" }).click();
 
   // баг 26.07: кнопка исчезала, а библиотека оставалась на экране
   await expect(
