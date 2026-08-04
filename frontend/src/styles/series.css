@@ -194,64 +194,16 @@
   min-width: 0;
 }
 
-/* --- страница цикла --- */
-.series-page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-.series-controls {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
-}
+/* --- страница цикла ---
+   ⚠ Задача 119: каркас страницы (колонки, шапка, правка, список книг)
+   уехал в общий `entity.css` — он теперь един со страницами книги и автора.
+   Здесь осталось только то, чего нет больше нигде: крупный экслибрис,
+   ряд статусов цикла и поиск книги для добавления.
 
-/* шапка над колонками: название + автор + прогресс слева, статусы справа */
-.series-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 16px;
-}
-.series-header-text {
-  min-width: 0;
-}
-.series-title-input {
-  font-family: var(--serif);
-  font-size: 26px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 6px 12px;
-  width: 100%;
-  max-width: 420px;
-}
-
-/* Две равные колонки (правка 03.08, замечание Ксении).
-   Было `minmax(240px, 300px) 1fr`: слева фиксированная узкая полоса, куда
-   сложены экслибрис, пояснение к нему и описание цикла, справа — список
-   из нескольких строк на всю оставшуюся ширину. Чем шире экран, тем сильнее
-   перекос: слева текст жался в 300px и уходил вниз на пол-экрана, справа
-   росла пустота.
-   ⚠ `minmax(0, 1fr)`, а не просто `1fr`: без этого длинное название книги
-   в списке распирает колонку по min-content (те же грабли, что 24.07). */
-.series-layout {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 32px;
-  align-items: start;
-}
-
-.series-aside {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+   История колонок, чтобы не изобретать заново: сначала было
+   `minmax(240px, 300px) 1fr` — слева узкая полоса, справа список во всю
+   ширину; чем шире экран, тем сильнее перекос. 03.08 сделали две равные,
+   119 — 5fr/4fr, как у книги. */
 .series-symbol-large {
   width: 100%;
   aspect-ratio: 1;
@@ -273,74 +225,13 @@
   font-size: 64px;
 }
 
-.series-title {
-  font-family: var(--serif);
-  font-size: 28px;
-  margin: 8px 0 0;
-  line-height: 1.2;
-}
-.series-description {
-  line-height: 1.6;
-  /* колонка стала вдвое шире (03.08) — ограничиваем меру строки, как
-     у описания книги и биографии автора (задача 109) */
-  max-width: var(--reading-max);
-}
+/* статус цикла — свой ряд «пилюль»: у книги статусы устроены иначе
+   (з.90а), поэтому правило осталось здесь, а не уехало в `entity.css` */
 .series-status-row {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 6px;
-}
-
-/* экслибрис цикла: кнопка генерации и пояснение символа */
-.series-design-btn {
-  align-self: flex-start;
-}
-.series-statement {
-  font-style: italic;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--muted);
-  margin: 0;
-  max-width: var(--reading-max);
-}
-
-/* правка цикла (название/автор/описание — вход для генерации символа) */
-.series-edit {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.series-edit textarea {
-  font: inherit;
-  font-size: 15px;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  resize: vertical;
-}
-.series-edit-actions {
-  display: flex;
-  gap: 8px;
-}
-.series-edit-btn {
-  align-self: flex-start;
-}
-
-/* дерево книг цикла */
-.series-books-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.series-books-head h2 {
-  font-family: var(--serif);
-  font-size: 22px;
-  margin: 0;
 }
 
 .series-index-input {
@@ -439,86 +330,16 @@
   min-width: 0;
 }
 
-.series-tree {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-.series-tree-item {
-  display: grid;
-  grid-template-columns: 32px 1fr auto 28px;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
-}
-/* книги, которых нет в библиотеке — приглушены: это «что дальше» */
-/* Книга цикла, которой нет на полке: приглушена, но КЛИКАБЕЛЬНА (03.08).
-   ⚠ Не opacity на всю строку: она гасит и ссылку, из-за чего строка читается
-   как отключённая. Приглушаем только вспомогательный текст, а название
-   остаётся полноценной ссылкой — про такую книгу как раз и хотят прочитать. */
-.series-tree-absent .series-tree-author,
-.series-tree-absent .series-tree-status,
-.series-tree-absent .series-tree-index {
-  opacity: 0.7;
-}
-.series-tree-absent .series-tree-title {
-  color: var(--muted);
-}
-.series-tree-absent .series-tree-title:hover,
-.series-tree-absent .series-tree-title:focus-visible {
-  color: var(--accent);
-}
-.series-tree-index {
-  color: var(--muted);
-  font-size: 14px;
-  text-align: center;
-}
-.series-tree-body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.series-tree-title {
-  font-size: 16px;
-}
-a.series-tree-title {
-  color: var(--text);
-  text-decoration: none;
-}
-a.series-tree-title:hover {
-  color: var(--accent);
-}
-.series-tree-author {
-  color: var(--muted);
-  font-size: 13px;
-}
-.series-tree-status {
-  color: var(--muted);
-  font-size: 13px;
-  white-space: nowrap;
-}
-.series-tree-remove {
-  border: none;
-  background: none;
-  color: var(--muted);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-.series-tree-remove:hover {
-  color: var(--danger, #d98a7e);
-}
+/* ⚠ Список томов (`.series-tree*`) уехал в `entity.css` как `.entity-row*`
+   (задача 119): те же строки рисуются теперь и на странице автора.
+   Заодно крестик «убрать» подрос до 28×28 — прежние 2px+6px паддинга
+   давали кнопку около 20px, ровно тот случай, за который зацепился
+   аудит 28.07. */
 
-/* мобильный: колонки в столбик */
+/* мобильный: колонки в столбик.
+   Слом колонок теперь общий (980px, `entity.css`) — здесь остались
+   только собственные размеры цикла. */
 @media (max-width: 760px) {
-  .series-layout {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
   .series-symbol-large {
     max-width: 180px;
   }

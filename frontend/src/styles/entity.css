@@ -1,0 +1,278 @@
+/* ===== Единый макет справочной страницы (задача 119) =====
+   Автор `/authors/:id` и цикл `/series/:id` устроены одинаково: слева
+   сведения о сущности, справа список того, что к ней относится. Эталон —
+   страница КНИГИ (`detail.css`): она уже такая, её не трогали, а размеры
+   здесь повторяют её один в один (5fr / 4fr, gap 44px, слом на 980px).
+   Меняешь пропорции там — меняй и тут, иначе страницы разъедутся.
+
+   ⚠ Страница ЖАНРА `/genres/:id` сюда НЕ переехала (решение 04.08):
+   слева у неё показывать нечего — описания жанра в модели нет. Она осталась
+   одноколоночной на `catalog.css`. До 119 автор и жанр делили и стили,
+   и плитку книги (ревью 03.08, Ф1/Ф2) — теперь они расходятся, поэтому
+   правила здесь НОВЫЕ, а не переписанные `catalog-*`. Тронешь общие —
+   поедет жанр. */
+
+.entity-page {
+  /* ширину держит `.app` (--content-max): справочник теперь такой же
+     широкий, как страница книги, а не колонка текста в 900px */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Верхняя строка над колонками: «← назад» и опасные действия.
+   У книги ту же роль играет `.detail-bar`. */
+.entity-controls {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.entity-columns {
+  display: grid;
+  /* minmax(0, …), а не голые доли: длинное название книги в списке иначе
+     распирает колонку по min-content (грабли 24.07) */
+  grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
+  gap: 44px;
+  align-items: start;
+}
+
+/* Левая колонка липкая — как `.detail-main`: список справа бывает длинным,
+   и при прокрутке имя автора или экслибрис цикла должны оставаться на виду. */
+.entity-aside {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.entity-lists {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
+/* На узких экранах — одна колонка, липкость снимается: прилипший блок
+   на телефоне съедает пол-экрана */
+@media (max-width: 980px) {
+  .entity-columns {
+    display: block;
+  }
+  .entity-aside {
+    position: static;
+  }
+  .entity-lists {
+    margin-top: 36px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* --- Шапка левой колонки --- */
+.entity-title {
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1.2;
+  margin: 0;
+  overflow-wrap: break-word; /* длинная фамилия не вылезает за край */
+}
+/* оригинальное написание имени — подпись под заголовком, не заголовок */
+.entity-subtitle {
+  color: var(--muted);
+  font-size: 15px;
+  margin: 0;
+}
+.entity-meta {
+  font-size: 14px;
+  margin: 0;
+}
+.entity-text {
+  /* сплошной текст: та же мера строки, что у описания книги (задача 109) */
+  max-width: var(--reading-max);
+  line-height: 1.7;
+  margin: 0;
+  white-space: pre-line; /* абзацы, введённые руками, сохраняются */
+}
+.entity-statement {
+  font-style: italic;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0;
+  max-width: var(--reading-max);
+}
+/* кнопки левой колонки не растягиваются на всю её ширину */
+.entity-aside-btn {
+  align-self: flex-start;
+}
+
+/* --- Секция списка справа --- */
+.entity-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.entity-section-title {
+  font-family: var(--serif);
+  font-size: 22px;
+  margin: 0;
+}
+.entity-section-lead {
+  margin: 0 0 4px;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+/* --- Строка книги (общая для автора и цикла) ---
+   Решение 04.08: справа именно строки, а не сетка обложек. В колонке 4fr
+   обложки мельчают до неразличимых, а строка вмещает и порядок тома,
+   и статус — то, ради чего в эти списки и смотрят.
+   Flex, а не grid: у автора нет ни номера, ни крестика, и пустые треки
+   grid оставляли бы дыры от gap. */
+.entity-rows {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.entity-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.entity-row-index {
+  flex: 0 0 28px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.entity-row-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.entity-row-title {
+  font-size: 16px;
+  line-height: 1.3;
+  overflow-wrap: break-word;
+}
+a.entity-row-title {
+  color: var(--text);
+  text-decoration: none;
+}
+a.entity-row-title:hover,
+a.entity-row-title:focus-visible {
+  color: var(--accent);
+}
+.entity-row-sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+.entity-row-note {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Книга, которой нет на полке: приглушена, но КЛИКАБЕЛЬНА (правка 03.08).
+   ⚠ Не `opacity` на всю строку: она гасит и ссылку, из-за чего строка
+   читается как отключённая. Приглушаем только вспомогательный текст,
+   название остаётся полноценной ссылкой — про такую книгу как раз
+   и хочется прочитать. */
+.entity-row-muted .entity-row-index,
+.entity-row-muted .entity-row-sub,
+.entity-row-muted .entity-row-note {
+  opacity: 0.7;
+}
+.entity-row-muted .entity-row-title {
+  color: var(--muted);
+}
+.entity-row-muted .entity-row-title:hover,
+.entity-row-muted .entity-row-title:focus-visible {
+  color: var(--accent);
+}
+
+/* Крестик «убрать»: 28px — минимум, ниже которого по нему не попасть
+   пальцем (аудит 28.07, там такие кнопки были 15×22px). */
+.entity-row-remove {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.entity-row-remove:hover,
+.entity-row-remove:focus-visible {
+  color: var(--error);
+  background: var(--chip-bg);
+}
+
+.entity-empty {
+  margin: 8px 0 0;
+}
+
+/* --- Правка текста в левой колонке ---
+   Биография автора (з.111) и описание цикла: поля переехали сюда из
+   `catalog.css` и `series.css` вместе со страницами (з.119). */
+.entity-bio-input,
+.entity-title-input,
+.entity-edit textarea,
+.entity-edit input {
+  width: 100%;
+  max-width: var(--reading-max);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.entity-bio-actions,
+.entity-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.entity-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.entity-edit-actions {
+  margin-top: 0;
+}
+/* Название цикла правится в левой колонке — оно самое заметное поле,
+   и подменять им заголовок логичнее, чем прятать в форму ниже.
+   Рамку, фон и отступы берёт из правила выше; здесь только шрифт,
+   чтобы поле совпало по размеру с заголовком, который оно заменяет. */
+.entity-title-input {
+  font-family: var(--serif);
+  font-size: 26px;
+  line-height: 1.2;
+  resize: none;
+}

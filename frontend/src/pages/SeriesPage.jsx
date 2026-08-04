@@ -1,7 +1,13 @@
-// Страница цикла (задача 89). После R4 (26.07) — композиция из трёх блоков:
-// SeriesHeader (название, прогресс, статус), SeriesAside (экслибрис и описание),
+// Страница цикла (задача 89). После R4 (26.07) — композиция из блоков:
+// SeriesAside (экслибрис, название, прогресс, статус, описание) и
 // SeriesBookTree (книги цикла). Здесь остались только данные и мутации —
-// то, что общее для всех трёх.
+// то, что общее для обоих.
+//
+// ⚠ Задача 119: макет общий со страницами книги и автора (`entity.css`) —
+// слева сведения о цикле, справа список томов. Бывший `SeriesHeader` был
+// шапкой НАД колонками и влился в левую колонку, файл удалён.
+// `series.css` остался ради того, что есть только у цикла: крупный
+// экслибрис, полка циклов на главной и поиск книги для добавления.
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +16,7 @@ import { keys } from "../queryKeys";
 import { useAuth } from "../hooks/useAuth";
 import SeriesAside from "../components/SeriesAside";
 import SeriesBookTree from "../components/SeriesBookTree";
-import SeriesHeader from "../components/SeriesHeader";
+import "../styles/entity.css";
 import "../styles/series.css";
 
 function SeriesPage() {
@@ -81,8 +87,8 @@ function SeriesPage() {
   if (!series) return <p className="error">Цикл не найден</p>;
 
   return (
-    <div className="series-page">
-      <div className="series-controls">
+    <div className="entity-page">
+      <div className="entity-controls">
         <Link className="btn-ghost" to="/">
           ← К библиотеке
         </Link>
@@ -100,46 +106,43 @@ function SeriesPage() {
         )}
       </div>
 
-      <SeriesHeader
-        series={series}
-        editing={editing}
-        form={form}
-        onFormChange={setForm}
-        onStatus={(status) => setStatus.mutate(status)}
-        statusPending={setStatus.isPending}
-      />
+      <div className="entity-columns">
+        <aside className="entity-aside">
+          <SeriesAside
+            series={series}
+            isAdmin={isAdmin}
+            editing={editing}
+            form={form}
+            onFormChange={setForm}
+            onStartEdit={() => {
+              setForm({
+                name: series.name,
+                author: series.author ?? "",
+                description: series.description ?? "",
+              });
+              setEditing(true);
+            }}
+            onCancelEdit={() => setEditing(false)}
+            onSave={() => save.mutate()}
+            savePending={save.isPending}
+            onStatus={(status) => setStatus.mutate(status)}
+            statusPending={setStatus.isPending}
+            onGenerateDesign={() => makeDesign.mutate()}
+            designPending={makeDesign.isPending}
+            designError={makeDesign.isError ? makeDesign.error : null}
+          />
+        </aside>
 
-      <div className="series-layout">
-        <SeriesAside
-          series={series}
-          isAdmin={isAdmin}
-          editing={editing}
-          form={form}
-          onFormChange={setForm}
-          onStartEdit={() => {
-            setForm({
-              name: series.name,
-              author: series.author ?? "",
-              description: series.description ?? "",
-            });
-            setEditing(true);
-          }}
-          onCancelEdit={() => setEditing(false)}
-          onSave={() => save.mutate()}
-          savePending={save.isPending}
-          onGenerateDesign={() => makeDesign.mutate()}
-          designPending={makeDesign.isPending}
-          designError={makeDesign.isError ? makeDesign.error : null}
-        />
-
-        <SeriesBookTree
-          books={series.books}
-          adding={adding}
-          onToggleAdding={() => setAdding((v) => !v)}
-          onPick={(picked) => addBook.mutate(picked)}
-          addPending={addBook.isPending}
-          onRemove={(bookId) => removeBook.mutate(bookId)}
-        />
+        <div className="entity-lists">
+          <SeriesBookTree
+            books={series.books}
+            adding={adding}
+            onToggleAdding={() => setAdding((v) => !v)}
+            onPick={(picked) => addBook.mutate(picked)}
+            addPending={addBook.isPending}
+            onRemove={(bookId) => removeBook.mutate(bookId)}
+          />
+        </div>
       </div>
     </div>
   );

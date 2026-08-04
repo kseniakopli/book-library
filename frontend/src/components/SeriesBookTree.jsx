@@ -1,4 +1,4 @@
-// Правая колонка страницы цикла: дерево книг + добавление новой.
+// Правая колонка страницы цикла: список книг + добавление новой.
 // Вынесено из SeriesPage (R4, 26.07).
 //
 // Книги цикла бывают двух видов: те, что на полке читателя, и «что дальше» —
@@ -13,7 +13,11 @@
 // Заодно поправлена формулировка: «Нет в библиотеке» было неточным — книга
 // в библиотеке есть, её нет на ПОЛКЕ. Эта путаница и мешала заметить,
 // что ссылку можно вернуть.
-import { Link } from "react-router-dom";
+//
+// ⚠ Задача 119: строка книги переехала в общий `BookRow` — тот же компонент
+// рисует списки на странице автора. Своя разметка `series-tree-*` была
+// первой из двух, и вторая приехала бы копипастом.
+import BookRow from "./BookRow";
 import { authorLabel } from "../lib/bookLabels";
 import SeriesBookSearch from "./SeriesBookSearch";
 
@@ -32,9 +36,9 @@ function SeriesBookTree({
   onRemove,
 }) {
   return (
-    <section className="series-books">
-      <div className="series-books-head">
-        <h2>Книги цикла</h2>
+    <section>
+      <div className="entity-section-head">
+        <h2 className="entity-section-title">Книги цикла</h2>
         <button className="btn-ghost" onClick={onToggleAdding}>
           {adding ? "Отмена" : "+ Добавить книгу"}
         </button>
@@ -43,41 +47,29 @@ function SeriesBookTree({
       {adding && <SeriesBookSearch busy={addPending} onPick={onPick} />}
 
       {books.length === 0 && !adding && (
-        <p className="muted">
+        <p className="muted entity-empty">
           В цикле пока нет книг. Добавьте их по порядку — увидите, где
           остановились.
         </p>
       )}
 
-      <ol className="series-tree">
+      <ol className="entity-rows">
         {books.map((book) => (
-          <li
+          <BookRow
             key={book.id}
-            className={
-              "series-tree-item" + (book.on_shelf ? "" : " series-tree-absent")
-            }
-          >
-            <span className="series-tree-index">{book.series_index ?? "—"}</span>
-            <span className="series-tree-body">
-              <Link className="series-tree-title" to={`/books/${book.id}`}>
-                {book.title}
-              </Link>
-              <span className="series-tree-author">{authorLabel(book)}</span>
-            </span>
-            <span className="series-tree-status">
-              {book.on_shelf
+            book={book}
+            // null, а не undefined: у тома без номера должно остаться «—»,
+            // иначе строка съедет влево и колонка номеров развалится
+            index={book.series_index ?? null}
+            subtitle={authorLabel(book)}
+            note={
+              book.on_shelf
                 ? (BOOK_STATUS[book.status] ?? book.status)
-                : "Нет на полке"}
-            </span>
-            <button
-              className="series-tree-remove"
-              onClick={() => onRemove(book.id)}
-              title="Убрать из цикла"
-              aria-label={`Убрать «${book.title}» из цикла`}
-            >
-              ×
-            </button>
-          </li>
+                : "Нет на полке"
+            }
+            muted={!book.on_shelf}
+            onRemove={onRemove}
+          />
         ))}
       </ol>
     </section>

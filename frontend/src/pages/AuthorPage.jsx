@@ -5,6 +5,11 @@
 // но на полку не положенные. Ради второй стопки страница и задумывалась —
 // иначе она повторяла бы поиск по своей полке.
 //
+// Задача 119: макет общий со страницей цикла и книги — слева сведения
+// об авторе, справа списки. Книги показываются СТРОКАМИ (`BookRow`),
+// а не плитками: в колонке 4fr обложки мельчают, а строка вмещает статус.
+// Плитка `BookTile` осталась у жанра — он одноколоночный.
+//
 // Страница ЗА ВХОДОМ (RequireAuth в App.jsx): она показывает всю полку по
 // автору, включая книги вне витрины. Публичной она стала бы обходным путём
 // к личной библиотеке мимо витрины, где показано только отобранное.
@@ -14,9 +19,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useAuth } from "../hooks/useAuth";
-import BookTile from "../components/BookTile";
+import BookRow from "../components/BookRow";
 import { shelfNote } from "../lib/bookLabels";
-import "../styles/catalog.css";
+import "../styles/entity.css";
 
 /** Биография (задача 111): показ и правка на месте.
  *  Заполняется ВРУЧНУЮ — AI-черновик не берём: это факты о живом человеке,
@@ -39,9 +44,9 @@ function Bio({ authorId, bio }) {
 
   if (editing) {
     return (
-      <section className="author-bio">
+      <>
         <textarea
-          className="author-bio-input"
+          className="entity-bio-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={6}
@@ -49,7 +54,7 @@ function Bio({ authorId, bio }) {
           aria-label="Биография автора"
           autoFocus
         />
-        <div className="author-bio-actions">
+        <div className="entity-bio-actions">
           <button
             className="add-btn"
             onClick={() => save.mutate()}
@@ -70,7 +75,7 @@ function Bio({ authorId, bio }) {
             <p className="error">Не удалось сохранить: {save.error.message}</p>
           )}
         </div>
-      </section>
+      </>
     );
   }
 
@@ -79,18 +84,21 @@ function Bio({ authorId, bio }) {
   if (!bio && !isAdmin) return null;
 
   return (
-    <section className="author-bio">
+    <>
       {bio ? (
-        <p className="author-bio-text">{bio}</p>
+        <p className="entity-text">{bio}</p>
       ) : (
         <p className="muted">Биография не заполнена.</p>
       )}
       {isAdmin && (
-        <button className="btn-ghost" onClick={() => setEditing(true)}>
+        <button
+          className="btn-ghost entity-aside-btn"
+          onClick={() => setEditing(true)}
+        >
           {bio ? "Изменить биографию" : "Добавить биографию"}
         </button>
       )}
-    </section>
+    </>
   );
 }
 
@@ -108,57 +116,72 @@ function AuthorPage() {
   const { shelf = [], catalog = [] } = data;
 
   return (
-    <div className="catalog-page">
-      <Link className="btn-ghost" to="/">
-        ← К библиотеке
-      </Link>
+    <div className="entity-page">
+      <div className="entity-controls">
+        <Link className="btn-ghost" to="/">
+          ← К библиотеке
+        </Link>
+      </div>
 
-      <header className="catalog-head">
-        <h1 className="catalog-name">{data.name}</h1>
-        {/* оригинальное написание показываем, только если оно отличается:
-            у 148 авторов из 150 его просто нет */}
-        {data.name_original && data.name_ru && (
-          <p className="catalog-original">{data.name_original}</p>
-        )}
-        <p className="muted">
-          {shelf.length > 0
-            ? `На полке: ${shelf.length}`
-            : "На полке пока ничего нет"}
-          {catalog.length > 0 ? ` · в каталоге ещё ${catalog.length}` : ""}
-        </p>
-      </header>
-
-      <Bio authorId={data.id} bio={data.bio} />
-
-      {shelf.length > 0 && (
-        <section className="catalog-section">
-          <h2 className="catalog-section-title">На полке</h2>
-          <ul className="catalog-books">
-            {shelf.map((book) => (
-              <BookTile key={book.id} book={book} note={shelfNote(book)} />
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {catalog.length > 0 && (
-        <section className="catalog-section">
-          <h2 className="catalog-section-title">Есть в каталоге</h2>
-          <p className="muted catalog-section-lead">
-            Книги этого автора, которых нет у вас на полке — обычно это тома
-            циклов, добавленные как «что дальше».
+      <div className="entity-columns">
+        <aside className="entity-aside">
+          <h1 className="entity-title">{data.name}</h1>
+          {/* оригинальное написание показываем, только если оно отличается:
+              у 148 авторов из 150 его просто нет */}
+          {data.name_original && data.name_ru && (
+            <p className="entity-subtitle">{data.name_original}</p>
+          )}
+          <p className="muted entity-meta">
+            {shelf.length > 0
+              ? `На полке: ${shelf.length}`
+              : "На полке пока ничего нет"}
+            {catalog.length > 0 ? ` · в каталоге ещё ${catalog.length}` : ""}
           </p>
-          <ul className="catalog-books">
-            {catalog.map((book) => (
-              <BookTile
-                key={book.id}
-                book={book}
-                note={book.series_index ? `Книга ${book.series_index}` : null}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
+
+          <Bio authorId={data.id} bio={data.bio} />
+        </aside>
+
+        <div className="entity-lists">
+          {shelf.length > 0 && (
+            <section>
+              <div className="entity-section-head">
+                <h2 className="entity-section-title">На полке</h2>
+              </div>
+              <ul className="entity-rows">
+                {shelf.map((book) => (
+                  <BookRow key={book.id} book={book} note={shelfNote(book)} />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {catalog.length > 0 && (
+            <section>
+              <div className="entity-section-head">
+                <h2 className="entity-section-title">Есть в каталоге</h2>
+              </div>
+              <p className="muted entity-section-lead">
+                Книги этого автора, которых нет у вас на полке — обычно это
+                тома циклов, добавленные как «что дальше».
+              </p>
+              <ul className="entity-rows">
+                {catalog.map((book) => (
+                  <BookRow
+                    key={book.id}
+                    book={book}
+                    // приглушены так же, как «что дальше» в цикле: книги
+                    // не на полке, но ссылка полноценная
+                    muted
+                    note={
+                      book.series_index ? `Книга ${book.series_index}` : null
+                    }
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
