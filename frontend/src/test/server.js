@@ -427,6 +427,50 @@ export const handlers = [
   // Циклы книг (задача 89): в тестах пустая полка
   http.get("/api/v1/series", () => HttpResponse.json({ series: [] })),
 
+  // Страница цикла (задача 89): в списке есть и книга с полки, и том, которого
+  // на полке нет, — второй с 03.08 тоже кликабельный.
+  // ⚠ Форма ответа взята из `services/series.series_card`: там есть `progress`
+  // с полями total/read/on_shelf/next_book, и без него шапка цикла падает.
+  http.get("/api/v1/series/:id", ({ params }) => {
+    const books = [
+      {
+        id: 1,
+        title: "В лесной чаще",
+        author: "Тана Френч",
+        cover_url: null,
+        series_index: 1,
+        status: "read",
+        rating: 8,
+        on_shelf: true,
+      },
+      {
+        id: 77,
+        title: "Тень за спиной",
+        author: "Тана Френч",
+        cover_url: null,
+        series_index: 6,
+        status: null,
+        rating: null,
+        on_shelf: false,
+      },
+    ];
+    return HttpResponse.json({
+      id: Number(params.id),
+      name: "Дублинский отдел убийств",
+      author: "Тана Френч",
+      description: null,
+      design: null,
+      status: "reading",
+      progress: {
+        total: books.length,
+        read: 1,
+        on_shelf: 1,
+        next_book: books[1],
+      },
+      books,
+    });
+  }),
+
   // Обратная связь по подборкам (задача 26): stateful — воспроизводим toggle
   // бэкенда (повтор того же вердикта снимает оценку)
   http.get("/api/v1/feedback", () =>

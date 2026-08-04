@@ -232,9 +232,17 @@
   max-width: 420px;
 }
 
+/* Две равные колонки (правка 03.08, замечание Ксении).
+   Было `minmax(240px, 300px) 1fr`: слева фиксированная узкая полоса, куда
+   сложены экслибрис, пояснение к нему и описание цикла, справа — список
+   из нескольких строк на всю оставшуюся ширину. Чем шире экран, тем сильнее
+   перекос: слева текст жался в 300px и уходил вниз на пол-экрана, справа
+   росла пустота.
+   ⚠ `minmax(0, 1fr)`, а не просто `1fr`: без этого длинное название книги
+   в списке распирает колонку по min-content (те же грабли, что 24.07). */
 .series-layout {
   display: grid;
-  grid-template-columns: minmax(240px, 300px) 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 32px;
   align-items: start;
 }
@@ -273,6 +281,9 @@
 }
 .series-description {
   line-height: 1.6;
+  /* колонка стала вдвое шире (03.08) — ограничиваем меру строки, как
+     у описания книги и биографии автора (задача 109) */
+  max-width: var(--reading-max);
 }
 .series-status-row {
   display: flex;
@@ -291,6 +302,7 @@
   line-height: 1.6;
   color: var(--muted);
   margin: 0;
+  max-width: var(--reading-max);
 }
 
 /* правка цикла (название/автор/описание — вход для генерации символа) */
@@ -443,8 +455,21 @@
   border-bottom: 1px solid var(--border);
 }
 /* книги, которых нет в библиотеке — приглушены: это «что дальше» */
-.series-tree-absent {
-  opacity: 0.65;
+/* Книга цикла, которой нет на полке: приглушена, но КЛИКАБЕЛЬНА (03.08).
+   ⚠ Не opacity на всю строку: она гасит и ссылку, из-за чего строка читается
+   как отключённая. Приглушаем только вспомогательный текст, а название
+   остаётся полноценной ссылкой — про такую книгу как раз и хотят прочитать. */
+.series-tree-absent .series-tree-author,
+.series-tree-absent .series-tree-status,
+.series-tree-absent .series-tree-index {
+  opacity: 0.7;
+}
+.series-tree-absent .series-tree-title {
+  color: var(--muted);
+}
+.series-tree-absent .series-tree-title:hover,
+.series-tree-absent .series-tree-title:focus-visible {
+  color: var(--accent);
 }
 .series-tree-index {
   color: var(--muted);

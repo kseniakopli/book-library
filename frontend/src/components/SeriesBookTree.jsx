@@ -1,10 +1,20 @@
 // Правая колонка страницы цикла: дерево книг + добавление новой.
 // Вынесено из SeriesPage (R4, 26.07).
 //
-// Книги цикла бывают двух видов: те, что на полке читателя (ведут на свою
-// страницу), и «что дальше» — записи каталога без UserBook. Второй вид
-// показывается приглушённо и с пометкой «Нет в библиотеке» (задача 89).
+// Книги цикла бывают двух видов: те, что на полке читателя, и «что дальше» —
+// записи каталога без UserBook. Второй вид показывается приглушённо
+// и с пометкой «Нет на полке» (задача 89).
+//
+// ⚠ Правка 03.08: раньше вторые были НЕ кликабельны, и это было верно —
+// страница книги отдавала 404 всем, кроме владельца полки. Ограничение сняли
+// (книга — общая сущность каталога), поэтому ссылка теперь у всех: про том,
+// которого у тебя нет, как раз и хочется прочитать, ради этого цикл
+// и показывает продолжение.
+// Заодно поправлена формулировка: «Нет в библиотеке» было неточным — книга
+// в библиотеке есть, её нет на ПОЛКЕ. Эта путаница и мешала заметить,
+// что ссылку можно вернуть.
 import { Link } from "react-router-dom";
+import { authorLabel } from "../lib/bookLabels";
 import SeriesBookSearch from "./SeriesBookSearch";
 
 const BOOK_STATUS = {
@@ -49,19 +59,15 @@ function SeriesBookTree({
           >
             <span className="series-tree-index">{book.series_index ?? "—"}</span>
             <span className="series-tree-body">
-              {book.on_shelf ? (
-                <Link className="series-tree-title" to={`/books/${book.id}`}>
-                  {book.title}
-                </Link>
-              ) : (
-                <span className="series-tree-title">{book.title}</span>
-              )}
-              <span className="series-tree-author">{book.author}</span>
+              <Link className="series-tree-title" to={`/books/${book.id}`}>
+                {book.title}
+              </Link>
+              <span className="series-tree-author">{authorLabel(book)}</span>
             </span>
             <span className="series-tree-status">
               {book.on_shelf
                 ? (BOOK_STATUS[book.status] ?? book.status)
-                : "Нет в библиотеке"}
+                : "Нет на полке"}
             </span>
             <button
               className="series-tree-remove"
