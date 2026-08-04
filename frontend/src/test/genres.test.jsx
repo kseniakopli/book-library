@@ -64,6 +64,33 @@ test("одинаковый жанр не добавляется дважды", a
   expect(screen.getAllByText(/детектив/i)).toHaveLength(1);
 });
 
+test("в подсказках показаны ВСЕ жанры библиотеки, а не первые несколько", async () => {
+  // Задача 120, найдено Ксенией на проде: в блоке «Уже есть» висел
+  // slice(0, 8). Цена была не в удобстве, а в данных — жанра не видно
+  // в подсказках, он набирается руками, и в базе появляется дубль
+  // («Современная русская литература» с латинской буквой внутри).
+  // Поэтому мок отдаёт заведомо больше восьми: вернётся slice — тест упадёт.
+  const many = Array.from({ length: 12 }, (_, i) => ({
+    id: i + 1,
+    name: `Жанр ${i + 1}`,
+    books: 1,
+  }));
+  server.use(
+    http.get("/api/v1/genres", () => HttpResponse.json({ genres: many })),
+  );
+
+  renderApp("/books/1");
+  await screen.findByRole("heading", { name: "Волшебная гора" });
+  await userEvent.click(
+    await screen.findByRole("button", { name: "Проставить жанры" }),
+  );
+
+  // последний по списку — тот, что первым пропадал при обрезке
+  expect(
+    await screen.findByRole("button", { name: "Жанр 12" }, SLOW),
+  ).toBeInTheDocument();
+});
+
 test("не-админ видит жанры ссылками, но не может править", async () => {
   server.use(
     http.get("/api/v1/auth/me", () =>

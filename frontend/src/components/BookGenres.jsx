@@ -87,9 +87,16 @@ function BookGenres({ bookId, genres = [], categories }) {
   }
 
   const hint = categoriesHint(categories);
-  const suggestions = (known.data?.genres ?? [])
-    .filter((g) => !draft.some((d) => d.toLowerCase() === g.name.toLowerCase()))
-    .slice(0, 8);
+  // Задача 120: показываем ВСЕ жанры библиотеки, а не первые восемь.
+  // ⚠ Ограничение стоило не удобства, а данных: жанра не было среди восьми
+  // подсказок, поэтому он набирался руками — и «Современная русская
+  // литература» попала в базу дважды (латинская буква в слове; `norm_slug`
+  // схлопывает регистр и ё/е, но не гомоглифы). Список подсказок — это
+  // ещё и защита от дубля: по нему видно, что жанр уже есть.
+  // Высоту держит `.book-genres-suggest` — блок прокручивается, а не растёт.
+  const suggestions = (known.data?.genres ?? []).filter(
+    (g) => !draft.some((d) => d.toLowerCase() === g.name.toLowerCase()),
+  );
 
   return (
     <div className="book-genres book-genres-editing">
