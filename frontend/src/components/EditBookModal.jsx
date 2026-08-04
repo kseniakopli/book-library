@@ -23,6 +23,21 @@ function EditBookModal({ book, onClose }) {
   const set = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
+  // Задача 121: год хранится отдельно от текстовых полей — у него своя
+  // политика. Пустое поле здесь значит «стереть год», а не «не менять»:
+  // Google Books отдаёт год ИЗДАНИЯ экземпляра, и у классики он врёт,
+  // поэтому убрать неверное значение надо уметь. На бэкенде это `null`
+  // и `model_fields_set` (та же механика, что у даты прочтения в з.115).
+  const [year, setYear] = useState(
+    book.published_year != null ? String(book.published_year) : "",
+  );
+  const yearTrimmed = year.trim();
+  const badYear =
+    yearTrimmed !== "" &&
+    (!/^\d{1,4}$/.test(yearTrimmed) ||
+      Number(yearTrimmed) < 1 ||
+      Number(yearTrimmed) > new Date().getFullYear() + 1);
+
   // цикл: "" — без цикла, "new" — создать, иначе id существующего
   const [seriesChoice, setSeriesChoice] = useState(
     book.series_id ? String(book.series_id) : "",
@@ -40,7 +55,14 @@ function EditBookModal({ book, onClose }) {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await api.patchBook({ id: book.id, ...form });
+      // published_year шлём ВСЕГДА: пустое поле — это `null`, то есть
+      // «стереть», и не отправить его значило бы лишить пользователя
+      // единственного способа убрать неверный год
+      await api.patchBook({
+        id: book.id,
+        ...form,
+        published_year: yearTrimmed === "" ? null : Number(yearTrimmed),
+      });
 
       // привязка к циклу — отдельными запросами (цикл общий, не поле книги)
       const wasIn = book.series_id ?? null;
@@ -102,10 +124,34 @@ function EditBookModal({ book, onClose }) {
           <span>Автор</span>
           <input value={form.author} onChange={set("author")} />
         </label>
-        <label className="field">
-          <span>ISBN</span>
-          <input value={form.isbn} onChange={set("isbn")} />
-        </label>
+        <div className="field-row">
+          <label className="field field-grow">
+            <span>ISBN</span>
+            <input value={form.isbn} onChange={set("isbn")} />
+          </label>
+          <label className="field field-index">
+            <span>Год</span>
+            <input
+              type="number"
+              min="1"
+              max={new Date().getFullYear() + 1}
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              placeholder="—"
+            />
+          </label>
+        </div>
+        {badYear && (
+          <p className="error">
+            Год должен быть числом от 1 до {new Date().getFullYear() + 1}.
+            Пустое поле уберёт год.
+          </p>
+        )}
+        <p className="stat-hint">
+          Год приезжает из Google Books и означает год ИЗДАНИЯ найденного
+          экземпляра, а не написания. У классики он часто врёт — поправьте
+          руками.
+        </p>
         <label className="field">
           <span>Обложка (ссылка https)</span>
           <input value={form.cover_url} onChange={set("cover_url")} />
@@ -171,7 +217,7 @@ function EditBookModal({ book, onClose }) {
           <button
             className="add-btn"
             onClick={() => saveMutation.mutate()}
-            disabled={saving || incomplete || badCover || needsName}
+            disabled={saving || incomplete || badCover || badYear || needsName}
           >
             {saving ? "Сохраняю…" : "Сохранить"}
           </button>

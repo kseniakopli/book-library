@@ -12,6 +12,11 @@ MESSAGES = {
                           "en": "Rating must be between 1 and 10"},
     "rating_needs_read": {"ru": "Оценку можно ставить только книге со статусом read",
                           "en": "Rating is only allowed for books with status 'read'"},
+    # Задача 121: год правится руками, значит и опечатка приедет руками.
+    # Верхняя граница — следующий год: книга может выйти в конце декабря
+    # с выходными данными будущего года, это нормально.
+    "bad_year":          {"ru": "Год должен быть от 1 до следующего года",
+                          "en": "Year must be between 1 and next year"},
     "import_too_large":     {"ru": "Файл слишком большой (лимит 2 МБ)",
                              "en": "File is too large (2 MB limit)"},
     "import_bad_encoding":  {"ru": "Файл должен быть в кодировке UTF-8",

@@ -172,10 +172,23 @@ export const handlers = [
           name_original: null,
           bio: db.authorBio,
           shelf: [
-            { id: 1, title: "Волшебная гора", status: "read", rating: 9, cover_url: null },
+            {
+              id: 1,
+              title: "Волшебная гора",
+              status: "read",
+              rating: 9,
+              cover_url: null,
+              published_year: 1924,
+            },
           ],
           catalog: [
-            { id: 42, title: "Будденброки", cover_url: null, series_index: null },
+            {
+              id: 42,
+              title: "Будденброки",
+              cover_url: null,
+              series_index: null,
+              published_year: 1901,
+            },
           ],
         })
       : notFound(),

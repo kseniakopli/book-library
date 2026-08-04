@@ -460,6 +460,17 @@
             ],
             "title": "Isbn"
           },
+          "published_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Year"
+          },
           "rating": {
             "anyOf": [
               {

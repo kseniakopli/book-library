@@ -76,6 +76,9 @@ def read_author(
                 "cover_url": book.cover_url,
                 "series_id": book.series_id,
                 "series_index": book.series_index,
+                # задача 121: год показывается у обеих стопок — иначе
+                # половина списка выглядит как книги без года
+                "published_year": book.published_year,
             }
             for book in found["catalog"]
         ],

@@ -35,6 +35,17 @@ test("книги автора разложены на полку и катало
   expect(screen.getByText("Будденброки")).toBeInTheDocument();
 });
 
+test("у книг автора показан год — в обеих стопках", async () => {
+  // Задача 121: год есть и у книг с полки, и у каталожных. Вторые приходят
+  // коротким словарём из роутера, и год туда пришлось добавлять отдельно —
+  // без этого половина списка выглядела бы как книги без года.
+  renderApp("/authors/7");
+
+  await screen.findByRole("heading", { name: "На полке" });
+  expect(screen.getByText("1924")).toBeInTheDocument();   // с полки
+  expect(screen.getByText("1901")).toBeInTheDocument();   // из каталога
+});
+
 test("несуществующий автор — понятное сообщение, не пустая страница", async () => {
   renderApp("/authors/999");
 

@@ -111,6 +111,47 @@ def test_edit_empty_strings_clear_optional_fields(client):
     assert body["description"] is None
 
 
+def test_published_year_edited_and_cleared(client):
+    """Задача 121: год правится руками, и `null` его СТИРАЕТ.
+
+    Google Books отдаёт год издания найденного экземпляра, а не написания —
+    у классики это расходится, поэтому неверное значение надо уметь убрать,
+    а не только заменить. Механика та же, что у `read_at` (з.115):
+    отсутствие поля — «не менять», явный `null` — «очистить».
+    """
+    r = client.patch("/api/v1/books/1", json={"published_year": 1924})
+    assert r.status_code == 200
+    assert r.json()["published_year"] == 1924
+
+    # другое поле само по себе год не трогает
+    r = client.patch("/api/v1/books/1", json={"description": "Другое описание"})
+    assert r.json()["published_year"] == 1924
+
+    r = client.patch("/api/v1/books/1", json={"published_year": None})
+    assert r.status_code == 200
+    assert r.json()["published_year"] is None
+
+
+def test_published_year_out_of_range_rejected(client):
+    """Год приезжает руками, значит руками приедет и опечатка.
+
+    ⚠ Верхняя граница — СЛЕДУЮЩИЙ год, а не текущий: книга, вышедшая
+    в конце декабря, несёт выходные данные будущего года, и это норма.
+    """
+    from datetime import datetime
+
+    next_year = datetime.now().year + 1
+    assert client.patch(
+        "/api/v1/books/1", json={"published_year": next_year}
+    ).status_code == 200
+    assert client.patch(
+        "/api/v1/books/1", json={"published_year": next_year + 1}
+    ).status_code == 400
+    assert client.patch(
+        "/api/v1/books/1", json={"published_year": 0}
+    ).status_code == 400
+
+
 def test_read_at_set_and_cleared_with_status(client):
     """Задача 1: ПЕРЕШЁЛ в read без даты — ставится «сейчас»; ушёл из read —
     чистится. Задача 98 сузила первое правило до момента перехода: книга,

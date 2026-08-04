@@ -11,7 +11,7 @@
 // человека. Компонент один, а строки получаются разные.
 import { Link } from "react-router-dom";
 
-function BookRow({ book, index, subtitle, note, muted = false, onRemove }) {
+function BookRow({ book, index, subtitle, note, year, muted = false, onRemove }) {
   return (
     <li className={"entity-row" + (muted ? " entity-row-muted" : "")}>
       {index !== undefined && (
@@ -19,9 +19,15 @@ function BookRow({ book, index, subtitle, note, muted = false, onRemove }) {
       )}
 
       <span className="entity-row-body">
-        <Link className="entity-row-title" to={`/books/${book.id}`}>
-          {book.title}
-        </Link>
+        <span className="entity-row-line">
+          <Link className="entity-row-title" to={`/books/${book.id}`}>
+            {book.title}
+          </Link>
+          {/* Задача 121: год рядом с названием, но ВНЕ ссылки — кликать
+              по нему незачем, а внутри он удлинял бы цель нажатия
+              и читался бы как часть заголовка книги. */}
+          {year != null && <span className="entity-row-year">{year}</span>}
+        </span>
         {subtitle && <span className="entity-row-sub">{subtitle}</span>}
       </span>
 

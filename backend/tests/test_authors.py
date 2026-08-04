@@ -254,6 +254,28 @@ def test_author_page_splits_shelf_and_catalog(client):
     assert [b["title"] for b in body["catalog"]] == ["Дублинский отдел убийств"]
 
 
+def test_author_page_catalog_books_carry_year(client):
+    """Задача 121: год есть у ОБЕИХ стопок.
+
+    Книги с полки собираются `BookRead` и год несут сами, а каталожные
+    отдаются коротким словарём — там поле легко забыть, и тогда половина
+    списка на странице выглядит как книги без года. Это ровно тот случай,
+    который тест и стережёт: контракты у двух стопок разные.
+    """
+    author_id = _author_with_books(client)
+    with Session(database.engine) as session:
+        book = session.exec(
+            select(Book).where(Book.title == "Дублинский отдел убийств")
+        ).one()
+        book.published_year = 2007
+        session.add(book)
+        session.commit()
+
+    body = client.get(f"/api/v1/authors/{author_id}").json()
+
+    assert body["catalog"][0]["published_year"] == 2007
+
+
 # --- список авторов (задача 111) ---
 
 def test_author_list_counts_whole_catalog(client):

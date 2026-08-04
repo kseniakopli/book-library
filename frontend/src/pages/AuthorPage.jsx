@@ -149,7 +149,12 @@ function AuthorPage() {
               </div>
               <ul className="entity-rows">
                 {shelf.map((book) => (
-                  <BookRow key={book.id} book={book} note={shelfNote(book)} />
+                  <BookRow
+                    key={book.id}
+                    book={book}
+                    year={book.published_year}
+                    note={shelfNote(book)}
+                  />
                 ))}
               </ul>
             </section>
@@ -169,6 +174,7 @@ function AuthorPage() {
                   <BookRow
                     key={book.id}
                     book={book}
+                    year={book.published_year}
                     // приглушены так же, как «что дальше» в цикле: книги
                     // не на полке, но ссылка полноценная
                     muted

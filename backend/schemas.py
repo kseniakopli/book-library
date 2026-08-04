@@ -46,6 +46,13 @@ class BookUpdate(BaseModel):
     isbn: Optional[str] = None
     cover_url: Optional[str] = None
     description: Optional[str] = None
+    # Задача 121: год правится руками. Google Books отдаёт год ИЗДАНИЯ
+    # найденного экземпляра, а не написания — у классики это расходится,
+    # и поправить надо уметь.
+    # ⚠ Как и у `read_at` (з.115), `null` здесь значит «очистить», а не
+    # «не менять»: неверный год без права стереть его хуже пустого поля.
+    # Отличает одно от другого `model_fields_set` в `apply_book_fields`.
+    published_year: Optional[int] = None
     # Задача 30: показывать книгу в публичной витрине (личная отметка полки)
     featured: Optional[bool] = None
 

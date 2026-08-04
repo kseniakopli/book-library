@@ -19,6 +19,23 @@ from models import Book, UserBook
 from services.authors import link_book
 
 
+# Задача 121: границы года издания при ручной правке.
+# Нижняя — 1, а не «1450, до Гутенберга книг не печатали»: в библиотеке
+# могут оказаться античные тексты, и спорить с читателем о том, когда
+# написана «Илиада», поле ввода не должно.
+MIN_PUBLISHED_YEAR = 1
+
+
+def _max_published_year() -> int:
+    """Верхняя граница — следующий год.
+
+    ⚠ Считается на каждый вызов, а не константой при импорте: процесс на проде
+    живёт неделями, и зафиксированный при старте год 31 декабря стал бы
+    прошлогодним (та же болезнь, что у зашитых в код чисел — см. `Уроки.md`).
+    """
+    return datetime.now().year + 1
+
+
 def norm_isbn(value: str | None) -> str | None:
     """Первый ISBN из списка, без дефисов и пробелов (как в импорте CSV)."""
     if not value:
@@ -111,7 +128,12 @@ def apply_book_fields(
     """Правка ОБЩИХ полей книги (задача 3). Меняет книгу у всех, кто держит её
     на полке, поэтому только admin. Возвращает список изменённых полей."""
     fields = (data.title, data.author, data.isbn, data.cover_url, data.description)
-    if all(f is None for f in fields):
+    # ⚠ Год проверяется отдельно от остальных: у него `null` — это «очистить»,
+    # а не «нечего делать» (задача 121, та же механика, что у `read_at`
+    # в з.115). Попади он в кортеж выше — запрос «сотри неверный год»
+    # не дошёл бы до правки вовсе: все поля None, ранний выход.
+    year_sent = "published_year" in data.model_fields_set
+    if all(f is None for f in fields) and not year_sent:
         return []
 
     require_admin(session, lang, user_id)
@@ -136,6 +158,13 @@ def apply_book_fields(
     if data.description is not None:
         book.description = data.description.strip() or None
         edited.append("description")
+    if year_sent:
+        if data.published_year is not None and not (
+            MIN_PUBLISHED_YEAR <= data.published_year <= _max_published_year()
+        ):
+            raise HTTPException(status_code=400, detail=msg("bad_year", lang))
+        book.published_year = data.published_year
+        edited.append("published_year")
 
     session.add(book)
     # Задача 97: поправили строку автора — перепривязываем целиком.
