@@ -2,7 +2,7 @@
 # Доменная логика полки — в services/shelf.py, атмосферы — в services/atmosphere.py,
 # склейка ответа — BookRead.from_pair (ревью 19.07).
 # Сессия приходит зависимостью get_session (задача 77).
-from fastapi import APIRouter, BackgroundTasks, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy import func, nullslast
 from sqlalchemy.orm import defer
 from sqlmodel import Session, col, select
@@ -27,6 +27,7 @@ from deps import (
 )
 from events import log_event
 from google_books import fetch_book_info
+from i18n import msg
 from models import Book, UserBook
 from schemas import AuthorBrief, BookCreate, BookRead, BookUpdate, build_book_read
 from services.atmosphere import generate_design_in_background, read_design_summary
@@ -204,22 +205,42 @@ def update_book(
     user_id: int = Depends(current_user_id),
 ):
     book = get_book_or_404(session, book_id, lang)
-    user_book = get_userbook_or_404(session, book_id, lang, user_id)
+    # ⚠ Правка 04.08: книга — ОБЩАЯ сущность, и её поля (название, автор,
+    # описание, обложка) правит админ независимо от того, лежит ли она у него
+    # на полке. Раньше здесь стоял `get_userbook_or_404`, и правка книги
+    # из каталога падала с «Книга не найдена» — тот же корень, что у страницы
+    # книги (03.08) и у ссылки в цикле: ограничение пережило свою причину.
+    user_book = session.exec(
+        select(UserBook).where(
+            UserBook.user_id == user_id, UserBook.book_id == book_id
+        )
+    ).first()
+
+    # Личные поля живут в записи полки. Её нет — говорим прямо, а не молчим:
+    # интерфейс показал бы «сохранено», а в базе ничего не изменилось (з.98).
+    personal = (data.status, data.rating, data.featured)
+    wants_personal = any(f is not None for f in personal) or (
+        "read_at" in data.model_fields_set
+    )
+    if user_book is None and wants_personal:
+        raise HTTPException(status_code=400, detail=msg("not_on_shelf", lang))
 
     edited = apply_book_fields(session, book, data, lang, user_id)  # общие поля — admin
-    apply_shelf_fields(user_book, data, lang)               # личные поля полки
+    if user_book is not None:
+        apply_shelf_fields(user_book, data, lang)           # личные поля полки
+        session.add(user_book)
 
-    session.add(user_book)
     session.commit()
-    session.refresh(user_book)
+    if user_book is not None:
+        session.refresh(user_book)
     session.refresh(book)
     # full=True: правка открыта со страницы книги, и ответ должен вернуть
     # ровно тот же набор полей, что она показывала до правки
     result = build_book_read(session, book, user_book, full=True)
 
-    if data.status is not None:
+    if user_book is not None and data.status is not None:
         log_event(EVENT_STATUS_CHANGED, book_id, detail={"status": user_book.status})
-    if data.rating is not None and user_book.rating is not None:
+    if user_book is not None and data.rating is not None and user_book.rating is not None:
         log_event(EVENT_RATED, book_id, detail={"rating": user_book.rating})
     if edited:
         log_event(EVENT_BOOK_EDITED, book_id, detail={"fields": edited})

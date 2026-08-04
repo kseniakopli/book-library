@@ -201,6 +201,35 @@ def test_book_opens_even_if_not_on_own_shelf(client):
     assert body["user_id"] is None
 
 
+def test_catalog_book_fields_can_be_edited(client):
+    """Правка 04.08 (найдено Ксенией): книга — ОБЩАЯ сущность, и её поля
+    правит админ независимо от того, лежит ли она у него на полке. Раньше
+    правка книги из каталога падала с «Книга не найдена»."""
+    with Session(database.engine) as session:
+        session.add(Book(id=310, title="Каталожная", author="Автор"))
+        session.commit()
+
+    r = client.patch("/api/v1/books/310", json={"description": "Новое описание"})
+
+    assert r.status_code == 200
+    assert r.json()["description"] == "Новое описание"
+    assert r.json()["on_shelf"] is False
+
+
+def test_personal_fields_rejected_for_catalog_book(client):
+    """А статус, оценку и дату поставить нельзя: они живут в записи полки,
+    которой нет. Молчать нельзя — интерфейс показал бы «сохранено»,
+    а в базе ничего не изменилось (тот же класс, что баг з.98)."""
+    with Session(database.engine) as session:
+        session.add(Book(id=311, title="Каталожная 2", author="Автор"))
+        session.commit()
+
+    r = client.patch("/api/v1/books/311", json={"status": "read"})
+
+    assert r.status_code == 400
+    assert "полке" in r.json()["detail"]
+
+
 def test_own_book_still_carries_shelf_fields(client):
     """Контрольный образец: у своей книги личные поля на месте. Без этой
     половины тест был бы зелёным и в случае, когда полка отвалилась совсем."""

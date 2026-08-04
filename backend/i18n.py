@@ -38,6 +38,14 @@ MESSAGES = {
                              "en": "Title and author cannot be empty"},
     "already_on_shelf":     {"ru": "Эта книга уже в вашей библиотеке",
                              "en": "This book is already in your library"},
+    # Правка 04.08: книгу из общего каталога может править админ, но статус,
+    # оценку и дату ей поставить нельзя — они живут в записи полки, которой
+    # у этого читателя нет. Молча игнорировать такие поля нельзя: интерфейс
+    # показал бы «сохранено», а в базе ничего не изменилось (урок з.98).
+    "not_on_shelf":         {"ru": "Этой книги нет на вашей полке — "
+                                   "статус, оценку и дату проставить нельзя",
+                             "en": "This book is not on your shelf — status, "
+                                   "rating and date cannot be set"},
     "admin_only":           {"ru": "Правка книги и перегенерация доступны только администратору",
                              "en": "Editing a book and regeneration are available to admins only"},
     "track_not_found":      {"ru": "Трек не найден в подборке",
