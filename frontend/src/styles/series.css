@@ -234,101 +234,14 @@
   margin-top: 6px;
 }
 
+/* номер тома в форме добавления — есть только у цикла */
 .series-index-input {
   flex: 0 0 70px;
 }
-.series-add-hint {
-  font-size: 13px;
-  margin: 8px 0 0;
-}
 
-/* поиск книги для цикла: каталог → Google → вручную */
-.series-search {
-  margin-bottom: 16px;
-}
-.series-search-row {
-  display: flex;
-  gap: 8px;
-}
-.series-search-row input:first-child {
-  flex: 1;
-  min-width: 0;
-}
-.series-search-results {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-.series-search-item {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  text-align: left;
-  padding: 10px 12px;
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-}
-.series-search-results li:last-child .series-search-item {
-  border-bottom: none;
-}
-.series-search-item:hover {
-  background: var(--surface);
-}
-.series-search-cover {
-  width: 36px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--surface);
-  border-radius: 4px;
-  overflow: hidden;
-}
-.series-search-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.series-search-cover-empty {
-  color: var(--muted);
-  font-size: 12px;
-}
-.series-search-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.series-search-title {
-  font-size: 15px;
-}
-.series-search-author {
-  color: var(--muted);
-  font-size: 13px;
-}
-.series-search-source {
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.series-search-manual {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-  flex-wrap: wrap;
-}
-.series-search-manual input {
-  flex: 1 1 160px;
-  min-width: 0;
-}
+/* ⚠ Правила поиска книги (`series-search*`) уехали в `styles/search.css`
+   под именами `book-search*` (задача 123): тот же экран понадобился
+   на странице автора, и «series» в имени стало враньём. */
 
 /* ⚠ Список томов (`.series-tree*`) уехал в `entity.css` как `.entity-row*`
    (задача 119): те же строки рисуются теперь и на странице автора.

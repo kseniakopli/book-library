@@ -10,6 +10,10 @@
 // а не плитками: в колонке 4fr обложки мельчают, а строка вмещает статус.
 // Плитка `BookTile` осталась у жанра — он одноколоночный.
 //
+// Задача 123: админ может завести книгу автора прямо здесь. Она попадает
+// в КАТАЛОГ, а не на полку — страница про библиографию, а не про то, что
+// читатель у себя держит.
+//
 // Страница ЗА ВХОДОМ (RequireAuth в App.jsx): она показывает всю полку по
 // автору, включая книги вне витрины. Публичной она стала бы обходным путём
 // к личной библиотеке мимо витрины, где показано только отобранное.
@@ -20,6 +24,7 @@ import * as api from "../api";
 import { keys } from "../queryKeys";
 import { useAuth } from "../hooks/useAuth";
 import BookRow from "../components/BookRow";
+import BookSearchPicker from "../components/BookSearchPicker";
 import { shelfNote } from "../lib/bookLabels";
 import "../styles/entity.css";
 
@@ -36,8 +41,11 @@ function Bio({ authorId, bio }) {
     mutationFn: () => api.updateAuthor(authorId, { bio: draft }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: keys.author(authorId) });
-      // список показывает, у кого биографии нет (задача 113) — он тоже устарел
-      queryClient.invalidateQueries({ queryKey: keys.authors });
+      // Список показывает, у кого биографии нет (задача 113) — он тоже устарел.
+      // `exact: true` — ["authors"] это префикс ключа страницы автора,
+      // без него строка выше дублируется, а вместе с `setQueryData`
+      // такая пара молча затирает свежие данные (см. добавление книги ниже).
+      queryClient.invalidateQueries({ queryKey: keys.authors, exact: true });
       setEditing(false);
     },
   });
@@ -104,16 +112,49 @@ function Bio({ authorId, bio }) {
 
 function AuthorPage() {
   const { id } = useParams();
+  const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+
   const { data, isLoading, isError } = useQuery({
     queryKey: keys.author(id),
     queryFn: () => api.getAuthor(id),
     retry: false,
   });
 
+  // Задача 123: книга заводится в КАТАЛОГЕ, на полку не кладётся.
+  // Ответ — свежая карточка автора, поэтому кладём её в кэш сразу
+  // и не делаем второй запрос (та же механика, что у цикла).
+  const addBook = useMutation({
+    mutationFn: (picked) =>
+      api.addBookToAuthor({
+        id,
+        title: picked.title,
+        // у книги из Google Books берём обложку и id для дозагрузки;
+        // у введённой руками их просто нет
+        cover_url: picked.manual ? null : (picked.cover_url ?? null),
+        external_id: picked.manual ? null : (picked.external_id ?? null),
+      }),
+    onSuccess: (fresh) => {
+      queryClient.setQueryData(keys.author(id), fresh);
+      // Справочник авторов считает книги — его счётчик устарел.
+      // ⚠ `exact: true` обязателен: `keys.authors` = ["authors"] — это ПРЕФИКС
+      // ключа страницы ["authors", id], и без него инвалидация пометила бы
+      // устаревшей карточку, которую строкой выше положили в кэш. Она бы
+      // тут же перезапросилась, затерев свежий ответ. На живом бэкенде это
+      // маскируется (повтор вернёт то же самое), а поймал тест.
+      queryClient.invalidateQueries({ queryKey: keys.authors, exact: true });
+      setAdding(false);
+    },
+  });
+
   if (isLoading) return <p className="muted">Загрузка…</p>;
   if (isError) return <p className="error">Автор не найден.</p>;
 
   const { shelf = [], catalog = [] } = data;
+  // Секция каталога у админа видна всегда: в ней живёт кнопка добавления,
+  // а у автора без каталожных книг её иначе просто негде было бы нажать.
+  const showCatalog = catalog.length > 0 || isAdmin;
 
   return (
     <div className="entity-page">
@@ -160,15 +201,50 @@ function AuthorPage() {
             </section>
           )}
 
-          {catalog.length > 0 && (
+          {showCatalog && (
             <section>
               <div className="entity-section-head">
                 <h2 className="entity-section-title">Есть в каталоге</h2>
+                {isAdmin && (
+                  <button
+                    className="btn-ghost"
+                    onClick={() => setAdding((v) => !v)}
+                  >
+                    {adding ? "Отмена" : "+ Добавить книгу"}
+                  </button>
+                )}
               </div>
               <p className="muted entity-section-lead">
                 Книги этого автора, которых нет у вас на полке — обычно это
                 тома циклов, добавленные как «что дальше».
               </p>
+
+              {adding && (
+                <BookSearchPicker
+                  onPick={(picked) => addBook.mutate(picked)}
+                  busy={addBook.isPending}
+                  // книга из базы уже привязана к своему автору: «привязать
+                  // её сюда» означало бы сменить ей автора, а это делается
+                  // правкой книги, где видно, что меняешь (з.123)
+                  allowLocal={false}
+                  localNote="уже в библиотеке"
+                  // автора не спрашиваем: строку бэкенд берёт из этой сущности
+                  askAuthor={false}
+                  hint="Книга попадёт в каталог, а не на вашу полку — как тома циклов, добавленные «на будущее». Автор проставится этот же."
+                />
+              )}
+              {addBook.isError && (
+                <p className="error">
+                  Не удалось добавить: {addBook.error.message}
+                </p>
+              )}
+
+              {catalog.length === 0 && !adding && (
+                <p className="muted entity-empty">
+                  Других книг этого автора в библиотеке пока нет.
+                </p>
+              )}
+
               <ul className="entity-rows">
                 {catalog.map((book) => (
                   <BookRow

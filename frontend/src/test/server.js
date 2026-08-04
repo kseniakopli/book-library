@@ -199,6 +199,43 @@ export const handlers = [
     return HttpResponse.json({ id: 7, bio: db.authorBio });
   }),
 
+  // Задача 123: книга заводится в КАТАЛОГЕ автора, не на полке.
+  // Отвечаем свежей карточкой — фронт кладёт её в кэш вместо второго запроса.
+  http.post("/api/v1/authors/:id/books", async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json(
+      {
+        id: 7,
+        name: "Томас Манн",
+        name_ru: "Томас Манн",
+        name_original: null,
+        bio: db.authorBio,
+        shelf: [
+          {
+            id: 1,
+            title: "Волшебная гора",
+            status: "read",
+            rating: 9,
+            cover_url: null,
+            published_year: 1924,
+          },
+        ],
+        catalog: [
+          {
+            id: 42,
+            title: "Будденброки",
+            cover_url: null,
+            series_index: null,
+            published_year: 1901,
+          },
+          // строка автора приходит из сущности, а не из запроса
+          { id: 77, title: body.title, author: "Томас Манн", cover_url: null },
+        ],
+      },
+      { status: 201 },
+    );
+  }),
+
   http.post("/api/v1/books", async ({ request }) => {
     const body = await request.json();
     const book = {

@@ -1,6 +1,42 @@
 {
   "components": {
     "schemas": {
+      "AuthorBookIn": {
+        "description": "Новая книга автора (задача 123).\n\n⚠ Поля `author` здесь нет намеренно: строку берём из самой сущности\nавтора, на чьей странице стоим. Присланное имя означало бы, что книгу\nможно завести «у Селютиной, но за авторством Иванова», а привязка всё\nравно пошла бы по строке — и книга уехала бы к другому автору.",
+        "properties": {
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Url"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "AuthorBookIn",
+        "type": "object"
+      },
       "AuthorBrief": {
         "description": "Автор в ответе книги (задача 97): ровно столько, сколько нужно ссылке.\n`name` уже разрешён — `name_ru`, а если русского нет, оригинальное написание.",
         "properties": {
@@ -1272,6 +1308,67 @@
           }
         },
         "summary": "Update Author",
+        "tags": [
+          "authors"
+        ]
+      }
+    },
+    "/api/v1/authors/{author_id}/books": {
+      "post": {
+        "description": "Завести книгу автора в КАТАЛОГЕ, минуя полку (задача 123).\n\nКнига попадает в стопку «Есть в каталоге» — то же состояние, в котором\nживут тома циклов, добавленные как «что дальше». `UserBook` не создаётся\nсознательно: страница автора про библиографию, а не про то, что читатель\nзавёл у себя. Захочет — положит на полку кнопкой со страницы книги.\n\nКаталог общий, значит правит его admin — то же основание, что у состава\nцикла (з.90а) и у полей книги.\n\n⚠ **Строка автора берётся из сущности, а не из запроса.** Привязка идёт\nпо `book.author` через `link_book`, и написание из Google Books\n(«Alena Selyutina» рядом с «Алёной Селютиной») завело бы ВТОРОГО автора.\nПлата — потерянное написание источника; связь дороже, а поправить строку\nможно правкой книги.",
+        "operationId": "add_book_to_author_api_v1_authors__author_id__books_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_id",
+            "required": true,
+            "schema": {
+              "title": "Author Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "default": "ru",
+              "title": "Lang",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorBookIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Book To Author",
         "tags": [
           "authors"
         ]

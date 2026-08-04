@@ -1,0 +1,107 @@
+/* ===== Поиск книги для привязки к сущности (`BookSearchPicker`) =====
+   Общий экран для цикла (з.89) и автора (з.123): каталог → Google → вручную.
+
+   ⚠ До задачи 123 эти правила жили в `series.css` под именами `series-search*`.
+   Имя врало уже на второй странице, поэтому они переехали сюда вместе
+   с компонентом. Номер тома (`.series-index-input`) остался в `series.css`:
+   он есть только у цикла. */
+
+.book-search {
+  margin-bottom: 16px;
+}
+.book-search-row {
+  display: flex;
+  gap: 8px;
+}
+.book-search-row input:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.book-search-hint {
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.book-search-results {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.book-search-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  text-align: left;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.book-search-results li:last-child .book-search-item {
+  border-bottom: none;
+}
+.book-search-item:hover:not(:disabled) {
+  background: var(--surface);
+}
+/* Книга, которую здесь выбрать нельзя (з.123: она уже в базе и уже привязана
+   к своему автору). Гасим строку целиком — в отличие от списка томов цикла,
+   тут она действительно недоступна, а не «просто не на полке». */
+.book-search-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.book-search-cover {
+  width: 36px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.book-search-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.book-search-cover-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+.book-search-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.book-search-title {
+  font-size: 15px;
+}
+.book-search-author {
+  color: var(--muted);
+  font-size: 13px;
+}
+.book-search-source {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.book-search-manual {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.book-search-manual input {
+  flex: 1 1 160px;
+  min-width: 0;
+}

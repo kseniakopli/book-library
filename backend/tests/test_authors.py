@@ -276,6 +276,88 @@ def test_author_page_catalog_books_carry_year(client):
     assert body["catalog"][0]["published_year"] == 2007
 
 
+# --- добавление книги автору (задача 123) ---
+
+def test_book_added_to_author_lands_in_catalog_not_shelf(client):
+    """Книга заводится в КАТАЛОГЕ и на полку не попадает.
+
+    Это и есть смысл задачи: страница автора показывает библиографию,
+    а не то, что читатель у себя держит. `UserBook` не создаётся, поэтому
+    книга приходит во вторую стопку.
+    """
+    author_id = _author_with_books(client)
+
+    r = client.post(
+        f"/api/v1/authors/{author_id}/books", json={"title": "Ведьмин вяз"}
+    )
+    assert r.status_code == 201
+
+    body = r.json()
+    assert "Ведьмин вяз" in [b["title"] for b in body["catalog"]]
+    assert "Ведьмин вяз" not in [b["title"] for b in body["shelf"]]
+
+
+def test_added_book_gets_author_name_from_the_page(client):
+    """⚠ Строка автора берётся из СУЩНОСТИ, а не из запроса.
+
+    Привязка идёт по `book.author` через `link_book`, и написание из Google
+    Books («Tana French» рядом с «Таной Френч») завело бы второго автора.
+    Поэтому поля `author` во входной схеме нет вовсе, а присланное имя
+    игнорируется — проверяем именно это.
+    """
+    author_id = _author_with_books(client)
+
+    client.post(
+        f"/api/v1/authors/{author_id}/books",
+        json={"title": "Ведьмин вяз", "author": "Tana French"},
+    )
+
+    with Session(database.engine) as session:
+        book = session.exec(select(Book).where(Book.title == "Ведьмин вяз")).one()
+        assert book.author == "Тана Френч"
+        # и связь ведёт к тому же автору, а не к новому
+        links = session.exec(
+            select(BookAuthor).where(BookAuthor.book_id == book.id)
+        ).all()
+        assert [link.author_id for link in links] == [author_id]
+
+
+def test_added_book_without_external_id_is_ready(client):
+    """Без `external_id` тянуть нечего — книга сразу «готова».
+
+    Иначе она навсегда осталась бы в состоянии «подгружаю обложку»:
+    фоновой задачи нет, а статус ждёт её вечно (та же болезнь, что
+    в з.104/105 — пустота должна быть явной).
+    """
+    author_id = _author_with_books(client)
+
+    client.post(f"/api/v1/authors/{author_id}/books", json={"title": "Ведьмин вяз"})
+
+    with Session(database.engine) as session:
+        book = session.exec(select(Book).where(Book.title == "Ведьмин вяз")).one()
+        assert book.enrich_status == "ready"
+
+
+def test_empty_title_rejected(client):
+    author_id = _author_with_books(client)
+    r = client.post(f"/api/v1/authors/{author_id}/books", json={"title": "   "})
+    assert r.status_code == 400
+
+
+def test_unknown_author_cannot_get_books(client):
+    assert client.post("/api/v1/authors/9999/books", json={"title": "X"}).status_code == 404
+
+
+def test_adding_book_to_author_requires_admin(client, demote):
+    """Каталог общий: заведённую книгу увидят все читатели — значит admin,
+    то же основание, что у состава цикла (з.90а) и биографии."""
+    author_id = _author_with_books(client)   # книги заводит ещё админ
+    demote()
+
+    r = client.post(f"/api/v1/authors/{author_id}/books", json={"title": "Ведьмин вяз"})
+    assert r.status_code == 403
+
+
 # --- список авторов (задача 111) ---
 
 def test_author_list_counts_whole_catalog(client):

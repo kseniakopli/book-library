@@ -61,6 +61,11 @@ export const getAuthor = (id) => request(`/authors/${id}`);
 export const getAuthors = () => request("/authors");
 export const updateAuthor = (id, body) =>
   request(`/authors/${id}`, json("PATCH", body));
+// Задача 123: завести книгу автора В КАТАЛОГЕ, минуя полку.
+// ⚠ Автора не передаём: строку бэкенд берёт из самой сущности, иначе
+// написание из Google Books завело бы второго автора рядом с этим.
+export const addBookToAuthor = ({ id, ...body }) =>
+  request(`/authors/${id}/books`, json("POST", body));
 
 // Задача 112: жанры. Справочник считается по каталогу, как авторы.
 // PUT с полным набором: интерфейс показывает все жанры книги разом, значит
