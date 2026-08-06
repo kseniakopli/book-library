@@ -780,6 +780,34 @@
         "title": "SeriesUpdate",
         "type": "object"
       },
+      "SettingsIn": {
+        "description": "Настройки рекомендаций (задача 124).\n\nПришли на смену пожеланиям словами (з.114): свободный текст было\nнепонятно, как исполнять, и проверить его исполнение нечем.\n\n⚠ Жанры приходят списком `slug`, а не id: жанр без книг удаляется\n(`services/genres._drop_orphans`), и сохранённый id протух бы молча.\nДлина ограничена — список уезжает в промпт.",
+        "properties": {
+          "genres_exclude": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 15,
+            "title": "Genres Exclude",
+            "type": "array"
+          },
+          "genres_include": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 15,
+            "title": "Genres Include",
+            "type": "array"
+          },
+          "skip_known_authors": {
+            "default": false,
+            "title": "Skip Known Authors",
+            "type": "boolean"
+          }
+        },
+        "title": "SettingsIn",
+        "type": "object"
+      },
       "TrackRemoveIn": {
         "description": "Какой трек убрать: источник (вкладка) + канонические название и исполнитель.",
         "properties": {
@@ -842,25 +870,6 @@
           "type"
         ],
         "title": "ValidationError",
-        "type": "object"
-      },
-      "WishesIn": {
-        "description": "Пожелания словами (задача 114).\n\nДлина ограничена дважды — схемой и `services.wishes.clean`. Это не\nперестраховка: схема отбивает явно огромный запрос, а `clean` приводит\nк виду, пригодному для промпта (управляющие символы, число строк).",
-        "properties": {
-          "wishes": {
-            "anyOf": [
-              {
-                "maxLength": 1000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Wishes"
-          }
-        },
-        "title": "WishesIn",
         "type": "object"
       }
     }
@@ -2495,7 +2504,7 @@
     },
     "/api/v1/recommendations": {
       "get": {
-        "description": "Сохранённые рекомендации (пусто — фронт зовёт подобрать).\nВместе с ними — пожелания (з.114): страница показывает их рядом с кнопкой,\nи отдельный запрос ради одной строки был бы лишним.",
+        "description": "Сохранённые рекомендации (пусто — фронт зовёт подобрать).\n\nВместе с ними — настройки и справочник жанров (з.124): страница\nпоказывает их рядом с кнопкой, и три запроса ради одного экрана\nбыли бы лишними.",
         "operationId": "list_recommendations_api_v1_recommendations_get",
         "responses": {
           "200": {
@@ -2553,15 +2562,15 @@
         ]
       }
     },
-    "/api/v1/recommendations/wishes": {
+    "/api/v1/recommendations/settings": {
       "put": {
-        "description": "Сохранить пожелания словами (задача 114).\n\nЛИЧНОЕ действие: пожелания влияют только на свои советы, поэтому без\nadmin-гейта. Текст чистится перед сохранением, а не перед отправкой\nв промпт: в базе должно лежать ровно то, что потом уедет модели, —\nиначе интерфейс показывает одно, а работает другое (урок з.98).",
-        "operationId": "save_wishes_api_v1_recommendations_wishes_put",
+        "description": "Сохранить настройки подбора (задача 124).\n\nЛИЧНОЕ действие: настройки влияют только на свои советы, поэтому без\nadmin-гейта — то же основание, что было у пожеланий словами.\n\n⚠ Сохраняем только жанры, которые ЕСТЬ в справочнике: список приходит\nс клиента, и принимать на веру произвольные строки, которые потом уедут\nв промпт, незачем. Неизвестное молча отбрасывается — это не ошибка\nпользователя, а разошедшееся состояние (жанр могли удалить, пока\nстраница была открыта).",
+        "operationId": "save_settings_api_v1_recommendations_settings_put",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WishesIn"
+                "$ref": "#/components/schemas/SettingsIn"
               }
             }
           },
@@ -2587,7 +2596,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Save Wishes",
+        "summary": "Save Settings",
         "tags": [
           "recommendations"
         ]

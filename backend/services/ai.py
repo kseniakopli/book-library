@@ -187,6 +187,20 @@ async def safe_ask(coro, fallback_factory):
         return fallback_factory()
 
 
+# Необязательные аргументы промпта рекомендаций. Билдер приватный
+# (`prompt_config.py` у каждого свой), поэтому мы передаём только то, что он
+# объявил, — а если он объявлен через `**kwargs`, отдаём весь набор.
+# ⚠ Держать в согласии со словарём `optional` в `generate_recommendations`:
+# там стоит проверка, которая падает при расхождении.
+OPTIONAL_PROMPT_ARGS = frozenset({
+    "disliked",         # з.26 ч.4 — советы с 👎
+    "casual",           # з.124 — книги 5–6, «читалось для отдыха»
+    "skip_authors",     # з.124 — авторы, которые уже на полке
+    "genres_include",   # з.124 — какие жанры советовать
+    "genres_exclude",   # з.124 — какие не советовать
+})
+
+
 @lru_cache(maxsize=None)
 def _prompt_params(build_prompt) -> frozenset[str]:
     """Имена аргументов функции промпта (задача 114).
@@ -202,7 +216,7 @@ def _prompt_params(build_prompt) -> frozenset[str]:
         return frozenset()
     if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values()):
         # **kwargs проглотит что угодно — считаем, что принимает всё
-        return frozenset({"disliked", "wishes"})
+        return OPTIONAL_PROMPT_ARGS
     return frozenset(params)
 
 
@@ -316,14 +330,29 @@ async def generate_recommendations(
     count: int = 5,
     lang: str = "ru",
     disliked: list[str] | None = None,
-    wishes: str | None = None,
+    casual: list[str] | None = None,
+    skip_authors: list[str] | None = None,
+    genres_include: list[str] | None = None,
+    genres_exclude: list[str] | None = None,
 ) -> dict:
     """Этап 8: рекомендации новых книг по высоко оценённым — от ОБОИХ моделей
     (20.07), как в атмосфере: интереснее сравнивать, и вкусы у них разные.
-    `favorites` — «Название — Автор (оценка)», `exclude` — что уже в библиотеке
-    (модель просят не повторять; дедуп между источниками — в роутере).
-    `disliked` (з.26 ч.4) — отклонённые советы, `wishes` (з.114) — пожелания
-    словами.
+
+    `favorites` — «Название — Автор (оценка)» с оценкой 7–10, `exclude` —
+    что уже в библиотеке (модель просят не повторять; дедуп — в роутере),
+    `disliked` (з.26 ч.4) — отклонённые советы.
+
+    Задача 124 (06.08):
+    `casual` — книги с оценкой 5–6, ОТДЕЛЬНЫМ списком. Разделение
+    принципиально: это не «понравилось послабее», а другой род чтения —
+    одноразовое, для расслабления. Свалив их в `favorites`, мы бы сказали
+    модели, что оценка 5 значит «нравится».
+    `skip_authors` — авторы с полки, которых не советовать;
+    `genres_include` / `genres_exclude` — пожелания по жанрам.
+
+    ⚠ Пожелания словами (`wishes`, з.114) убраны: свободный текст заменён
+    настройками, которые понятно, как исполнять.
+
     Контракт как у генераторов атмосферы: {источник: RecommendationsResult}.
     Один провайдер упал — второй всё равно даст советы (safe_ask)."""
     # Промпты живут в ПРИВАТНОМ prompt_config.py, который у каждого свой,
@@ -336,10 +365,21 @@ async def generate_recommendations(
     # летят наружу, как и положено.
     extra = {}
     accepted = _prompt_params(build_recommendations_prompt)
-    if "disliked" in accepted:
-        extra["disliked"] = disliked or []
-    if "wishes" in accepted:
-        extra["wishes"] = wishes
+    optional = {
+        "disliked": disliked or [],
+        # задача 124: настройки вместо пожеланий словами
+        "casual": casual or [],
+        "skip_authors": skip_authors or [],
+        "genres_include": genres_include or [],
+        "genres_exclude": genres_exclude or [],
+    }
+    # ⚠ Имена здесь и в OPTIONAL_PROMPT_ARGS обязаны совпадать: второе
+    # используется, когда билдер объявлен через **kwargs. Разъедутся —
+    # такой билдер молча недополучит часть настроек.
+    assert set(optional) == set(OPTIONAL_PROMPT_ARGS), "список опций разошёлся"
+    for name, value in optional.items():
+        if name in accepted:
+            extra[name] = value
     raw_prompt = build_recommendations_prompt(favorites, exclude, count, lang, **extra)
     prompt = _with_style(raw_prompt)
     empty = lambda: RecommendationsResult(items=[])   # noqa: E731

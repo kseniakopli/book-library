@@ -68,36 +68,74 @@
   color: var(--muted);
 }
 
-/* ===== Пожелания для рекомендаций (задача 114) ===== */
-.wishes {
+/* ===== Настройки подбора рекомендаций (задача 124) =====
+   Заменили блок пожеланий словами (з.114): правила `.wishes*` удалены
+   вместе с полем — мёртвые стили оставлять не стоит, следующий читатель
+   потратит время, выясняя, где они применяются. */
+.rec-settings {
   margin: 24px 0 32px;
-  max-width: var(--reading-max);
 }
-.wishes-title {
+.rec-settings-title {
   font-family: var(--serif);
   font-size: 20px;
   font-weight: normal;
-  margin: 0 0 6px;
+  margin: 0 0 12px;
 }
-.wishes-input {
-  width: 100%;
-  margin-top: 10px;
-  font-family: inherit;
+
+/* Чекбокс с пояснением: подпись под строкой, а не в title —
+   всплывающую подсказку не видно с телефона */
+.rec-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: var(--reading-max);
+  cursor: pointer;
+}
+.rec-check input {
+  /* 18px — минимум, по которому попадают пальцем (аудит 28.07) */
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: none;
+}
+.rec-check-hint {
+  display: block;
+  margin-top: 2px;
+}
+
+/* Два списка рядом, пока помещаются: их сравнивают друг с другом */
+.rec-pickers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  margin-top: 20px;
+}
+.rec-picker-label {
+  font-weight: 600;
   font-size: 15px;
-  line-height: 1.6;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
-  resize: vertical;
 }
-.wishes-actions {
+.rec-picker-hint {
+  margin: 2px 0 0;
+}
+.rec-picker-list {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.rec-picker-list .pill:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rec-settings-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 20px;
 }
 
 /* ===== Полка «Рекомендации» (этап 8): карточка с причиной совета ===== */

@@ -20,23 +20,66 @@ test("до генерации страница зовёт подобрать р�
   ).toBeInTheDocument();
 });
 
-test("пожелания сохраняются и остаются на странице", async () => {
-  // задача 114: тот же механизм, что профиль вкуса по 👍/👎, но словами
+test("настройки подбора сохраняются и остаются на странице", async () => {
+  // Задача 124: пожелания СЛОВАМИ (з.114) заменены настройками —
+  // свободный текст было непонятно, как исполнять.
   renderApp("/recommendations");
 
-  const field = await screen.findByLabelText(
-    "Пожелания для рекомендаций", {}, SLOW,
-  );
-  // кнопка неактивна, пока текст не изменён — незачем слать пустое сохранение
-  expect(screen.getByRole("button", { name: "Сохранить пожелания" })).toBeDisabled();
+  // ⚠ Ждём СПИСКИ ЖАНРОВ, а не чекбокс: чекбокс рисуется сразу, ещё до
+  // ответа сервера, и клик по нему в этот момент затирался бы пришедшими
+  // настройками. Появление жанров означает, что данные уже здесь.
+  await screen.findByText("Какие жанры рекомендовать", {}, SLOW);
+  const checkbox = screen.getByRole("checkbox", {
+    name: /Не рекомендовать авторов/,
+  });
+  const save = () => screen.getByRole("button", { name: "Сохранить настройки" });
+  // кнопка неактивна, пока ничего не меняли — незачем слать пустое сохранение
+  expect(save()).toBeDisabled();
 
-  await userEvent.type(field, "не люблю антиутопии");
-  await userEvent.click(screen.getByRole("button", { name: "Сохранить пожелания" }));
+  await userEvent.click(checkbox);
+  await userEvent.click(save());
 
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Сохранить пожелания" })).toBeDisabled(),
+  await waitFor(() => expect(save()).toBeDisabled());
+  expect(checkbox).toBeChecked();
+});
+
+test("правка не теряется, если кликнуть до загрузки настроек", async () => {
+  // Гонка, найденная тестом 06.08: чекбокс рисуется сразу, ответ сервера
+  // приходит позже, и `useEffect` затирал им черновик — галочка молча
+  // слетала. Здесь кликаем ДО появления списков, то есть до ответа.
+  renderApp("/recommendations");
+
+  const checkbox = await screen.findByRole(
+    "checkbox", { name: /Не рекомендовать авторов/ }, SLOW,
   );
-  expect(field).toHaveValue("не люблю антиутопии");
+  await userEvent.click(checkbox);
+
+  // теперь дожидаемся данных — и проверяем, что клик пережил их приход
+  await screen.findByText("Какие жанры рекомендовать", {}, SLOW);
+  expect(checkbox).toBeChecked();
+});
+
+test("жанр нельзя выбрать сразу в оба списка", async () => {
+  // «Хочу детективы» и «не хочу детективы» одновременно — это не выбор,
+  // а противоречие: вторая кнопка гасится.
+  renderApp("/recommendations");
+  await screen.findByText("Какие жанры рекомендовать", {}, SLOW);
+
+  const wanted = within(
+    screen.getByText("Какие жанры рекомендовать").closest(".rec-picker"),
+  );
+  const unwanted = within(
+    screen.getByText("Какие жанры не рекомендовать").closest(".rec-picker"),
+  );
+
+  await userEvent.click(wanted.getByRole("button", { name: "Детектив" }));
+
+  expect(wanted.getByRole("button", { name: "Детектив" })).toHaveAttribute(
+    "aria-pressed", "true",
+  );
+  expect(unwanted.getByRole("button", { name: "Детектив" })).toBeDisabled();
+  // соседний жанр при этом доступен — гасится именно выбранный
+  expect(unwanted.getByRole("button", { name: "Магический реализм" })).toBeEnabled();
 });
 
 test("рекомендации подбираются по кнопке и добавляются в «Хочу прочитать»", async () => {

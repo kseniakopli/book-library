@@ -75,9 +75,11 @@ export const getGenre = (id) => request(`/genres/${id}`);
 export const setBookGenres = (bookId, genres) =>
   request(`/books/${bookId}/genres`, json("PUT", { genres }));
 
-// Задача 114: пожелания для рекомендаций словами
-export const saveWishes = (wishes) =>
-  request("/recommendations/wishes", json("PUT", { wishes }));
+// Задача 124: настройки подбора рекомендаций.
+// Пришли на смену пожеланиям словами (з.114): свободный текст было
+// непонятно, как исполнять. Жанры передаются как список `slug`.
+export const saveRecommendationSettings = (settings) =>
+  request("/recommendations/settings", json("PUT", settings));
 
 // Задача 113: что в каталоге не заполнено (только admin)
 export const getDataGaps = () => request("/admin/data-gaps");

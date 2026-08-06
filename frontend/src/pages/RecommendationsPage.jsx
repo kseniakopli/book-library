@@ -5,73 +5,159 @@
 // ⚠ Первый заход даёт пустой экран с кнопкой генерации — принято осознанно
 // (решение Ксении): подбор тратит токены, и запускать его автоматически
 // при открытии страницы значит платить за каждый случайный клик по меню.
-// Со временем страница обрастёт настройками пожеланий (задача 114).
-import { useEffect, useState } from "react";
+//
+// Задача 124 (06.08): пожелания СЛОВАМИ (з.114) заменены настройками.
+// Свободный текст было непонятно, как исполнять, и проверить исполнение
+// нечем. Настройки же либо проверяются кодом (авторы), либо хотя бы
+// формулируются однозначно (жанры).
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
 import RecommendationShelf from "../components/RecommendationShelf";
 
-const MAX_WISHES = 500;
+const EMPTY = { skip_known_authors: false, genres_include: [], genres_exclude: [] };
 
-/** Пожелания словами (задача 114).
+/** Список жанров с множественным выбором.
  *
- *  Тот же механизм, что профиль вкуса по 👍/👎, только вход не кнопками,
- *  а текстом. Живёт НАД полкой: это настройка того, что появится ниже,
- *  и читать её после списка советов бессмысленно. */
-function Wishes() {
+ *  Чипы, а не `<select multiple>`: последний на телефоне превращается
+ *  в неудобный барабан, а с ctrl+клик на десктопе легко случайно сбросить
+ *  весь выбор. Здесь каждый жанр — самостоятельная кнопка-переключатель. */
+function GenrePicker({ label, hint, genres, picked, onToggle, disabledSlugs }) {
+  return (
+    <div className="rec-picker">
+      <span className="rec-picker-label">{label}</span>
+      <p className="stat-hint rec-picker-hint">{hint}</p>
+      <ul className="rec-picker-list">
+        {genres.map((genre) => {
+          const active = picked.includes(genre.slug);
+          // жанр, выбранный в противоположном списке: показываем, но нажать
+          // нельзя — «хочу» и «не хочу» одновременно это не выбор, а ошибка
+          const blocked = !active && disabledSlugs.includes(genre.slug);
+          return (
+            <li key={genre.slug}>
+              <button
+                type="button"
+                className={"pill" + (active ? " pill-active" : "")}
+                onClick={() => onToggle(genre.slug)}
+                disabled={blocked}
+                aria-pressed={active}
+                title={blocked ? "Уже выбран в другом списке" : undefined}
+              >
+                {genre.name}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** Настройки подбора (задача 124). Живут НАД полкой: это настройка того,
+ *  что появится ниже, и читать её после списка советов бессмысленно. */
+function Settings() {
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: keys.recommendations,
     queryFn: api.getRecommendations,
   });
-  const saved = data?.wishes ?? "";
-  const [draft, setDraft] = useState(saved);
 
-  // подтягиваем сохранённое, когда запрос ответил (первый рендер идёт без него)
-  useEffect(() => setDraft(saved), [saved]);
+  const saved = data?.settings ?? EMPTY;
+  const genres = data?.genres ?? [];
+  const [draft, setDraft] = useState(saved);
+  // Тронул ли пользователь форму. ⚠ Без этого признака клик, сделанный ДО
+  // ответа сервера, молча пропадал: чекбокс рисуется сразу, ответ приходит
+  // позже, и `useEffect` затирал им черновик. Поймал тест, но случай живой —
+  // страница за `React.lazy`, запрос уходит после загрузки чанка.
+  const touched = useRef(false);
+
+  // подтягиваем сохранённое, когда запрос ответил (первый рендер идёт без него),
+  // но НЕ поверх несохранённых изменений
+  useEffect(() => {
+    if (!touched.current) setDraft(data?.settings ?? EMPTY);
+  }, [data?.settings]);
+
+  const edit = (next) => {
+    touched.current = true;
+    setDraft(next);
+  };
 
   const save = useMutation({
-    mutationFn: () => api.saveWishes(draft),
+    mutationFn: () => api.saveRecommendationSettings(draft),
     onSuccess: (fresh) => {
-      // бэкенд возвращает ОЧИЩЕННЫЙ текст: в базе лежит ровно то, что уедет
-      // модели, и поле должно показывать его же, а не наш черновик
+      touched.current = false;   // сохранили — снова следуем за сервером
       queryClient.setQueryData(keys.recommendations, (old) =>
-        old ? { ...old, wishes: fresh.wishes } : old,
+        old ? { ...old, settings: fresh.settings } : old,
       );
     },
   });
 
-  const changed = draft !== saved;
+  const toggle = (field) => (slug) =>
+    edit({
+      ...draft,
+      [field]: draft[field].includes(slug)
+        ? draft[field].filter((s) => s !== slug)
+        : [...draft[field], slug],
+    });
+
+  const changed = JSON.stringify(draft) !== JSON.stringify(saved);
 
   return (
-    <section className="wishes">
-      <h2 className="wishes-title">Пожелания</h2>
-      <p className="muted">
-        Напишите словами, чего не хотите и что любите: «не люблю антиутопии»,
-        «больше северного нуара». Это уйдёт в подбор вместе с вашими оценками.
-      </p>
-      <textarea
-        className="wishes-input"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        rows={3}
-        maxLength={MAX_WISHES}
-        aria-label="Пожелания для рекомендаций"
-        placeholder="Например: не предлагай антиутопии и книги о войне"
-      />
-      <div className="wishes-actions">
+    <section className="rec-settings">
+      <h2 className="rec-settings-title">Настройки подбора</h2>
+
+      <label className="rec-check">
+        <input
+          type="checkbox"
+          checked={draft.skip_known_authors}
+          onChange={(e) =>
+            edit({ ...draft, skip_known_authors: e.target.checked })
+          }
+        />
+        <span>
+          Не рекомендовать авторов из библиотеки
+          <span className="stat-hint rec-check-hint">
+            Про знакомого автора вы и так знаете, что хотите прочитать дальше.
+            Учитываются все книги с полки — и прочитанные, и отложенные.
+          </span>
+        </span>
+      </label>
+
+      {genres.length > 0 ? (
+        <div className="rec-pickers">
+          <GenrePicker
+            label="Какие жанры рекомендовать"
+            hint="Пусто — без ограничений."
+            genres={genres}
+            picked={draft.genres_include}
+            onToggle={toggle("genres_include")}
+            disabledSlugs={draft.genres_exclude}
+          />
+          <GenrePicker
+            label="Какие жанры не рекомендовать"
+            hint="Модель постарается их обойти, но это просьба, а не запрет: у советов нет наших жанров, проверить нечем."
+            genres={genres}
+            picked={draft.genres_exclude}
+            onToggle={toggle("genres_exclude")}
+            disabledSlugs={draft.genres_include}
+          />
+        </div>
+      ) : (
+        <p className="muted">
+          Жанры пока не заведены — проставьте их книгам, и здесь появится выбор.
+        </p>
+      )}
+
+      <div className="rec-settings-actions">
         <button
           className="btn-ghost"
           onClick={() => save.mutate()}
           disabled={!changed || save.isPending}
         >
-          {save.isPending ? "Сохраняю…" : "Сохранить пожелания"}
+          {save.isPending ? "Сохраняю…" : "Сохранить настройки"}
         </button>
-        <span className="stat-hint">
-          {draft.length}/{MAX_WISHES}
-        </span>
         {save.isError && (
           <p className="error">Не удалось сохранить: {save.error.message}</p>
         )}
@@ -88,11 +174,12 @@ function RecommendationsPage() {
       </Link>
 
       <p className="muted recommendations-lead">
-        Советы новых книг по вашим оценкам от 7 и выше. Claude и ChatGPT
-        предлагают по пять каждый, совпавшие книги схлопываются.
+        Советы новых книг по вашим оценкам. Claude и ChatGPT предлагают
+        по пять каждый, совпавшие книги схлопываются. Книги с оценкой 5–6
+        учитываются отдельно — как чтение для отдыха.
       </p>
 
-      <Wishes />
+      <Settings />
 
       {/* на своей странице полка — главный блок, поэтому её заголовок h1 */}
       <RecommendationShelf heading="h1" />

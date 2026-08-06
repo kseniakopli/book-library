@@ -54,7 +54,8 @@ export const db = {
   recommendations: [],
   feedback: {},
   authorBio: null,   // задача 111: биография правится на месте
-  wishes: null,      // задача 114: пожелания для рекомендаций
+  // задача 124: настройки подбора (пришли на смену пожеланиям словами)
+  recSettings: { skip_known_authors: false, genres_include: [], genres_exclude: [] },
 };
 
 export function resetDb() {
@@ -62,7 +63,7 @@ export function resetDb() {
   db.recommendations = [];
   db.feedback = {};
   db.authorBio = null;
-  db.wishes = null;
+  db.recSettings = { skip_known_authors: false, genres_include: [], genres_exclude: [] };
 }
 
 function findBook(params) {
@@ -366,14 +367,17 @@ export const handlers = [
   http.get("/api/v1/recommendations", () =>
     HttpResponse.json({
       recommendations: db.recommendations,
-      wishes: db.wishes,          // задача 114
+      settings: db.recSettings,   // задача 124
+      genres: [
+        { slug: "детектив", name: "Детектив" },
+        { slug: "магический реализм", name: "Магический реализм" },
+      ],
     }),
   ),
-  http.put("/api/v1/recommendations/wishes", async ({ request }) => {
-    const body = await request.json();
-    // бэкенд возвращает ОЧИЩЕННЫЙ текст — здесь достаточно обрезки пробелов
-    db.wishes = (body.wishes ?? "").trim() || null;
-    return HttpResponse.json({ wishes: db.wishes });
+  http.put("/api/v1/recommendations/settings", async ({ request }) => {
+    // бэкенд отбрасывает жанры, которых нет в справочнике; мок принимает как есть
+    db.recSettings = await request.json();
+    return HttpResponse.json({ settings: db.recSettings });
   }),
   http.post("/api/v1/recommendations", () => {
     // с 20.07 советуют обе модели — у каждой карточки есть источник
