@@ -17,25 +17,54 @@ def _fake_generate(
     async def run():
         return {
             "Claude": RecommendationsResult(items=[
-                RecommendationItem(title="Новая книга", author="Новый Автор",
+                RecommendationItem(genre="роман", title="Новая книга", author="Новый Автор",
                                    reason="похожа на ваши любимые"),
-                RecommendationItem(title="Test", author="Author",
+                RecommendationItem(genre="роман", title="Test", author="Author",
                                    reason="а это уже есть в библиотеке"),
             ]),
             "ChatGPT": RecommendationsResult(items=[
-                RecommendationItem(title="Новая книга", author="Новый Автор",
+                RecommendationItem(genre="роман", title="Новая книга", author="Новый Автор",
                                    reason="дубль совета Claude"),
-                RecommendationItem(title="Вторая книга", author="Второй Автор",
+                RecommendationItem(genre="роман", title="Вторая книга", author="Второй Автор",
                                    reason="совет от ChatGPT"),
             ]),
         }
     return run()
 
 
+def _confirms_everything(query, max_results=5):
+    """Google Books, который подтверждает любую книгу (задача 126).
+
+    ⚠ С 06.08 пустой ответ каталога означает «книги не существует», и совет
+    отбрасывается. Значит мок обязан отвечать осмысленно: раньше здесь стояло
+    `lambda: []`, и с новой проверкой все тесты рекомендаций молча получали бы
+    пустую выдачу — то есть проверяли бы не то, что написано в их названиях.
+
+    Собираем кандидата из самого запроса (`«название автор»`), поэтому сверка
+    названия и автора проходит для чего угодно. Тест, которому нужен ОТКАЗ
+    каталога, ставит свой мок — см. `_catalog_without`.
+    """
+    return [{
+        "title": query.rsplit(" ", 1)[0] if " " in query else query,
+        "author": query.rsplit(" ", 1)[-1],
+        "cover_url": "https://example.com/cover.jpg",
+        "external_id": "gb-1",
+    }]
+
+
+def _catalog_without(*missing_titles):
+    """Каталог, в котором перечисленных книг НЕТ — остальные подтверждаются."""
+    def search(query, max_results=5):
+        if any(title.lower() in query.lower() for title in missing_titles):
+            return []
+        return _confirms_everything(query, max_results)
+
+    return search
+
+
 def _mock(monkeypatch):
     monkeypatch.setattr(rec_routes, "generate_recommendations", _fake_generate)
-    # обложки не ищем — Google Books в тестах не дёргаем
-    monkeypatch.setattr(rec_routes, "search_books", lambda q, max_results=3: [])
+    monkeypatch.setattr(rec_routes, "search_books", _confirms_everything)
 
 
 def _make_favorite(client):
@@ -113,7 +142,7 @@ def test_disliked_reaches_generation(client, monkeypatch):
         return _fake_generate(favorites, exclude, count, lang)
 
     monkeypatch.setattr(rec_routes, "generate_recommendations", spy)
-    monkeypatch.setattr(rec_routes, "search_books", lambda q, max_results=3: [])
+    monkeypatch.setattr(rec_routes, "search_books", _confirms_everything)
     _make_favorite(client)
 
     client.post("/api/v1/feedback", json={
@@ -133,7 +162,7 @@ def _spy(monkeypatch, captured):
         return _fake_generate(favorites, exclude, count, lang)
 
     monkeypatch.setattr(rec_routes, "generate_recommendations", spy)
-    monkeypatch.setattr(rec_routes, "search_books", lambda q, max_results=3: [])
+    monkeypatch.setattr(rec_routes, "search_books", _confirms_everything)
 
 
 def test_settings_saved_and_returned(client):
@@ -224,7 +253,7 @@ def _suggest(monkeypatch, *items):
         return run()
 
     monkeypatch.setattr(rec_routes, "generate_recommendations", spy)
-    monkeypatch.setattr(rec_routes, "search_books", lambda q, max_results=3: [])
+    monkeypatch.setattr(rec_routes, "search_books", _confirms_everything)
 
 
 def test_known_authors_are_filtered_out_of_the_answer(client, monkeypatch):
@@ -236,9 +265,9 @@ def test_known_authors_are_filtered_out_of_the_answer(client, monkeypatch):
     """
     _suggest(
         monkeypatch,
-        RecommendationItem(title="Другая книга", author="Донато Карризи",
+        RecommendationItem(genre="роман", title="Другая книга", author="Донато Карризи",
                            reason="тот же автор, что на полке"),
-        RecommendationItem(title="Хорошая книга", author="Чужой Автор",
+        RecommendationItem(genre="роман", title="Хорошая книга", author="Чужой Автор",
                            reason="новый автор"),
     )
     _shelf_book_with_author(client)
@@ -259,7 +288,7 @@ def test_known_authors_kept_when_checkbox_is_off(client, monkeypatch):
     оба случая выглядели бы как «книги нет в ответе»."""
     _suggest(
         monkeypatch,
-        RecommendationItem(title="Другая книга", author="Донато Карризи",
+        RecommendationItem(genre="роман", title="Другая книга", author="Донато Карризи",
                            reason="тот же автор"),
     )
     _shelf_book_with_author(client)
@@ -288,6 +317,96 @@ def test_genre_settings_reach_the_prompt(client, monkeypatch):
     # в промпт уезжают ИМЕНА, а не slug: модель читает по-человечески
     assert captured["genres_include"] == ["Детектив"]
     assert captured["genres_exclude"] == ["Мистика"]
+
+
+# --- проверка существования книги (задача 126) ---
+
+def test_unverified_book_is_dropped(client, monkeypatch):
+    """⚠ Ради этого всё и делалось. 06.08 в советах приехала книга, которой
+    нет нигде («И как только мы вернёмся», Бенедетта Кристофани).
+
+    Проверка та же, что у треков в Spotify: не нашлось в каталоге — не
+    показываем. Запрос к Google Books и так делался на каждый совет, ради
+    обложки; просто его ответ никто не читал.
+    """
+    monkeypatch.setattr(rec_routes, "generate_recommendations", _fake_generate)
+    monkeypatch.setattr(
+        rec_routes, "search_books", _catalog_without("Вторая книга"),
+    )
+    _make_favorite(client)
+
+    titles = [
+        r["title"] for r in client.post("/api/v1/recommendations").json()["recommendations"]
+    ]
+    assert "Новая книга" in titles       # подтвердилась каталогом
+    assert "Вторая книга" not in titles  # каталог её не знает
+
+
+def test_cover_comes_from_the_matching_book(client, monkeypatch):
+    """Обложка берётся у ПОДТВЕРЖДЁННОГО кандидата, а не у первого с картинкой.
+
+    До 06.08 стояло `next(c for c in candidates if c.cover_url)` — то есть
+    для несуществующей книги подставлялась обложка чужой. Тот же баг,
+    что был в Spotify 20.07 с «первым результатом поиска».
+    """
+    def catalog(query, max_results=5):
+        return [
+            # первый — чужая книга, но с обложкой
+            {"title": "Совсем другая книга", "author": "Кто-то Иной",
+             "cover_url": "https://example.com/WRONG.jpg", "external_id": "wrong"},
+            {"title": "Новая книга", "author": "Новый Автор",
+             "cover_url": "https://example.com/right.jpg", "external_id": "right"},
+        ]
+
+    monkeypatch.setattr(rec_routes, "generate_recommendations", _fake_generate)
+    monkeypatch.setattr(rec_routes, "search_books", catalog)
+    _make_favorite(client)
+
+    items = client.post("/api/v1/recommendations").json()["recommendations"]
+    new_book = next(i for i in items if i["title"] == "Новая книга")
+    assert new_book["cover_url"] == "https://example.com/right.jpg"
+
+
+def test_second_round_when_too_few_survive(client, monkeypatch):
+    """Отсев уменьшает выдачу, поэтому при нехватке делается ОДИН добор.
+
+    ⚠ Именно один: каждый круг — пара платных вызовов. Проверяем и то,
+    и другое — что добор случился и что он не повторяется бесконечно.
+    """
+    rounds = {"n": 0}
+
+    def counting_generate(favorites, exclude, count=5, lang="ru", disliked=None, **kw):
+        rounds["n"] += 1
+        return _fake_generate(favorites, exclude, count, lang)
+
+    monkeypatch.setattr(rec_routes, "generate_recommendations", counting_generate)
+    # каталог не знает ничего — выживших не будет, добор обязан сработать
+    monkeypatch.setattr(rec_routes, "search_books", lambda q, max_results=5: [])
+    _make_favorite(client)
+
+    r = client.post("/api/v1/recommendations")
+
+    assert r.json()["recommendations"] == []   # честно пусто, а не выдумки
+    assert rounds["n"] == 2                    # ровно два круга, не больше
+
+
+def test_no_second_round_when_enough(client, monkeypatch):
+    """Контрольный образец: хватило с первого раза — второй круг не нужен."""
+    rounds = {"n": 0}
+
+    def counting_generate(favorites, exclude, count=5, lang="ru", disliked=None, **kw):
+        rounds["n"] += 1
+        return _fake_generate(favorites, exclude, count, lang)
+
+    monkeypatch.setattr(rec_routes, "generate_recommendations", counting_generate)
+    monkeypatch.setattr(rec_routes, "search_books", _confirms_everything)
+    _make_favorite(client)
+    # MIN_RESULTS = 4, а мок отдаёт всего 2 уникальных — временно опускаем порог
+    monkeypatch.setattr(rec_routes, "MIN_RESULTS", 2)
+
+    client.post("/api/v1/recommendations")
+
+    assert rounds["n"] == 1
 
 
 def test_generate_allowed_for_any_logged_in_user(client, demote, monkeypatch):

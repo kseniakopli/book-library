@@ -22,6 +22,7 @@ from models import Author, Book, BookAuthor, Genre, Recommendation, User, UserBo
 from services.ai import generate_recommendations, start_ai_metrics, take_ai_metrics
 from services.ai_schemas import RecommendationsResult
 from services.authors import norm_key
+from services.book_match import find_match
 from services.taste import disliked_recommendations
 
 router = APIRouter(tags=["recommendations"])
@@ -37,6 +38,10 @@ MAX_FAVORITES = 20    # столько любимых книг отдаём мо
 MAX_CASUAL = 10       # «для отдыха» — вдвое меньше: это фон, а не основа
 COUNT = 5             # столько советов просим У КАЖДОЙ модели (итого до 10)
 MAX_GENRE_PICKS = 15  # больше — это уже не выбор, а весь справочник
+# Задача 126: ниже этого числа подтверждённых советов делаем ОДИН добор.
+# Не «доводим до COUNT любой ценой»: каждый круг — пара платных вызовов
+# и до десяти запросов в Google Books.
+MIN_RESULTS = 4
 
 
 # ⚠ Константы объявлены ВЫШЕ класса: тело класса выполняется при импорте,
@@ -229,46 +234,68 @@ async def generate(lang: str = Depends(get_lang),
         return {"recommendations": [], "detail": "no_favorites"}
 
     start_ai_metrics()   # задача 80: латентность и токены — в событие
+
+    fresh: list[tuple[str, object]] = []   # [(источник, item)]
+    covers: dict[tuple[str, str], dict] = {}
+    seen: set[tuple[str, str]] = set()
+    stats = {"authors": 0, "unverified": 0, "rounds": 0}
+
+    async def ask(count: int, extra_exclude: list[str]):
+        """Один круг генерации + отбор пригодных советов.
+
+        Отбор в три сита:
+        (а) книги с полки и повторы между источниками — дедуп;
+        (б) задача 124: авторы с полки, если чекбокс включён. Список ушёл
+            и в промпт, но просьба — не гарантия: имена мы знаем, значит
+            проверяем кодом (Уроки 1.1). Ключ тот же, что у таблицы авторов,
+            иначе «Кинг, Стивен» и «Стивен Кинг» разошлись бы;
+        (в) задача 126: существует ли книга вообще. Сверяем с Google Books
+            тем же приёмом, что треки со Spotify.
+        """
+        stats["rounds"] += 1
+        results = await generate_recommendations(
+            favorites, exclude + extra_exclude, count, lang, disliked,
+            casual=casual,
+            skip_authors=skip_authors,
+            genres_include=genres_include,
+            genres_exclude=genres_exclude,
+        )
+        # источники перебираем в фиксированном порядке, чтобы у одинакового
+        # набора был предсказуемый результат, а не «кто раньше ответил»
+        for source in (SOURCE_CLAUDE, SOURCE_CHATGPT):
+            for item in results.get(source, RecommendationsResult(items=[])).items:
+                key = _norm(item.title, item.author)
+                if key in known or key in seen:
+                    continue
+                seen.add(key)      # даже отвергнутое не спрашиваем дважды
+                if skip_keys and norm_key(item.author) in skip_keys:
+                    stats["authors"] += 1
+                    continue
+
+                # ⚠ Один поиск на совет — он же и проверка существования,
+                # и источник обложки. До 06.08 бралось `next(c с обложкой)`,
+                # то есть первый попавшийся кандидат: у выдуманной книги это
+                # чужая обложка, а сам факт «не нашлось» пропадал.
+                candidates = search_books(f"{item.title} {item.author}", max_results=5)
+                match = find_match(candidates, item.title, item.author)
+                if match is None:
+                    stats["unverified"] += 1
+                    continue
+
+                covers[key] = match
+                fresh.append((source, item))
+
     # 20.07: спрашиваем ОБЕ модели, по COUNT советов у каждой
     # 22.07: + disliked — обратная петля фидбека (з.26 ч.4)
-    results = await generate_recommendations(
-        favorites, exclude, COUNT, lang, disliked,
-        casual=casual,
-        skip_authors=skip_authors,
-        genres_include=genres_include,
-        genres_exclude=genres_exclude,
-    )
+    await ask(COUNT, [])
 
-    # 3) дедуп: (а) книги с полки — модель могла не заметить список исключений;
-    #    (б) советы, совпавшие у обеих моделей — показываем один раз.
-    #    Источники перебираем в фиксированном порядке, чтобы у одинакового
-    #    набора был предсказуемый результат, а не «кто раньше ответил».
-    #    (в) задача 124: авторы с полки, если чекбокс включён. Список ушёл
-    #        и в промпт, но просьба — не гарантия: имена мы знаем, значит
-    #        проверяем кодом, а не надеемся (Уроки 1.1). Сверяем по тому же
-    #        ключу, что и таблица авторов, — иначе «Кинг, Стивен» и
-    #        «Стивен Кинг» разошлись бы.
-    fresh = []          # [(источник, item)]
-    seen = set()
-    dropped_authors = 0
-    for source in (SOURCE_CLAUDE, SOURCE_CHATGPT):
-        for item in results.get(source, RecommendationsResult(items=[])).items:
-            key = _norm(item.title, item.author)
-            if key in known or key in seen:
-                continue
-            if skip_keys and norm_key(item.author) in skip_keys:
-                dropped_authors += 1
-                continue
-            seen.add(key)
-            fresh.append((source, item))
-
-    # 4) обложки: один поиск в Google Books на книгу (мягко — без обложки тоже ок)
-    covers = {}
-    for _, item in fresh:
-        candidates = search_books(f"{item.title} {item.author}", max_results=3)
-        match = next((c for c in candidates if c.get("cover_url")), None)
-        if match:
-            covers[_norm(item.title, item.author)] = match
+    # Задача 126: отсев выдумок уменьшает выдачу, поэтому при нехватке —
+    # ОДИН добор. Больше не делаем: это вторая пара платных вызовов,
+    # а пустовато лучше, чем дорого. Уже полученное уходит в исключения,
+    # иначе модель предложит то же самое.
+    if len(fresh) < MIN_RESULTS:
+        got = [f"{item.title} — {item.author}" for _, item in fresh]
+        await ask(COUNT, got)
 
     # 5) заменяем набор целиком
     with Session(database.engine) as session:
@@ -295,12 +322,30 @@ async def generate(lang: str = Depends(get_lang),
         source: sum(1 for s, _ in fresh if s == source)
         for source in (SOURCE_CLAUDE, SOURCE_CHATGPT)
     }
+    # Задача 126: попадание в запрошенные жанры. Считаем по полю `genre`,
+    # которое модель заполняет сама, — сравнивать её слова с нашим
+    # справочником нечем, но видеть долю нужно: без цифры «стало лучше»
+    # останется мнением (Уроки 1.8).
+    wanted = {g.lower() for g in genres_include}
+    genre_hits = sum(
+        1 for _, item in fresh
+        if wanted and any(w in (item.genre or "").lower() for w in wanted)
+    )
+
     log_event(EVENT_AI_RECOMMENDATIONS, detail={
         "count": len(fresh), "by_source": by_source, "ai_calls": take_ai_metrics(),
         # задача 124: сколько советов пришлось отсеять по авторам. Это мера
         # того, насколько модель слушается просьбы: растёт — значит просьба
         # в промпте не работает и надо менять формулировку, а не фильтр.
-        "dropped_known_authors": dropped_authors,
+        "dropped_known_authors": stats["authors"],
+        # задача 126: сколько советов не нашлось в Google Books (выдумки либо
+        # редкие издания) и сколько кругов генерации потребовалось.
+        # ⚠ Если `unverified` стабильно велик — смотреть, не режут ли пороги
+        # настоящие книги, прежде чем радоваться «фильтр работает».
+        "dropped_unverified": stats["unverified"],
+        "rounds": stats["rounds"],
+        "genre_hits": genre_hits,
+        "genre_asked": len(genres_include),
     })
     with Session(database.engine) as session:
         return _stored(session, user_id)
