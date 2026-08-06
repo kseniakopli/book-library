@@ -13,6 +13,7 @@ from deps import current_user_id, get_lang, get_session, require_admin
 from i18n import msg
 from models import Author, Book
 from schemas import BookRead
+from services.atmosphere import generate_design_in_background
 from services.authors import books_of, catalog_authors, display_name, link_book
 from services.enrichment import enrich_in_background
 
@@ -166,6 +167,16 @@ def add_book_to_author(
         background_tasks.add_task(
             enrich_in_background, book.id, lang, data.external_id
         )
+    # ⚠ Паспорт оформления — ОБЯЗАТЕЛЬНО, наравне с обогащением (правка 06.08).
+    # 04.08 этой строки не было: эндпоинт писался по образцу добавления книги
+    # в цикл, а не по образцу добавления на полку (`routers/books.py`), где
+    # фоновых задач две. За два дня через эту кнопку приехало 124 книги,
+    # и 102 из них остались без палитры и символа — это видно на полке
+    # и на витрине. Книга здесь всегда новая (существующую выбрать нельзя),
+    # поэтому условие `is_new` не нужно, а сама задача идемпотентна.
+    background_tasks.add_task(
+        generate_design_in_background, book.id, lang, user_id
+    )
 
     return _author_card(session, author, user_id)
 

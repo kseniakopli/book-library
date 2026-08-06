@@ -322,6 +322,28 @@ def test_added_book_gets_author_name_from_the_page(client):
         assert [link.author_id for link in links] == [author_id]
 
 
+def test_added_book_gets_design_passport(client):
+    """Книга, заведённая у автора, получает паспорт оформления — как и книга,
+    добавленная на полку.
+
+    ⚠ Регресс 04–06.08, из-за которого тест и появился. Эндпоинт писался
+    по образцу добавления книги в ЦИКЛ, где паспорт не генерируется, а не по
+    образцу `routers/books.py`, где фоновых задач две. За два дня через эту
+    кнопку приехало 124 книги, и 102 остались без палитры и символа — то есть
+    с серой заглушкой на полке и на витрине.
+    Урок тот же, что в `Уроки.md` 2.5: «устроено похоже» — не «устроено так же».
+    """
+    author_id = _author_with_books(client)
+
+    body = client.post(
+        f"/api/v1/authors/{author_id}/books", json={"title": "Ведьмин вяз"}
+    ).json()
+    book_id = next(b["id"] for b in body["catalog"] if b["title"] == "Ведьмин вяз")
+
+    design = client.get(f"/api/v1/books/{book_id}/atmosphere/design").json()
+    assert design["selections"], "у книги нет паспорта — фоновая задача не запускалась"
+
+
 def test_added_book_without_external_id_is_ready(client):
     """Без `external_id` тянуть нечего — книга сразу «готова».
 
