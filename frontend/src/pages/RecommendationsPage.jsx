@@ -129,7 +129,7 @@ function Settings() {
         <div className="rec-pickers">
           <GenrePicker
             label="Какие жанры рекомендовать"
-            hint="Пусто — без ограничений."
+            hint="Пусто — без пожеланий, советы по всем вашим оценкам."
             genres={genres}
             picked={draft.genres_include}
             onToggle={toggle("genres_include")}
@@ -137,7 +137,7 @@ function Settings() {
           />
           <GenrePicker
             label="Какие жанры не рекомендовать"
-            hint="Модель постарается их обойти, но это просьба, а не запрет: у советов нет наших жанров, проверить нечем."
+            hint="Отмеченное уйдёт в подбор как «этого сейчас не хочется»."
             genres={genres}
             picked={draft.genres_exclude}
             onToggle={toggle("genres_exclude")}
