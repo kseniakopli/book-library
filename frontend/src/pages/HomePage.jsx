@@ -3,7 +3,7 @@
 // шапка — в LibraryHeader (ревью 19.07). Здесь остались состав и состояния экрана.
 // Задача 70: полки грузятся постранично, поиск — целиком серверный.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as api from "../api";
 import { keys } from "../queryKeys";
@@ -204,10 +204,28 @@ function HomePage() {
                   <ul className="catalog-hit-list">
                     {items.map((item, i) => (
                       <li className="catalog-hit" key={`${item.title}-${i}`}>
-                        <span className="catalog-hit-text">
-                          <span className="catalog-hit-title">{item.title}</span>
-                          <span className="catalog-hit-author">{item.author}</span>
-                        </span>
+                        {/* Правка 06.08 (нашла Ксения): книга, которая УЖЕ есть
+                            в базе, открывается по клику. Раньше и она, и находка
+                            Google рисовались одинаково — просто текстом, потому
+                            что страница книги отдавала 404 всем, кроме владельца
+                            полки. Ограничение сняли 03.08, а это его отражение
+                            осталось (см. `Уроки.md` 4.1).
+                            У находки Google ссылки быть не может: книги ещё нет
+                            в базе, значит нет и id — её сначала кладут на полку. */}
+                        {item.book_id ? (
+                          <Link
+                            className="catalog-hit-text catalog-hit-link"
+                            to={`/books/${item.book_id}`}
+                          >
+                            <span className="catalog-hit-title">{item.title}</span>
+                            <span className="catalog-hit-author">{item.author}</span>
+                          </Link>
+                        ) : (
+                          <span className="catalog-hit-text">
+                            <span className="catalog-hit-title">{item.title}</span>
+                            <span className="catalog-hit-author">{item.author}</span>
+                          </span>
+                        )}
                         <button
                           className="btn-ghost"
                           onClick={() => addToShelf.mutate(item)}

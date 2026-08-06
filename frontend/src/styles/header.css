@@ -231,6 +231,21 @@
   color: var(--muted);
   font-size: 13px;
 }
+/* Книга, которая уже есть в базе, открывается по клику (правка 06.08).
+   Ссылкой сделан весь текстовый блок, а не одно название: попасть
+   по строке из двух слов труднее, чем по всей области, — то же решение,
+   что у строк справочника (`.catalog-item`). */
+.catalog-hit-link {
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+}
+@media (hover: hover) {
+  .catalog-hit-link:hover .catalog-hit-title,
+  .catalog-hit-link:focus-visible .catalog-hit-title {
+    color: var(--accent);
+  }
+}
 
 /* --- Пользователь в шапке (этап 9) ---
    Задача 110: `.user-chip` и `.user-logout` удалены вместе с самим чипом —

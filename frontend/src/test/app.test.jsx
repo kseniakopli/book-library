@@ -45,6 +45,29 @@ test("поиск на главной находит книги из катало
   ).toBeInTheDocument();
 });
 
+test("книга из базы в поиске открывается по клику, книга из Google — нет", async () => {
+  // Правка 06.08, нашла Ксения. Четвёртый случай «ограничение пережило
+  // причину» (Уроки 4.1): страница книги перестала отдавать 404 не-владельцу
+  // ещё 03.08, а находка поиска осталась просто текстом.
+  // ⚠ Разделение принципиальное: у книги ИЗ БАЗЫ есть id, у находки Google
+  // его нет — вести некуда, пока её не завели.
+  renderApp();
+  await screen.findByText("Волшебная гора");
+  const field = screen.getByPlaceholderText("Поиск по библиотеке…");
+
+  await userEvent.type(field, "тайное");
+  expect(
+    await screen.findByRole("link", { name: /Тайное место/ }),
+  ).toHaveAttribute("href", "/books/42");
+
+  await userEvent.clear(field);
+  await userEvent.type(field, "гарри");
+  await screen.findByText("Найдено в Google Books");
+  expect(
+    screen.queryByRole("link", { name: /Гарри Поттер/ }),
+  ).toBeNull();
+});
+
 test("клик по книге открывает её страницу, «К библиотеке» возвращает", async () => {
   renderApp();
   await userEvent.click(
