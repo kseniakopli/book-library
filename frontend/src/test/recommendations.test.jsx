@@ -8,6 +8,9 @@ import { test, expect } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderApp } from "./utils";
+// состояние мок-бэкенда: настройки проверяем по нему, а не по экрану —
+// экран показывал выбор и тогда, когда до сервера тот не доезжал
+import { db } from "./server";
 
 // страница за React.lazy — первый рендер ждёт загрузки чанка
 const SLOW = { timeout: 5000 };
@@ -20,27 +23,51 @@ test("до генерации страница зовёт подобрать р�
   ).toBeInTheDocument();
 });
 
-test("настройки подбора сохраняются и остаются на странице", async () => {
-  // Задача 124: пожелания СЛОВАМИ (з.114) заменены настройками —
-  // свободный текст было непонятно, как исполнять.
+test("настройки подбора сохраняются САМИ, без кнопки", async () => {
+  // ⚠ Ради этого правка 06.08. Раньше здесь был черновик и кнопка
+  // «Сохранить настройки»: Ксения отметила жанры, нажала «Обновить» —
+  // и получила подбор по старым настройкам (`genre_asked: 0` в событии).
+  // Проверяем не экран, а ДОЕХАЛО ЛИ до сервера: экран показывал
+  // выбор и в сломанном варианте (урок 3.1).
   renderApp("/recommendations");
 
-  // ⚠ Ждём СПИСКИ ЖАНРОВ, а не чекбокс: чекбокс рисуется сразу, ещё до
-  // ответа сервера, и клик по нему в этот момент затирался бы пришедшими
-  // настройками. Появление жанров означает, что данные уже здесь.
+  // ждём СПИСКИ ЖАНРОВ, а не чекбокс: чекбокс рисуется до ответа сервера
   await screen.findByText("Какие жанры рекомендовать", {}, SLOW);
-  const checkbox = screen.getByRole("checkbox", {
-    name: /Не рекомендовать авторов/,
-  });
-  const save = () => screen.getByRole("button", { name: "Сохранить настройки" });
-  // кнопка неактивна, пока ничего не меняли — незачем слать пустое сохранение
-  expect(save()).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: /Сохранить настройки/ }),
+  ).toBeNull();
 
-  await userEvent.click(checkbox);
-  await userEvent.click(save());
+  await userEvent.click(
+    screen.getByRole("checkbox", { name: /Не рекомендовать авторов/ }),
+  );
 
-  await waitFor(() => expect(save()).toBeDisabled());
-  expect(checkbox).toBeChecked();
+  await waitFor(
+    () => expect(db.recSettings.skip_known_authors).toBe(true),
+    { timeout: 3000 },
+  );
+});
+
+test("выбор нескольких жанров подряд уходит одним запросом", async () => {
+  // Задержка перед отправкой нужна, чтобы пять кликов не дали пять
+  // запросов. Проверяем, что она не теряет промежуточные правки:
+  // в итоге на сервере должны оказаться ОБА жанра.
+  renderApp("/recommendations");
+  await screen.findByText("Какие жанры рекомендовать", {}, SLOW);
+
+  const wanted = within(
+    screen.getByText("Какие жанры рекомендовать").closest(".rec-picker"),
+  );
+  await userEvent.click(wanted.getByRole("button", { name: "Детектив" }));
+  await userEvent.click(wanted.getByRole("button", { name: "Магический реализм" }));
+
+  await waitFor(
+    () =>
+      expect(db.recSettings.genres_include).toEqual([
+        "детектив",
+        "магический реализм",
+      ]),
+    { timeout: 3000 },
+  );
 });
 
 test("правка не теряется, если кликнуть до загрузки настроек", async () => {

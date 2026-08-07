@@ -79,7 +79,7 @@
   font-family: var(--serif);
   font-size: 20px;
   font-weight: normal;
-  margin: 0 0 12px;
+  margin: 0;   /* отступ держит `.rec-settings-head` */
 }
 
 /* Чекбокс с пояснением: подпись под строкой, а не в title —
@@ -130,12 +130,22 @@
   cursor: not-allowed;
 }
 
-.rec-settings-actions {
+/* Заголовок и состояние сохранения в одной строке: кнопки больше нет
+   (правка 06.08 — настройки сохраняются сами), и человеку нужен признак,
+   что правка дошла. */
+.rec-settings-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 12px;
   flex-wrap: wrap;
-  margin-top: 20px;
+  margin-bottom: 12px;
+}
+.rec-settings-status {
+  margin: 0;
+}
+.rec-settings-error {
+  margin-top: 16px;
+  max-width: var(--reading-max);
 }
 
 /* ===== Полка «Рекомендации» (этап 8): карточка с причиной совета ===== */

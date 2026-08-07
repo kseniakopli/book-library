@@ -18,6 +18,9 @@ import { keys } from "../queryKeys";
 import RecommendationShelf from "../components/RecommendationShelf";
 
 const EMPTY = { skip_known_authors: false, genres_include: [], genres_exclude: [] };
+// Пауза перед отправкой: выбор нескольких жанров подряд — это один заход,
+// а не пять. Короче секунды, чтобы человек не успел уйти со страницы.
+const SAVE_DELAY_MS = 600;
 
 /** Список жанров с множественным выбором.
  *
@@ -64,35 +67,58 @@ function Settings() {
     queryFn: api.getRecommendations,
   });
 
-  const saved = data?.settings ?? EMPTY;
   const genres = data?.genres ?? [];
-  const [draft, setDraft] = useState(saved);
-  // Тронул ли пользователь форму. ⚠ Без этого признака клик, сделанный ДО
-  // ответа сервера, молча пропадал: чекбокс рисуется сразу, ответ приходит
-  // позже, и `useEffect` затирал им черновик. Поймал тест, но случай живой —
-  // страница за `React.lazy`, запрос уходит после загрузки чанка.
-  const touched = useRef(false);
+  const [draft, setDraft] = useState(EMPTY);
+  // Есть ли правка, ещё не доехавшая до сервера. ⚠ Нужен, чтобы ответ
+  // запроса не затёр только что сделанный выбор: чекбокс рисуется сразу,
+  // а данные приходят позже (страница за `React.lazy`).
+  const pending = useRef(false);
+  const timer = useRef(null);
 
-  // подтягиваем сохранённое, когда запрос ответил (первый рендер идёт без него),
-  // но НЕ поверх несохранённых изменений
+  // подтягиваем сохранённое, когда запрос ответил, но НЕ поверх того,
+  // что человек уже нажал
   useEffect(() => {
-    if (!touched.current) setDraft(data?.settings ?? EMPTY);
+    if (!pending.current) setDraft(data?.settings ?? EMPTY);
   }, [data?.settings]);
 
-  const edit = (next) => {
-    touched.current = true;
-    setDraft(next);
-  };
-
   const save = useMutation({
-    mutationFn: () => api.saveRecommendationSettings(draft),
+    // значение передаём явно, а не берём из замыкания: к моменту отправки
+    // `draft` уже может смениться следующим кликом
+    mutationFn: (value) => api.saveRecommendationSettings(value),
     onSuccess: (fresh) => {
-      touched.current = false;   // сохранили — снова следуем за сервером
+      pending.current = false;
       queryClient.setQueryData(keys.recommendations, (old) =>
         old ? { ...old, settings: fresh.settings } : old,
       );
     },
   });
+
+  /** Правка сохраняется САМА (правка 06.08).
+   *
+   *  ⚠ Раньше здесь был черновик и кнопка «Сохранить настройки». Ксения
+   *  отметила жанры, нажала «Обновить» — и получила подбор по старым
+   *  настройкам: на экране выбор выглядел применённым, а в базе его не было
+   *  (`genre_asked: 0` в событии). Кнопка рядом с действием, которое читает
+   *  СОХРАНЁННОЕ, — это ловушка, а не свобода.
+   *  Лечим не предупреждением, а тем, что несохранённого состояния больше
+   *  не существует (`Уроки.md` 1.1: убирать возможность ошибки).
+   *
+   *  Задержка — чтобы выбор пяти жанров подряд не дал пять запросов;
+   *  последний клик отменяет предыдущий таймер. */
+  const edit = (next) => {
+    pending.current = true;
+    setDraft(next);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => save.mutate(next), SAVE_DELAY_MS);
+  };
+
+  // уход со страницы посреди задержки не должен терять правку
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
 
   const toggle = (field) => (slug) =>
     edit({
@@ -102,11 +128,21 @@ function Settings() {
         : [...draft[field], slug],
     });
 
-  const changed = JSON.stringify(draft) !== JSON.stringify(saved);
-
   return (
     <section className="rec-settings">
-      <h2 className="rec-settings-title">Настройки подбора</h2>
+      <div className="rec-settings-head">
+        <h2 className="rec-settings-title">Настройки подбора</h2>
+        {/* Без кнопки человеку неоткуда узнать, что правка дошла, —
+            поэтому состояние показываем явно. «Сохраняются сразу» стоит
+            и в покое: это обещание, а не отчёт о последнем действии. */}
+        <span className="stat-hint rec-settings-status" aria-live="polite">
+          {save.isPending
+            ? "Сохраняю…"
+            : save.isError
+              ? "Не сохранилось — проверьте связь"
+              : "Изменения сохраняются сразу"}
+        </span>
+      </div>
 
       <label className="rec-check">
         <input
@@ -150,18 +186,12 @@ function Settings() {
         </p>
       )}
 
-      <div className="rec-settings-actions">
-        <button
-          className="btn-ghost"
-          onClick={() => save.mutate()}
-          disabled={!changed || save.isPending}
-        >
-          {save.isPending ? "Сохраняю…" : "Сохранить настройки"}
-        </button>
-        {save.isError && (
-          <p className="error">Не удалось сохранить: {save.error.message}</p>
-        )}
-      </div>
+      {save.isError && (
+        <p className="error rec-settings-error">
+          Не удалось сохранить настройки: {save.error.message}. Подбор пойдёт
+          по прежним — нажмите любой жанр ещё раз.
+        </p>
+      )}
     </section>
   );
 }
