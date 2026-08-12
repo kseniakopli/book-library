@@ -31,16 +31,13 @@ from __future__ import annotations
 
 import json
 import re
-import sys
 from collections import Counter
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path и ругается, если базы нет
 
-from sqlmodel import Session, select  # noqa: E402
-
-import database  # noqa: E402
-from models import AISelection  # noqa: E402
+import database
+from models import AISelection
+from sqlmodel import Session, select
 
 # Сырьё пишут одним-двумя словами и строчными: «ветивер», «дубовый мох».
 # Выдуманный товар почти всегда длиннее и с большой буквы — это название,
@@ -79,7 +76,9 @@ def classify(title: str) -> str:
 
 
 def main() -> None:
-    database.init_db()
+    # ⚠ Таблицы НЕ создаём: скрипт только читает. Создание схемы из
+    # диагностического скрипта — это возможность молча завести пустую базу
+    # рядом с рабочей и отчитаться по ней (з.105, `_bootstrap`).
     with Session(database.engine) as session:
         rows = session.exec(
             select(AISelection).where(AISelection.category == "aroma")
