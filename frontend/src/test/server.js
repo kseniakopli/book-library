@@ -598,7 +598,19 @@ export const handlers = [
     const fixtures = {
       music: [{ title: "Song A", artist: "Artist A" }],
       food: [{ title: "Глинтвейн", description: "Тёплый и пряный" }],
-      aroma: [{ title: "Сандал", description: "Дымный, тёплый" }],
+      // з.129: у ароматов появились material/form.
+      // ⚠ В моке НАМЕРЕННО оба вида сразу: перегенерации всех книг не было,
+      // и подборки до 12.08 живут в базе без этих полей. Второй пункт —
+      // именно такой, старый; он обязан рисоваться без «undefined».
+      aroma: [
+        {
+          material: "сандал",
+          form: "благовония",
+          title: "Дым старой веранды",
+          description: "Дымный, тёплый",
+        },
+        { title: "Кедр", description: "Хвойный" },
+      ],
     };
     return HttpResponse.json({
       book_id: Number(params.id),

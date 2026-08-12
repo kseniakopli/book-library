@@ -453,6 +453,15 @@
 .atmosphere-item-title {
   font-weight: 500;
 }
+/* з.129: строка «что это на самом деле». Мельче названия и крупнее описания —
+   она служебная, но именно по ней идут в магазин, поэтому не в --muted:
+   на сером фоне карточки контраст проваливался ниже 4.5:1 (WCAG AA). */
+.atmosphere-item-material {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  opacity: 0.75;
+}
 .atmosphere-item-description {
   color: var(--muted);
   font-size: 14px;

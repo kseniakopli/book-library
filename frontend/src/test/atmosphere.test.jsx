@@ -21,7 +21,15 @@ test("подбор атмосферы наполняет все категори
   expect(await screen.findByText("Глинтвейн")).toBeInTheDocument();
 
   await userEvent.click(screen.getByRole("button", { name: "Ароматы" }));
-  expect(await screen.findByText("Сандал")).toBeInTheDocument();
+  expect(await screen.findByText("Дым старой веранды")).toBeInTheDocument();
+  // з.129: под образом обязана стоять строка «что это на самом деле» —
+  // ради неё всё и делалось, поэтому проверяем её, а не только название.
+  expect(screen.getByText("благовония · сандал")).toBeInTheDocument();
+  // ⚠ Второй пункт мока — подборка СТАРОГО вида, без material/form (такие
+  // лежат в базе до перегенерации). Она обязана рисоваться как раньше,
+  // а не показывать «undefined · undefined».
+  expect(screen.getByText("Кедр")).toBeInTheDocument();
+  expect(screen.queryByText(/undefined/)).not.toBeInTheDocument();
 
   // переключение источника внутри категории
   await userEvent.click(screen.getByRole("button", { name: "ChatGPT" }));

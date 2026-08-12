@@ -47,6 +47,15 @@ function renderPayload(category, payload, onRemoveTrack) {
       {payload.map((item, i) => (
         <li className="atmosphere-item" key={i}>
           <span className="atmosphere-item-title">{item.title}</span>
+          {/* з.129: под поэтичным именем — что это на самом деле и в каком
+              виде искать. ⚠ Проверка на item.material обязательна: подборки,
+              сделанные до 12.08, этих полей не имеют, а перегенерации всех
+              книг не было. Без неё старые ароматы отрисуют «undefined». */}
+          {item.material && (
+            <span className="atmosphere-item-material">
+              {item.form} · {item.material}
+            </span>
+          )}
           <span className="atmosphere-item-description">
             {item.description}
           </span>

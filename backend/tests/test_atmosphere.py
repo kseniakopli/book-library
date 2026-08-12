@@ -428,3 +428,54 @@ def test_categories_are_independent(client, monkeypatch):
     # каждая категория хранит свои 2 подборки и не задевает чужие
     assert len(client.get("/api/v1/books/1/atmosphere/music").json()["selections"]) == 2
     assert len(client.get("/api/v1/books/1/atmosphere/aroma").json()["selections"]) == 2
+
+
+# --- Ароматы: слой «что это на самом деле» (з.129, 12.08) ---------------
+#
+# Тесты закрывают не код, а ПРАВИЛО: подборка ароматов обязана называть
+# покупаемое сырьё. До 12.08 схема принимала любой текст, и модель отдавала
+# выдуманные товары («Крахмальный воротничок») — купить их нельзя.
+# Разбор: `Архив_решений.md` → «Выдуманные ароматы», правило: `Уроки.md` 1.6.
+
+
+def test_aroma_item_requires_material_and_form():
+    from services.ai_schemas import AromaItem
+
+    # Ровно то, что модель отдавала раньше: только образ, вещества нет.
+    with pytest.raises(pydantic.ValidationError):
+        AromaItem(title="Крахмальный воротничок", description="Чистое бельё")
+
+
+def test_aroma_form_is_a_closed_list():
+    from services.ai_schemas import AromaItem
+
+    # Форма выпуска — перечень; «аромат вечера» формой не является.
+    with pytest.raises(pydantic.ValidationError):
+        AromaItem(
+            material="ветивер", form="аромат вечера",
+            title="Сырой ветер", description="Земляной",
+        )
+
+
+def test_aroma_material_is_normalised_and_gives_a_search_query():
+    from services.ai_schemas import AromaItem
+
+    # Модель склонна Капитализировать и закавычивать — так сырьё читается
+    # как бренд. На этикетке оно строчными.
+    item = AromaItem(
+        material="«Ветивер»", form="эфирное масло",
+        title="Сырой ветер с холмов", description="Земляной, горьковатый",
+    )
+    assert item.material == "ветивер"
+    assert item.search_query == "эфирное масло ветивер"
+
+
+def test_aroma_material_may_not_repeat_the_image():
+    from services.ai_schemas import AromaItem
+
+    # Вырожденный обход: поле заполнено, но тем же образом — слоя опять нет.
+    with pytest.raises(pydantic.ValidationError):
+        AromaItem(
+            material="Крахмальный воротничок", form="свеча",
+            title="Крахмальный воротничок", description="Чистое бельё",
+        )

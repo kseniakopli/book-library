@@ -9,6 +9,7 @@ from deps import current_user
 from models import Book, User, UserBook
 from main import app
 from services.ai_schemas import (
+    AromaItem,
     AromaResult,
     AtmosphereItem,
     DesignResult,
@@ -225,13 +226,16 @@ async def fake_generate_food(title, author, lang="ru", context=None):
 
 
 async def fake_generate_aroma(title, author, lang="ru", context=None):
+    # з.129: у ароматов своя схема — material/form идут до title.
     return {
         "Claude": AromaResult(
-            items=[AtmosphereItem(title="Сандал", description="Дымный, тёплый")],
+            items=[AromaItem(material="сандал", form="благовония",
+                             title="Дым старой веранды", description="Дымный, тёплый")],
             explanation="Claude aroma",
         ),
         "ChatGPT": AromaResult(
-            items=[AtmosphereItem(title="Кедр", description="Хвойный")],
+            items=[AromaItem(material="кедр", form="эфирное масло",
+                             title="Хвойный полдень", description="Хвойный")],
             explanation="ChatGPT aroma",
         ),
     }
