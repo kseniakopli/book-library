@@ -479,3 +479,71 @@ def test_aroma_material_may_not_repeat_the_image():
             material="Крахмальный воротничок", form="свеча",
             title="Крахмальный воротничок", description="Чистое бельё",
         )
+
+
+# --- Отсев небезопасного (з.133, 12.08) --------------------------------
+#
+# ⚠ Задача появилась как СЛЕДСТВИЕ з.129: пока модель выдавала образы,
+# совет был неисполним и безвреден; потребовали называть покупаемое —
+# и первая перегенерация предложила «сухая трава · конопля».
+# Правило: `Уроки.md` 1.11. Разбор: `Архив_решений.md` → «Выдуманные ароматы».
+
+
+def test_unsafe_materials_are_recognised():
+    from services.aroma_safety import is_unsafe
+
+    assert is_unsafe("конопля")
+    assert is_unsafe("семена конопли")          # ловим по основе, не по слову
+    assert is_unsafe("", "Благовония с коноплёй")  # запрет может приехать в title
+    assert is_unsafe("белёна") == "белена"      # ё/е схлопываем (как в norm_slug)
+    assert is_unsafe("хлорка")
+    assert is_unsafe("бензин")
+
+
+def test_real_materials_are_not_touched():
+    from services.aroma_safety import is_unsafe
+
+    # ⚠ Главный тест модуля. Ложное срабатывание здесь дороже пропуска:
+    # оно молча выбрасывает нормальный аромат, и заметить это нечем.
+    # «бензоин» и «мак» — намеренные ловушки на слишком короткую основу
+    # («бензол»/«бензин» и «опийный мак» рядом), «кокосовое масло» — на «кока».
+    for material in (
+        "ветивер", "полынь", "можжевельник", "табак", "белый мускус",
+        "бензоин", "мак", "макадамия", "кокосовое масло", "камфора",
+        "берёзовый дёготь", "дубовый мох", "лабданум", "стиракс",
+    ):
+        assert is_unsafe(material) is None, material
+
+
+def test_unsafe_items_are_dropped_from_selection():
+    # ⚠ Через asyncio.run, а не `async def`: pytest-asyncio в проекте нет
+    # и заводить его ради одного теста незачем — вся асинхронность тут
+    # в одной строке.
+    import asyncio
+
+    from services.ai_schemas import AromaItem, AromaResult
+    from services.aroma_safety import (
+        filter_unsafe_aromas, start_unsafe_drops, take_unsafe_drops,
+    )
+
+    start_unsafe_drops()
+    results = {
+        "Claude": AromaResult(
+            items=[
+                AromaItem(material="ветивер", form="эфирное масло",
+                          title="Сырой ветер", description="Земляной"),
+                AromaItem(material="конопля", form="сухая трава",
+                          title="Зелёная тяжесть зарослей", description="Травяной"),
+            ],
+            explanation="x",
+        )
+    }
+    asyncio.run(filter_unsafe_aromas(results, book_id=1, title="Книга"))
+
+    kept = [i.material for i in results["Claude"].items]
+    assert kept == ["ветивер"]          # безопасное осталось, подборка жива
+    dropped = take_unsafe_drops()
+    # ⚠ В событие пишем НАЗВАНИЕ и сработавшую основу, а не только счётчик:
+    # иначе «модель лезет в запрещённое» и «фильтр режет нормальное»
+    # неразличимы — пункта просто нет на экране.
+    assert len(dropped) == 1 and "конопля" in dropped[0]

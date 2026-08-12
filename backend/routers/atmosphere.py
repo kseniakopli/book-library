@@ -12,6 +12,7 @@ from deps import current_user_id, get_book_or_404, get_lang, require_admin
 from events import log_event
 from i18n import msg
 from services.ai import start_ai_metrics, take_ai_metrics
+from services.aroma_safety import start_unsafe_drops, take_unsafe_drops
 from services.prompt_context import build_book_context
 from services.atmosphere import (
     CATEGORIES,          # ре-экспорт: на него ссылаются тесты и разовые скрипты
@@ -101,9 +102,11 @@ async def generate_atmosphere(
 
     # 2) реальные AI-вызовы (токены тратятся здесь); метрики — в событие (з.80)
     start_ai_metrics()
+    start_unsafe_drops()   # з.133: считаем отсеянное небезопасное
     results = await cfg["generate"](title, author, lang, context)
     # 2а) постобработка категории: для музыки — один проход поиска в Spotify
-    # (выдуманные треки отсеиваются) и сразу сборка/обновление плейлиста (20.07)
+    # (выдуманные треки отсеиваются) и сразу сборка/обновление плейлиста (20.07);
+    # для ароматов — отсев запрещённого и опасного (з.133)
     if cfg.get("postprocess"):
         results = await cfg["postprocess"](results, book_id, title)
 
@@ -113,8 +116,13 @@ async def generate_atmosphere(
 
     # 3) сохраняем — пустой результат не затирает готовую подборку (задача 74)
     response = replace_selections(book_id, category, cfg, results, verified=verified)
-    log_event(cfg["event"], book_id, detail={
-        "trigger": "manual",
-        "ai_calls": take_ai_metrics(),
-    })
+    # з.133: сами отсеянные названия, а не только счётчик. Список нужен,
+    # чтобы отличить «модель правда лезет в запрещённое» от «фильтр режет
+    # нормальное»: на экране это выглядит одинаково — пункта просто нет.
+    # Тот же урок, что в з.128 с `dropped_unverified` (`Уроки.md` 4.12).
+    detail = {"trigger": "manual", "ai_calls": take_ai_metrics()}
+    unsafe = take_unsafe_drops()
+    if unsafe:
+        detail["dropped_unsafe"] = unsafe
+    log_event(cfg["event"], book_id, detail=detail)
     return response

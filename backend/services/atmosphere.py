@@ -21,6 +21,7 @@ from constants import (
 from events import log_event
 from models import AISelection, Book, UserBook
 from services.ai import generate_aroma, generate_design, generate_food, generate_music, start_ai_metrics, take_ai_metrics
+from services.aroma_safety import filter_unsafe_aromas
 import services.playlist as playlist_service
 from services.playlist import resolve_songs
 # сборка плейлиста книги переехала в services/playlist.py (R3), контекст
@@ -240,6 +241,11 @@ CATEGORIES = {
     },
     "aroma": {
         "generate": generate_aroma,
+        # з.133: отсев небезопасного — код, а не просьба в промпте.
+        # Появился как следствие з.129: пока модель выдавала образы, совет
+        # был неисполним; теперь она называет покупаемое, и вредное стало
+        # исполнимым вместе с полезным (12.08 — «сухая трава · конопля»).
+        "postprocess": filter_unsafe_aromas,
         "payload": lambda r: json.dumps(
             [i.model_dump() for i in r.items], ensure_ascii=False
         ),
