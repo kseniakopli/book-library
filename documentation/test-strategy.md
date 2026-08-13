@@ -26,7 +26,11 @@ and both test suites on every push; E2E and visual tests stay local.
   `raw_metadata` never exposed.
 - `test_atmosphere.py` — unified atmosphere endpoints: generation (mocked), persistence,
   regeneration without duplicates, unknown category, cascade delete, DB unique constraint,
-  palette hex validation.
+  palette hex validation. Also the aroma rules (2026-08-12): an item without a raw
+  material is rejected by the schema, unsafe materials are dropped while the selection
+  survives, repetition is keyed on the material, and the normaliser merges "ирис" with
+  "ирисовый корень" **without** merging "амбра" with "амбретта" — a false merge would
+  silently ban a material the model never offered.
 - `test_search.py` — min query length, external results (mocked), `external_id` passthrough,
   catalog cache survives an external outage.
 - `test_import.py` — import happy path, dedup/skip logic, status & rating edge cases,
@@ -81,6 +85,35 @@ Practical rules that follow:
 - when a whole function is stubbed in tests, add one test that exercises its body;
 - when moving code between modules, trust the linter, not the test run;
 - prefer a narrow rule set (`F`, `E9`) — errors, not style, so it never cries wolf.
+
+## When the answer is valid but wrong (2026-08-12)
+
+Aromas were named "Крахмальный воротничок" and "Камень и известь" — evocative, fitting,
+and impossible to buy, because no such products exist. **Not one test could have caught
+this, and no test was missing.** Against the schema the answer was flawless: two non-empty
+strings. The defect was in what we asked for, and correctness of *form* says nothing about
+correctness of *substance*.
+
+Two things followed from that, and both are now the pattern for AI features here:
+
+1. **Constrain the shape so the wrong answer is unrepresentable.** `material` was split
+   out as its own field and declared before `title`; with structured outputs the order of
+   fields is the order of generation, so the model must name a substance before inventing
+   an image. Tests then have something to assert — an item without `material` is rejected.
+2. **Measure the stored output, not the code path.** `scripts/aroma_audit.py` reads what
+   is actually in the database and sorts names into buckets. It found that of 377 stored
+   items exactly **one** looked like an ordinary raw material — a number no unit test
+   would ever have produced.
+
+⚠ The audit script classifies by a crude signal (word count and capitalisation) and says
+so in its own output. It is a way to *narrow where to look*, not a verdict: "дубовый мох"
+lands in the suspicious bucket while being a perfectly real material. A measurement whose
+imprecision is undocumented is worse than none — see the section below.
+
+⚠ The fix then created a defect of its own: once answers became actionable, harmful
+answers became actionable too (the model suggested cannabis for a book about smuggling),
+and the repetition counter — keyed on the now-always-unique `title` — silently stopped
+working. **When a value moves to a new field, find everything that read the old one.**
 
 ## When the measurement lies (2026-08-01 / 02)
 

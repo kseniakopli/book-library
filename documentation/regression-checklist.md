@@ -61,6 +61,24 @@ in production (Vite serves pages without security headers).
       `scripts/sync_music_to_prod.py` — do **not** replace the whole database, production
       holds real users, invites and showcase events
 
+## Aroma generation (tasks 129/133/134, since 2026-08-12)
+- [ ] Generate aromas for a book: under each evocative name there is a "form · material"
+      line ("благовония · сандал"). The material must be a substance you could type into a
+      shop search — not an image ("мокрый камень") and not a product name in quotes
+- [ ] **Open a book whose aromas were generated before 2026-08-12** (272 such items were in
+      production on that date): the "form · material" line is simply absent — no
+      "undefined", no empty separator. No migration was run, and there is no plan to run one
+- [ ] Read the materials across several books: **the same one should not appear
+      everywhere.** Iris, frankincense and oakmoss each stood in 10 of 22 selections before
+      task 134, because repetition was keyed on the (now always unique) evocative title
+- [ ] Form distribution is not skewed to raw forms: candles and essential oils are the
+      widely stocked products, resins and hydrosols are specialist. `scripts/aroma_audit.py`
+      prints the distribution
+- [ ] ⚠ **Nothing illegal or unbreathable.** The filter is a backstop, not the primary
+      defence — the prompt is. If `dropped_unsafe` in the `ai_aroma_generated` event is
+      non-empty, the prompt stopped working and needs looking at, even though the user saw
+      a clean result
+
 ## Library basics
 - [ ] Home page loads; shelves show correct counts
 - [ ] Shelf pagination: arrows page through; position survives opening a book and returning
@@ -88,6 +106,8 @@ in production (Vite serves pages without security headers).
 - [ ] Delete a book → confirmation → returns home; its selections are gone
 
 ## AI (spends tokens — one book is enough)
+- [ ] "Подобрать атмосферу": music, food and aromas fill in one click; aroma items carry
+      a "form · material" line (details in the aroma section above)
 - [ ] "Подобрать музыку": two tabs (Claude / ChatGPT), sensible playlists, explanations
 - [ ] "Оформить под книгу": card re-themes; text readable (contrast fallback silently
       keeps base theme if not)

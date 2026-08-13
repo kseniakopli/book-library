@@ -25,7 +25,12 @@ Public showcase & waitlist: **https://nocturne-library.fly.dev/u/publiclib**
   Duplicates on your shelf are rejected (409).
 - **Atmosphere panel** — one button generates all categories at once:
   - *music*: two playlists (Claude & ChatGPT) with explanations, deduplicated;
-  - *food & drinks* and *scents*: same two-source scheme;
+  - *food & drinks*: same two-source scheme;
+  - *scents*: each item names a raw material you can actually buy and the form it is sold
+    in (essential oil, candle, dried herb…), with the evocative name as a label on top —
+    the schema puts the material first so the model has to name a real substance before
+    it invents an image. Controlled substances, household chemicals and poisonous plants
+    are filtered out in code;
   - *design passport*: dark + light palettes, font pair, an SVG ex-libris symbol and a
     short statement explaining it — generated automatically in the background when a book
     is added. Palettes are applied only after a WCAG contrast check.
@@ -66,7 +71,10 @@ Public showcase & waitlist: **https://nocturne-library.fly.dev/u/publiclib**
   (structured output, validated against real headers); standard exports parse without AI.
 - **Structured AI outputs everywhere** — Pydantic schemas passed to both providers
   (`messages.parse` / `chat.completions.parse`), validation of colors, fonts and SVG at
-  the boundary; empty AI responses never overwrite saved selections.
+  the boundary; empty AI responses never overwrite saved selections. **Field order is
+  treated as a design decision**: with structured outputs the order of fields is the order
+  of generation, so a field that must be grounded (a track's artist, a scent's raw
+  material, a recommendation's genre) is declared before the field that invents.
 - **Observability** — structured JSON logs with request ids (`X-Request-ID` response
   header), fail-fast startup check for required API keys, append-only event log storing
   per-call AI metrics (provider, latency, token usage).
@@ -202,7 +210,8 @@ book-library/
 │   ├── routers/              # books, atmosphere, search, imports, spotify,
 │   │                         # recommendations, stats — thin HTTP layer
 │   ├── services/             # ai.py (generators + call metrics), shelf.py,
-│   │                         # atmosphere.py, enrichment.py, spotify.py, stats.py
+│   │                         # atmosphere.py, aroma_safety.py, enrichment.py,
+│   │                         # spotify.py, stats.py
 │   ├── models.py, schemas.py # SQLModel tables / request-response models
 │   ├── events.py             # append-only event log (JSON detail)
 │   ├── logging_setup.py      # structured logs + request id

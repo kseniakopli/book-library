@@ -98,7 +98,7 @@ erDiagram
         int book_id FK "ON DELETE CASCADE, indexed"
         string category "music | design | food | aroma"
         string source "Claude | ChatGPT"
-        string payload "JSON string: songs list / design passport"
+        string payload "JSON string: songs / items / design passport — shape depends on category"
         string explanation
         bool verified "music only: false = saved during a Spotify ban (task 85)"
         string analysis "JSON: the model's reasoning, filled before the answer (rev 0016)"
@@ -152,6 +152,31 @@ erDiagram
 
 The API response (`BookRead`) stays flat: `routers/books.py:_to_book_read` joins a `book`
 row with the caller's `userbook` row, so the frontend reads the same field names as before.
+
+## `aiselection.payload` by category
+
+The column is one JSON string; its shape depends on `category`. It is not a schema the
+database enforces, so readers must tolerate older shapes.
+
+| Category | Payload | Notes |
+|----------|---------|-------|
+| `music` | `[{title, artist}]` | titles are canonical — Spotify rewrites them during verification |
+| `food` | `[{title, description}]` | |
+| `aroma` | `[{material, form, title, description}]` | field order is the mechanism, see below |
+| `design` | one object (palettes, fonts, symbol, statement) | not a list; `payload_empty` treats it differently |
+
+**Aroma, since 2026-08-12 (tasks 129/133).** `material` is the raw material as it is
+labelled in a shop ("vetiver", "frankincense"), `form` is a closed enum of how it is sold
+(essential oil, candle, incense, dried herb, spice, resin, hydrosol), and `title` is the
+evocative name of the note. `material` is declared **before** `title` on purpose: with
+structured outputs the order of fields is the order of generation, so the model has to
+name a real substance before it invents an image. Before this the schema was shared with
+food and the model produced product names that do not exist.
+
+⚠ **Items stored before 2026-08-12 have neither `material` nor `form`** — no migration was
+run, because the column holds free-form JSON. Anything reading aroma payloads must handle
+their absence: the frontend hides the "form · material" line, and repetition keys fall
+back to `title` (`services/prompt_context.avoid_key`).
 
 ## Adding, reuse and deletion
 

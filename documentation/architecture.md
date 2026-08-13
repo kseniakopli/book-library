@@ -107,6 +107,7 @@ sequenceDiagram
 
 Adding a category (stage 7: food, aroma) = a generator in `services/ai.py` + one entry in
 `CATEGORIES` (backend) + one entry in `COPY`/`renderPayload` in `AtmosphereSection.jsx`.
+A category may also register a `postprocess` hook — see music and aroma below.
 
 **Music has an extra step.** Models routinely invent plausible track titles (Ólafur
 Arnalds has no "Familiar Ground"), and such a track would end up on the book page and on
@@ -115,6 +116,25 @@ Spotify — in one parallel pass that returns both canonical names (saved with t
 atmosphere) and track URIs (used to create or refresh the book's playlist right away).
 Tracks that don't resolve are dropped. Without Spotify credentials the step degrades to
 "save as generated" — an unverified atmosphere beats an empty one.
+
+**Aroma has an extra step too, for a different reason.** An aroma item is not free text:
+it names a raw material you can buy (`material`) and the form it is sold in (`form`),
+and only then the evocative name (`title`). The field order is the mechanism — with
+structured outputs the order of fields is the order of generation, so the model must name
+the substance before it invents an image. There is no external catalogue to verify
+against here (unlike tracks in Spotify): catalogues of perfumery *notes* exist, but a note
+in a reference is not a product on a shelf.
+
+`CATEGORIES["aroma"]["postprocess"]` drops items naming controlled substances, household
+chemicals and fuels, or poisonous plants. This is a boundary, so it lives in code
+(`services/aroma_safety.py`); the prompt states the criterion in one sentence and never
+lists the blocked names — naming things to avoid primes the model into producing them.
+Dropped names are written to the `ai_aroma_generated` event (`dropped_unsafe`) so the two
+indistinguishable cases — "the model keeps reaching for banned material" and "the filter
+cuts legitimate material" — can be told apart from data rather than from the screen.
+
+⚠ Items generated before 2026-08-12 have no `material`/`form`; readers must tolerate their
+absence rather than assume the newer shape.
 
 ## Runtime states and failure behaviour
 
@@ -167,3 +187,8 @@ as a plain diff.
 | Interface fonts are loaded with **one `<link>` per family** | the `css2` endpoint is all-or-nothing: a single invalid family or weight returns 400 and *no* font from that request loads, silently falling back to Georgia | fonts are self-hosted |
 | The accent is checked in both of its roles by one shared helper | it is text on the scene background *and* a fill under letters; the fix for the first role was written twice, in two files, and the second copy never got it | — |
 | The model's reasoning is persisted (`aiselection.analysis`) | reasoning-as-schema was in use while its output was thrown away, so "did the technique work?" was unanswerable even in hindsight | — |
+| An aroma item names a buyable `material` **before** its evocative `title` | the schema was shared with food (`title` + `description`, both free text) and the prompt asked for "candles, incense, essential oils" — so the model dutifully invented product names. A measurement over 377 stored items found exactly **one** that looked like an ordinary raw material. Field order is the fix: with structured outputs the order of fields is the order of generation | a retail catalogue becomes available to verify against |
+| Aroma raw materials are **not** restricted to a closed list | a `Literal` would make invention impossible, but the point of the feature is to introduce the reader to unfamiliar scents, and a fixed list freezes the world at what we know today. Only `form` is closed — there are about a dozen forms and no new ones are coming | — |
+| Unsafe materials are filtered in code; the blocked list never reaches the prompt | making the model's answer *actionable* made harmful answers actionable too — the first regeneration suggested cannabis for a book about smuggling. Naming things to avoid primes the model into producing them (measured on banned artists), so the prompt carries the criterion and the code carries the names | — |
+| Repetition for aroma is keyed on `material`, not on `title` | once `title` became an evocative image it was unique by construction, so the `avoid` list silently emptied and mode collapse lost its brake: iris, frankincense and oakmoss each appeared in 10 of 22 selections. Keys fall back to `title` for pre-2026-08-12 items | — |
+| Aroma `form` is chosen by availability, not by tradition | the prompt used to say "pick the form this material is usually sold in", which pushed the model toward raw forms — 15 resins against 8 candles. Scented candles are the most widely stocked product and cover the widest range of notes | — |
