@@ -547,3 +547,52 @@ def test_unsafe_items_are_dropped_from_selection():
     # иначе «модель лезет в запрещённое» и «фильтр режет нормальное»
     # неразличимы — пункта просто нет на экране.
     assert len(dropped) == 1 and "конопля" in dropped[0]
+
+
+# --- Ключ повтора для ароматов (з.134/135, 12.08) ----------------------
+#
+# ⚠ Тесты закрывают РЕГРЕСС, а не новую фичу. После з.129 `avoid` для
+# ароматов молча опустел: ключ считался по `title`, а тот стал поэтичным
+# образом — уникальным по построению. Порог AVOID_MIN_BOOKS не достигался
+# никогда. Замер 12.08: ирис, ладан и дубовый мох в 10 подборках из 22.
+# Разбор: `Архив_решений.md` → «Выдуманные ароматы».
+
+
+def test_aroma_avoid_key_uses_material_not_the_image():
+    from services.prompt_context import avoid_key
+
+    # Два РАЗНЫХ образа на одном сырье обязаны дать один ключ — иначе
+    # повтор не виден и avoid не срабатывает.
+    _, first = avoid_key("aroma", {"material": "ирис", "title": "Пудра и письма"})
+    _, second = avoid_key("aroma", {"material": "ирис", "title": "Зимний чердак"})
+    assert first == second
+
+
+def test_aroma_avoid_key_falls_back_to_title_for_old_items():
+    from services.prompt_context import avoid_key
+
+    # ⚠ В базе 272 пункта, сделанных до з.129: поля material у них нет.
+    # Без отката они выпали бы из подсчёта целиком.
+    name, key = avoid_key("aroma", {"title": "Сандал"})
+    assert name == "Сандал" and key
+
+
+def test_material_key_merges_the_same_raw_material():
+    from services.prompt_context import material_key
+
+    # Реальные пары из замера 12.08 — не выдуманные примеры.
+    assert material_key("ирис") == material_key("ирисовый корень") == material_key("ирис корень")
+    assert material_key("тонка бобы") == material_key("бобы тонка")      # порядок слов
+    assert material_key("чёрный чай") == material_key("черный чай")      # ё/е, ср. з.122
+    assert material_key("кориандр") == material_key("семена кориандра")
+    assert material_key("роза") == material_key("гидролат розы")
+
+
+def test_material_key_keeps_different_materials_apart():
+    from services.prompt_context import material_key
+
+    # ⚠ Главная опасность нормализации — ЛОЖНАЯ склейка: она молча
+    # запретит сырьё, которого модель не предлагала, и заметить это нечем.
+    assert material_key("амбра") != material_key("амбретта")
+    assert material_key("роза") != material_key("розмарин")
+    assert material_key("белый шалфей") != material_key("белый мускус")

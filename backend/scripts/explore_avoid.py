@@ -33,7 +33,7 @@ from services.prompt_context import (
     AVOID_ARTIST_MIN_BOOKS,
     AVOID_LIMIT,
     AVOID_MIN_BOOKS,
-    _item_key,
+    avoid_key,
     _overused_artists,
     _overused_items,
     artist_key,
@@ -102,13 +102,12 @@ def main():
                     if not isinstance(item, dict):
                         broken += 1
                         continue
-                    if category == "music":
-                        # зовём ТУ ЖЕ функцию, что и продакшен-код: своя копия
-                        # правила уже один раз показала устаревшую картину
-                        name, key = track_key(item.get("artist", ""), item.get("title", ""))
-                    else:
-                        name = (item.get("title") or "").strip()
-                        key = _item_key(name)
+                    # зовём ТУ ЖЕ функцию, что и продакшен-код: своя копия
+                    # правила уже один раз показала устаревшую картину.
+                    # ⚠ 12.08: копия оставалась в ветке еды/ароматов и после
+                    # того, как музыку свернули в track_key. Теперь развилка
+                    # одна — services/prompt_context.avoid_key.
+                    name, key = avoid_key(category, item)
                     if not key:
                         continue
                     books_by_item.setdefault(key, set()).add(row.book_id)
