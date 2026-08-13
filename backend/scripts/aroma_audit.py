@@ -37,6 +37,7 @@ import _bootstrap  # noqa: F401 — кладёт backend/ в sys.path и руг�
 
 import database
 from models import AISelection
+from services.prompt_context import material_key
 from sqlmodel import Session, select
 
 # Сырьё пишут одним-двумя словами и строчными: «ветивер», «дубовый мох».
@@ -93,6 +94,7 @@ def main() -> None:
     buckets: Counter[str] = Counter()
     suspects: list[tuple[str, str]] = []
     materials: Counter[str] = Counter()
+    labels: dict[str, str] = {}
     forms: Counter[str] = Counter()
     already_new = 0
     total = 0
@@ -108,7 +110,19 @@ def main() -> None:
             total += 1
             if item.get("material"):
                 already_new += 1          # подборка уже нового вида
-                materials[item["material"]] += 1
+                # ⚠ Считаем по ТОМУ ЖЕ ключу, что и `avoid` (13.08).
+                # Первая версия считала сырые строки, и замер завышал
+                # разнообразие: «чёрный чай» и «черный чай», «ирис»
+                # и «ирисовый корень» шли отдельными строками, хотя
+                # `_overused_items` давно видит в них одно.
+                # Это ровно та ошибка, от которой заведён `avoid_key`:
+                # считать и мерить обязано одно место (`Уроки.md` 2.2).
+                name = item["material"]
+                key = material_key(name)
+                materials[key] += 1
+                # в подпись идёт самое короткое из встреченных написаний
+                if key not in labels or len(name) < len(labels[key]):
+                    labels[key] = name
                 forms[item.get("form") or "—"] += 1
                 continue
             title = (item.get("title") or "").strip()
@@ -128,9 +142,10 @@ def main() -> None:
     # Смотреть надо именно на новые пункты — эффект правки меряют
     # по новым объектам, иначе он растворится в старых (`Уроки.md` 1.8).
     if materials:
-        print(f"\nСырьё в новых подборках — {len(materials)} разных названий:")
-        for name, n in materials.most_common():
-            print(f"  {n:3}×  {name}")
+        print(f"\nСырьё в новых подборках — {len(materials)} разных "
+              f"(схлопнуто по ключу тождества, как в avoid):")
+        for key, n in materials.most_common():
+            print(f"  {n:3}×  {labels.get(key, key)}")
         print("\nФормы выпуска:")
         for name, n in forms.most_common():
             print(f"  {n:3}×  {name}")

@@ -596,3 +596,39 @@ def test_material_key_keeps_different_materials_apart():
     assert material_key("амбра") != material_key("амбретта")
     assert material_key("роза") != material_key("розмарин")
     assert material_key("белый шалфей") != material_key("белый мускус")
+
+
+def test_resin_is_not_a_valid_form_anymore():
+    """13.08, решение Ксении: смолу в рознице не найти.
+
+    ⚠ Запрет сделан СУЖЕНИЕМ ПЕРЕЧНЯ, а не просьбой в промпте. Просьбу
+    уже пробовали в тот же день — критерий формы сменили на «что проще
+    купить», и смолы не сдвинулись (15 → 16). Запрет в тексте — самое
+    слабое средство (`Уроки.md` 1.1, замер по шрифтам в з.101).
+    """
+    import pydantic
+
+    from services.ai_schemas import AromaItem
+
+    with pytest.raises(pydantic.ValidationError):
+        AromaItem(material="ладан", form="смола",
+                  title="Церковная скамья", description="Дымный")
+
+    # Ладан не потерян — у него есть доступные формы.
+    assert AromaItem(material="ладан", form="благовония",
+                     title="Церковная скамья", description="Дымный")
+
+
+def test_old_items_with_resin_still_render():
+    """⚠ В базе остаются пункты с form: «смола» (16 штук на 13.08).
+    Payload при чтении заново не валидируется — старые подборки обязаны
+    читаться как раньше, иначе сужение перечня стало бы разрушающим."""
+    import json as _json
+
+    from services.prompt_context import avoid_key
+
+    stored = _json.loads(
+        '[{"material": "ладан", "form": "смола", "title": "Дым", "description": "x"}]'
+    )
+    name, key = avoid_key("aroma", stored[0])
+    assert name == "ладан" and key

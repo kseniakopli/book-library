@@ -167,11 +167,16 @@ database enforces, so readers must tolerate older shapes.
 
 **Aroma, since 2026-08-12 (tasks 129/133).** `material` is the raw material as it is
 labelled in a shop ("vetiver", "frankincense"), `form` is a closed enum of how it is sold
-(essential oil, candle, incense, dried herb, spice, resin, hydrosol), and `title` is the
+(essential oil, candle, incense, dried herb, spice, hydrosol), and `title` is the
 evocative name of the note. `material` is declared **before** `title` on purpose: with
 structured outputs the order of fields is the order of generation, so the model has to
 name a real substance before it invents an image. Before this the schema was shared with
 food and the model produced product names that do not exist.
+
+⚠ **`resin` was removed from the enum on 2026-08-13** — resins are hard to buy at
+retail, and asking the model to avoid them in the prompt had already failed. Items
+stored earlier may still carry `form: "смола"`; stored payloads are never
+re-validated, so they keep rendering.
 
 ⚠ **Items stored before 2026-08-12 have neither `material` nor `form`** — no migration was
 run, because the column holds free-form JSON. Anything reading aroma payloads must handle

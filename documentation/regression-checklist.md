@@ -72,8 +72,9 @@ in production (Vite serves pages without security headers).
       everywhere.** Iris, frankincense and oakmoss each stood in 10 of 22 selections before
       task 134, because repetition was keyed on the (now always unique) evocative title
 - [ ] Form distribution is not skewed to raw forms: candles and essential oils are the
-      widely stocked products, resins and hydrosols are specialist. `scripts/aroma_audit.py`
-      prints the distribution
+      widely stocked products. **`смола` must not appear at all in freshly generated
+      items** — it was removed from the enum on 2026-08-13; older items may still show
+      it. `scripts/aroma_audit.py` prints the distribution
 - [ ] ⚠ **Nothing illegal or unbreathable.** The filter is a backstop, not the primary
       defence — the prompt is. If `dropped_unsafe` in the `ai_aroma_generated` event is
       non-empty, the prompt stopped working and needs looking at, even though the user saw
